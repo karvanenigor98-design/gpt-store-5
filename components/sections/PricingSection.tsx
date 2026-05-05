@@ -10,6 +10,34 @@ type RuntimePlan = (typeof PLUS_PLANS)[number] & {
   landing_discount_name?: string | null;
 };
 
+const PLAN_HOVER_DETAILS: Record<string, string[]> = {
+  "plus-new": [
+    "Только для новых аккаунтов ChatGPT без прошлой Plus-подписки.",
+    "Самая низкая цена среди Plus-тарифов при тех же функциях.",
+    "Подключение в стандартной очереди, без ускоренного приоритета.",
+  ],
+  "plus-std": [
+    "Универсальный тариф для ежедневной работы без переплаты.",
+    "Подходит, если нужен стабильный Plus на обычных условиях.",
+    "Оптимальный баланс цены и скорости подключения.",
+  ],
+  "plus-fast": [
+    "Приоритетная активация: обычно 5-15 минут после передачи данных.",
+    "Для тех, кому важно подключиться как можно быстрее.",
+    "Те же функции Plus, но с ускоренной очередью.",
+  ],
+  "pro-5x": [
+    "Одинаковые функции с Pro 20x, отличие только в объеме лимитов.",
+    "Около 5x лимитов относительно Plus для активной ежедневной работы.",
+    "Лучше всего подходит для кода, текстов и задач средней нагрузки.",
+  ],
+  "pro-20x": [
+    "Одинаковые функции с Pro 5x, но максимальный объем использования.",
+    "Около 20x лимитов относительно Plus для интенсивной нагрузки.",
+    "Выбор для бизнеса, автоматизаций и работы с несколькими проектами.",
+  ],
+};
+
 export function PricingSection({
   initialPlans,
 }: {
@@ -17,6 +45,7 @@ export function PricingSection({
   initialLandingDiscounts?: unknown[];
 }) {
   const [activeProduct, setActiveProduct] = useState<ProductId>("chatgpt-plus");
+  const [hoveredPlanId, setHoveredPlanId] = useState<string | null>(null);
   const [runtimePlans, setRuntimePlans] = useState<RuntimePlan[]>(
     initialPlans && initialPlans.length ? initialPlans : [...PLUS_PLANS, ...PRO_PLANS]
   );
@@ -373,6 +402,14 @@ export function PricingSection({
               const isHeroCta =
                 plan.isPopular && (activeProduct === "chatgpt-pro" || activeProduct === "chatgpt-plus");
               const isSecondaryPlusCta = activeProduct === "chatgpt-plus" && plusTier === "fast";
+              const isHovered = hoveredPlanId === plan.id;
+              const hoverDetails =
+                PLAN_HOVER_DETAILS[plan.id] ??
+                [
+                  plan.description,
+                  plan.features[0] ?? "",
+                  plan.features[1] ?? "",
+                ].filter(Boolean);
 
               const articleShadow = (() => {
                 if (proTier) {
@@ -416,6 +453,10 @@ export function PricingSection({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.08, duration: 0.4 }}
                 whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                onHoverStart={() => setHoveredPlanId(plan.id)}
+                onHoverEnd={() => setHoveredPlanId((prev) => (prev === plan.id ? null : prev))}
+                onFocusCapture={() => setHoveredPlanId(plan.id)}
+                onBlurCapture={() => setHoveredPlanId((prev) => (prev === plan.id ? null : prev))}
                 className={`relative flex flex-col rounded-2xl bg-white p-7 shadow-sm ${tierShell} ${isProDualCompare ? "h-full min-h-0" : ""}`}
                 style={articleShadow}
               >
@@ -574,6 +615,38 @@ export function PricingSection({
                     </span>
                   )}
                 </div>
+
+                <AnimatePresence initial={false}>
+                  {isHovered && (
+                    <motion.div
+                      key={`${plan.id}-hover-info`}
+                      initial={{ height: 0, opacity: 0, y: 8 }}
+                      animate={{ height: "auto", opacity: 1, y: 0 }}
+                      exit={{ height: 0, opacity: 0, y: 8 }}
+                      transition={{ duration: 0.22, ease: "easeOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div
+                        className="mt-3 rounded-xl border px-3 py-3"
+                        style={{
+                          borderColor: `${cardAccent}44`,
+                          background: cardGlow,
+                        }}
+                      >
+                        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: cardAccent }}>
+                          Подробнее о подписке
+                        </p>
+                        <ul className="mt-2 space-y-1.5">
+                          {hoverDetails.map((detail) => (
+                            <li key={detail} className="text-xs leading-relaxed text-gray-700">
+                              {detail}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.article>
             );
             })}

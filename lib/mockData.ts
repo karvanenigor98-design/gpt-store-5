@@ -48,9 +48,9 @@ export const products: Product[] = [
     name: "ChatGPT Plus",
     shortLabel: "ChatGPT Plus",
     pricing: [
-      { months: 1, price: 1490 },
-      { months: 3, price: 3990, savings: 480 },
-      { months: 12, price: 13990, savings: 3890 },
+      { months: 1, price: 1590 },
+      { months: 3, price: 4090, savings: 680 },
+      { months: 12, price: 14090, savings: 4990 },
     ],
   },
   {
@@ -58,9 +58,9 @@ export const products: Product[] = [
     name: "Spotify Premium",
     shortLabel: "Spotify",
     pricing: [
-      { months: 1, price: 690 },
-      { months: 3, price: 1890, savings: 180 },
-      { months: 12, price: 6490, savings: 1790 },
+      { months: 1, price: 790 },
+      { months: 3, price: 1990, savings: 380 },
+      { months: 12, price: 6590, savings: 2890 },
     ],
   },
 ];
