@@ -1,8 +1,7 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/daily-stats",
-      "schedule": "59 20 * * *"
-    }
-  ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "regions": ["fra1"]
 }
