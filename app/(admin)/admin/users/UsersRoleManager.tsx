@@ -16,9 +16,12 @@ type UserItem = {
 export function UsersRoleManager({
   users,
   currentUserId,
+  adminSite = "gpt-store",
 }: {
   users: UserItem[];
   currentUserId: string;
+  /** В какую базу писать роли (profiles + опционально role_audit). */
+  adminSite?: "gpt-store" | "subs-store";
 }) {
   const [roles, setRoles] = useState<Record<string, UserItem["role"]>>(
     Object.fromEntries(users.map((u) => [u.id, u.role]))
@@ -40,7 +43,7 @@ export function UsersRoleManager({
     const res = await fetch("/api/admin/users/role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
+      body: JSON.stringify({ userId, role, site: adminSite }),
     });
     const json = (await res.json()) as { error?: string };
     setSavingId(null);
@@ -56,7 +59,7 @@ export function UsersRoleManager({
     const res = await fetch("/api/admin/users/operator-by-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, site: adminSite }),
     });
     const json = (await res.json()) as { error?: string; message?: string };
     setAddingOperator(false);
@@ -71,7 +74,15 @@ export function UsersRoleManager({
   }
 
   async function runTransfer() {
-    if (!currentUserId || !transferTargetId) return;
+    if (!transferTargetId) return;
+    if (transferMigrate && !currentUserId) {
+      setMessage(
+        adminSite === "subs-store" ?
+          "Для переноса заказов и чатов нужен ваш профиль в Subs Store с тем же email, что у входа в админку."
+        : "Не удалось определить ваш аккаунт для переноса данных.",
+      );
+      return;
+    }
     setTransferring(true);
     setMessage(null);
     const res = await fetch("/api/admin/users/transfer", {
@@ -81,6 +92,7 @@ export function UsersRoleManager({
         targetUserId: transferTargetId,
         grant: transferGrant,
         migrateData: transferMigrate,
+        site: adminSite,
       }),
     });
     const json = (await res.json()) as {
@@ -111,14 +123,21 @@ export function UsersRoleManager({
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-semibold text-gray-900">Передача роли и данных</p>
         <p className="mt-1 text-xs text-gray-600">
-          Выберите уже зарегистрированный аккаунт. Ваша роль в системе не снимается; получателю
-          выдаётся админ или оператор. При переносе данных заказы и чаты с вашего user_id
-          привязываются к получателю (заметки и теги профиля объединяются).
+          Выберите уже зарегистрированный аккаунт в{" "}
+          {adminSite === "subs-store" ? "Subs Store" : "GPT Store"}. Ваша роль в системе не
+          снимается; получателю выдаётся админ или оператор. При переносе данных заказы и чаты
+          {adminSite === "subs-store" ?
+            " поддержки с вашего Subs-профиля (тот же email, что у входа в админку)"
+          : " с вашего user_id"}{" "}
+          привязываются к получателю (заметки и теги профиля объединяются, если есть в базе).
         </p>
-        {!currentUserId ? (
-          <p className="mt-2 text-xs text-amber-400">Не удалось определить текущего пользователя.</p>
-        ) : (
-          <div className="mt-3 flex flex-col gap-3">
+        {adminSite === "subs-store" && !currentUserId && (
+          <p className="mt-2 text-xs text-amber-700">
+            Ваш email не найден в Subs profiles — выдача роли работает, перенос заказов/чатов будет
+            доступен после регистрации на Subs Store с тем же email.
+          </p>
+        )}
+        <div className="mt-3 flex flex-col gap-3">
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
@@ -160,7 +179,9 @@ export function UsersRoleManager({
                 onChange={(e) => setTransferMigrate(e.target.checked)}
                 className="accent-[#10a37f]"
               />
-              Перенести заказы, сессии чата и сообщения с моего аккаунта
+              {adminSite === "subs-store" ?
+                "Перенести заказы и чаты поддержки с моего Subs-аккаунта"
+              : "Перенести заказы, сессии чата и сообщения с моего аккаунта"}
             </label>
             <button
               type="button"
@@ -170,8 +191,7 @@ export function UsersRoleManager({
             >
               {transferring ? "Передаём..." : "Передать"}
             </button>
-          </div>
-        )}
+        </div>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4">

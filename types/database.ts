@@ -12,6 +12,19 @@ export type OrderStatus =
 
 export type UserRole = "client" | "operator" | "admin";
 
+export type NotificationType =
+  | "new_order"
+  | "payment_success"
+  | "payment_failed"
+  | "new_chat_message"
+  | "new_review"
+  | "order_needs_data"
+  | "order_problem"
+  | "order_activated"
+  | "subscription_expiring"
+  /** Subs Store: ответ поддержки клиенту (таблица notifications в проекте spotify) */
+  | "chat_reply";
+
 export type ChatSessionStatus = "open" | "closed";
 export type ChatSenderType = "client" | "operator" | "admin" | "ai" | "auto";
 export type ReviewStatus = "pending" | "approved" | "rejected";
@@ -54,6 +67,7 @@ export interface Database {
         Row: {
           id: string;
           user_id: string | null;
+          site_id: string | null;
           product: string;
           plan_id: string;
           plan_name: string | null;
@@ -74,6 +88,7 @@ export interface Database {
         Insert: {
           id?: string;
           user_id?: string | null;
+          site_id?: string | null;
           product: string;
           plan_id: string;
           plan_name?: string | null;
@@ -98,8 +113,10 @@ export interface Database {
         Row: {
           id: string;
           user_id: string | null;
+          site_id: string | null;
           type: string;
           status: ChatSessionStatus;
+          staff_peer_id: string | null;
           first_message_at: string | null;
           last_operator_reply_at: string | null;
           created_at: string;
@@ -108,8 +125,10 @@ export interface Database {
         Insert: {
           id?: string;
           user_id?: string | null;
+          site_id?: string | null;
           type?: string;
           status?: ChatSessionStatus;
+          staff_peer_id?: string | null;
           first_message_at?: string | null;
           last_operator_reply_at?: string | null;
           created_at?: string;
@@ -147,6 +166,7 @@ export interface Database {
         Relationships: [];
         Row: {
           id: string;
+          site_id: string | null;
           telegram_message_id: number | null;
           telegram_chat_id: number | null;
           author_name: string | null;
@@ -162,6 +182,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          site_id?: string | null;
           telegram_message_id?: number | null;
           telegram_chat_id?: number | null;
           author_name?: string | null;
@@ -190,6 +211,204 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["site_settings"]["Insert"]>;
+      };
+      sites: {
+        Relationships: [];
+        Row: {
+          id: string;
+          slug: string;
+          brand_name: string;
+          product_type: string;
+          support_telegram: string | null;
+          support_email: string | null;
+          primary_color: string | null;
+          accent_color: string | null;
+          seo_title: string | null;
+          seo_description: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          brand_name: string;
+          product_type: string;
+          support_telegram?: string | null;
+          support_email?: string | null;
+          primary_color?: string | null;
+          accent_color?: string | null;
+          seo_title?: string | null;
+          seo_description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["sites"]["Insert"]>;
+      };
+      notifications: {
+        Relationships: [];
+        Row: {
+          id: string;
+          site_id: string | null;
+          recipient_user_id: string | null;
+          recipient_role: string | null;
+          type: NotificationType;
+          title: string;
+          message: string;
+          entity_type: string | null;
+          entity_id: string | null;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          site_id?: string | null;
+          recipient_user_id?: string | null;
+          recipient_role?: string | null;
+          type: NotificationType;
+          title: string;
+          message: string;
+          entity_type?: string | null;
+          entity_id?: string | null;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+      };
+      email_notification_settings: {
+        Relationships: [];
+        Row: {
+          site_slug: string;
+          settings: Json;
+          updated_at: string;
+        };
+        Insert: {
+          site_slug: string;
+          settings?: Json;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["email_notification_settings"]["Insert"]>;
+      };
+      email_notification_logs: {
+        Relationships: [];
+        Row: {
+          id: string;
+          site_slug: string;
+          recipient_user_id: string | null;
+          recipient_email: string;
+          recipient_role: string | null;
+          event_type: string;
+          related_entity_type: string | null;
+          related_entity_id: string | null;
+          subject: string;
+          preview: string | null;
+          status: string;
+          error_message: string | null;
+          dedupe_key: string | null;
+          sent_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          site_slug: string;
+          recipient_user_id?: string | null;
+          recipient_email: string;
+          recipient_role?: string | null;
+          event_type: string;
+          related_entity_type?: string | null;
+          related_entity_id?: string | null;
+          subject: string;
+          preview?: string | null;
+          status?: string;
+          error_message?: string | null;
+          dedupe_key?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["email_notification_logs"]["Insert"]>;
+      };
+      user_site_access: {
+        Relationships: [];
+        Row: {
+          id: string;
+          user_id: string;
+          site_id: string;
+          role: UserRole;
+          granted_by: string | null;
+          created_at: string;
+          can_receive_email_notifications: boolean;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          site_id: string;
+          role: UserRole;
+          granted_by?: string | null;
+          created_at?: string;
+          can_receive_email_notifications?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_site_access"]["Insert"]>;
+      };
+      promocodes: {
+        Relationships: [];
+        Row: {
+          id: string;
+          code: string;
+          discount_type: "percent" | "fixed";
+          discount_value: number;
+          plan_ids: string[] | null;
+          max_uses: number | null;
+          uses_count: number;
+          valid_from: string | null;
+          valid_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          discount_type: "percent" | "fixed";
+          discount_value: number;
+          plan_ids?: string[] | null;
+          max_uses?: number | null;
+          uses_count?: number;
+          valid_from?: string | null;
+          valid_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["promocodes"]["Insert"]>;
+      };
+      landing_discounts: {
+        Relationships: [];
+        Row: {
+          id: string;
+          name: string;
+          discount_type: "percent" | "fixed";
+          discount_value: number;
+          applies_to: string;
+          valid_from: string | null;
+          valid_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          discount_type: "percent" | "fixed";
+          discount_value: number;
+          applies_to?: string;
+          valid_from?: string | null;
+          valid_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["landing_discounts"]["Insert"]>;
       };
       role_audit: {
         Relationships: [];

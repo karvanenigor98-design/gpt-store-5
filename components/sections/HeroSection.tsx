@@ -52,13 +52,23 @@ export function HeroSection() {
           </motion.div>
 
           {/* H1 */}
-          <motion.h1
-            variants={fadeUp}
-            className="font-heading text-3xl font-bold leading-tight tracking-tight text-gray-900 md:text-6xl lg:text-7xl"
-          >
-            <span className="block">{HERO_CONTENT.title}</span>
+          <motion.h1 variants={fadeUp} className="font-heading font-bold leading-tight tracking-tight text-gray-900">
+            <span className="block text-4xl md:hidden">{HERO_CONTENT.title}</span>
             <span
-              className="block"
+              className="block text-4xl md:hidden"
+              style={{
+                background: "linear-gradient(135deg, #10a37f 0%, #1a56db 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              {HERO_CONTENT.accentTitle}
+            </span>
+
+            <span className="hidden md:block md:text-6xl lg:text-7xl">{HERO_CONTENT.title}</span>
+            <span
+              className="hidden md:block md:text-6xl lg:text-7xl"
               style={{
                 background: "linear-gradient(135deg, #10a37f 0%, #1a56db 100%)",
                 WebkitBackgroundClip: "text",
@@ -71,12 +81,12 @@ export function HeroSection() {
           </motion.h1>
 
           {/* Subtitle */}
-          <motion.p variants={fadeUp} className="mt-6 max-w-2xl text-base text-gray-500 md:text-lg">
+          <motion.p variants={fadeUp} className="mt-5 max-w-xl text-sm text-gray-500 md:mt-6 md:max-w-2xl md:text-lg">
             {HERO_CONTENT.subtitle}
           </motion.p>
 
           {/* Trust badges */}
-          <motion.ul variants={staggerFast} className="mt-6 flex flex-wrap justify-center gap-2">
+          <motion.ul variants={staggerFast} className="mt-6 flex flex-wrap justify-center gap-2 md:gap-2.5">
             {HERO_CONTENT.trustBadges.map((item) => (
               <motion.li
                 key={item}
@@ -90,12 +100,16 @@ export function HeroSection() {
           </motion.ul>
 
           {/* CTA */}
-          <motion.div variants={fadeUp} className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
+          <motion.div variants={fadeUp} className="mt-7 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row sm:gap-4">
             <motion.a
-              href="/checkout"
+              href="#pricing"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
               whileHover={{ scale: 1.03, boxShadow: "0 6px 24px rgba(16,163,127,0.40)" }}
               whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center gap-2 rounded-xl px-8 py-4 text-base font-semibold text-white transition-shadow"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white transition-shadow sm:w-auto sm:px-8 sm:py-4 sm:text-base"
               style={{
                 background: "#10a37f",
                 boxShadow: "0 4px 16px rgba(16,163,127,0.30)",
@@ -106,18 +120,18 @@ export function HeroSection() {
             </motion.a>
             <a
               href="#how-it-works"
-              className="text-sm text-gray-400 hover:text-gray-700 transition-colors"
+              className="text-sm text-gray-400 transition-colors hover:text-gray-700"
             >
               {HERO_CONTENT.secondaryCta} →
             </a>
           </motion.div>
 
-          <motion.p variants={fadeIn} className="mt-4 text-sm text-gray-400">
+          <motion.p variants={fadeIn} className="mt-3 text-xs text-gray-400 md:mt-4 md:text-sm">
             {HERO_CONTENT.meta}
           </motion.p>
 
           {/* Scroll indicator */}
-          <motion.div variants={fadeIn} className="mt-16 flex flex-col items-center gap-2.5">
+          <motion.div variants={fadeIn} className="mt-16 hidden flex-col items-center gap-2.5 md:flex">
             <motion.div
               className="relative flex h-11 w-7 items-start justify-center rounded-full border-2 p-1.5"
               style={{

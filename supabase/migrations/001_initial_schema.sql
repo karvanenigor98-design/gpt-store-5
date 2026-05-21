@@ -1,4 +1,4 @@
--- ============================================================
+-- ======================================================
 -- SubРФ — Первоначальная схема базы данных
 -- Запустить в Supabase Dashboard → SQL Editor
 -- ============================================================
@@ -30,7 +30,7 @@ $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+  for each row execute function public.handle_new_user();
 
 -- Заказы
 create table if not exists public.orders (
@@ -54,6 +54,17 @@ create table if not exists public.orders (
   meta              jsonb
 );
 
+-- Старая БД: таблица orders уже есть без части колонок — CREATE TABLE IF NOT EXISTS её не трогает.
+alter table public.orders add column if not exists payment_method text;
+alter table public.orders add column if not exists payment_provider text;
+alter table public.orders add column if not exists payment_id text;
+alter table public.orders add column if not exists pally_order_id text;
+alter table public.orders add column if not exists account_email text;
+alter table public.orders add column if not exists token_received_at timestamptz;
+alter table public.orders add column if not exists activated_at timestamptz;
+alter table public.orders add column if not exists expires_at timestamptz;
+alter table public.orders add column if not exists meta jsonb;
+
 -- Индексы для частых запросов
 create index if not exists orders_user_id_idx on public.orders(user_id);
 create index if not exists orders_status_idx on public.orders(status);
@@ -71,6 +82,11 @@ create table if not exists public.chat_sessions (
   updated_at              timestamptz not null default now()
 );
 
+-- Старая БД: chat_sessions уже есть без части колонок
+alter table public.chat_sessions add column if not exists first_message_at timestamptz;
+alter table public.chat_sessions add column if not exists last_operator_reply_at timestamptz;
+alter table public.chat_sessions add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists chat_sessions_user_id_idx on public.chat_sessions(user_id);
 create index if not exists chat_sessions_status_idx on public.chat_sessions(status);
 
@@ -86,6 +102,16 @@ create table if not exists public.chat_messages (
   is_auto_reply boolean not null default false,
   created_at   timestamptz not null default now()
 );
+
+-- Старая БД: chat_messages уже есть без session_id и др.
+alter table public.chat_messages add column if not exists session_id uuid references public.chat_sessions(id) on delete cascade;
+alter table public.chat_messages add column if not exists sender_id uuid;
+alter table public.chat_messages add column if not exists sender_type text;
+alter table public.chat_messages add column if not exists content text;
+alter table public.chat_messages add column if not exists attachments jsonb;
+alter table public.chat_messages add column if not exists is_read boolean not null default false;
+alter table public.chat_messages add column if not exists is_auto_reply boolean not null default false;
+alter table public.chat_messages add column if not exists created_at timestamptz not null default now();
 
 create index if not exists chat_messages_session_id_idx on public.chat_messages(session_id);
 

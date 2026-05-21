@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/server";
+import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
@@ -8,6 +9,9 @@ import { effectiveRoleFromProfile } from "@/lib/auth/superAdmin";
 import { redirect } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import type { UserRole } from "@/types/database";
+import { selectProfilesFlexible } from "@/lib/admin/selectProfilesFlexible";
+import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
+import { getSiteBySlug } from "@/lib/sites";
 
 export const metadata: Metadata = { title: "Admin · Клиенты" };
 const ROLE_PRIORITY: Record<UserRole, number> = { admin: 0, operator: 1, client: 2 };
@@ -23,9 +27,11 @@ const STAGE_RU: Record<string, string> = {
 export default async function AdminClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ highlight?: string; role?: "all" | "client" | "operator" | "admin" }>;
+  searchParams: Promise<{ highlight?: string; role?: "all" | "client" | "operator" | "admin"; site?: string }>;
 }) {
-  const { highlight, role: roleFilterRaw } = await searchParams;
+  const { highlight, role: roleFilterRaw, site: siteParam } = await searchParams;
+  const siteSlug = resolveAdminSiteSlug({ site: siteParam });
+  const site = getSiteBySlug(siteSlug);
   const roleFilter =
     roleFilterRaw === "client" || roleFilterRaw === "operator" || roleFilterRaw === "admin"
       ? roleFilterRaw
@@ -39,107 +45,308 @@ export default async function AdminClientsPage({
     redirect("/dashboard");
   }
 
-  const admin = createAdminClient();
+  type ProfileRow = {
+    id: string;
+    email: string | null;
+    username: string | null;
+    telegram_id: number | null;
+    telegram_username: string | null;
+    role: UserRole;
+    created_at: string;
+    last_seen: string | null;
+    notes: string | null;
+    tags: string[] | null;
+    client_stage: string | null;
+  };
 
-  // 1) Профили (совместимо со схемой, где client_stage может отсутствовать)
+  type OrderAgg = {
+    user_id: string | null;
+    status: string;
+    plan_id?: string | null;
+    product?: string | null;
+    id?: string;
+    planTitle?: string | null;
+  };
+
   let profilesError: { message: string } | null = null;
-  let profileRows:
-    | {
-        id: string;
-        email: string | null;
-        username: string | null;
-        telegram_id: number | null;
-        telegram_username: string | null;
-        role: UserRole;
-        created_at: string;
-        last_seen: string | null;
-        notes: string | null;
-        tags: string[] | null;
-        client_stage: string | null;
-      }[]
-    | null = null;
+  let mergedRows: {
+    id: string;
+    email: string | null;
+    username: string | null;
+    telegram_id: number | null;
+    telegram_username: string | null;
+    role: UserRole;
+    created_at: string;
+    last_seen: string | null;
+    notes: string | null;
+    tags: string[] | null;
+    client_stage: string | null;
+    has_profile: boolean;
+  }[] = [];
+  let orders: OrderAgg[] = [];
+  /** Subs Store: активность клиента — заказ в Supabase Subs или тред поддержки chat_threads там же */
+  let subsActivityIds: Set<string> | null = null;
 
-  const fullSelect = await admin
-    .from("profiles")
-    .select(
-      "id, email, username, telegram_id, telegram_username, role, created_at, last_seen, notes, tags, client_stage"
-    )
-    .order("created_at", { ascending: false })
-    .limit(500);
+  if (siteSlug === "subs-store") {
+    const subs = createSubsStoreAdminClient();
+    if (!subs) {
+      return (
+        <div className="p-6">
+          <h1 className="font-heading text-2xl font-bold text-gray-900">Клиенты · Subs Store</h1>
+          <p className="mt-2 max-w-xl text-sm text-gray-600">
+            Подключите <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
+            <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code> в проекте GPT STORE (тот же
+            проект Supabase, что и у лендинга subs-store).
+          </p>
+        </div>
+      );
+    }
 
-  if (fullSelect.error?.message?.includes("client_stage")) {
-    const fallbackSelect = await admin
+    subsActivityIds = new Set<string>();
+    try {
+      const { data: threadRows, error: thErr } = await subs
+        .from("chat_threads")
+        .select("user_id")
+        .not("user_id", "is", null)
+        .limit(5000);
+      if (thErr) {
+        profilesError = { message: `Поддержка Subs Store (chat_threads в Subs-проекте): ${thErr.message}` };
+      }
+      for (const row of threadRows ?? []) {
+        const uid = (row as { user_id?: string | null }).user_id;
+        if (uid) subsActivityIds.add(String(uid));
+      }
+    } catch {
+      /* таблицы может не быть */
+    }
+
+    const { data: subsOrdersRaw, error: ordErr } = await subs
+      .from("orders")
+      .select("user_id, status, plan_id, id")
+      .order("created_at", { ascending: false })
+      .limit(2000);
+    if (ordErr) {
+      profilesError =
+        profilesError ??
+        {
+          message: `Заказы Subs Store: ${ordErr.message}. Если есть связь через PostgREST, проверьте таблицы orders/plan_id и тарифы.`,
+        };
+    }
+
+    const titleBySlug = new Map<string, string>();
+    if (subsOrdersRaw?.length) {
+      const slugs = new Set<string>();
+      for (const r of subsOrdersRaw) {
+        const pid = (r as { plan_id?: string | null }).plan_id;
+        if (pid && String(pid).trim()) slugs.add(String(pid).trim());
+      }
+      if (slugs.size > 0) {
+        const { data: tariffRows, error: tErr } = await subs
+          .from("tariffs")
+          .select("slug, title")
+          .in("slug", [...slugs]);
+        if (tErr) {
+          profilesError =
+            profilesError ?? { message: `Тарифы Subs (для названий заказов): ${tErr.message}` };
+        }
+        for (const t of tariffRows ?? []) {
+          const slug = (t as { slug?: string; title?: string }).slug;
+          const title = (t as { title?: string }).title;
+          if (slug) titleBySlug.set(String(slug), String(title ?? slug));
+        }
+      }
+    }
+
+    orders = (subsOrdersRaw ?? []).map((raw) => {
+      const row = raw as { user_id?: string | null; status?: string; plan_id?: string | null; id?: string };
+      const slug = row.plan_id ? String(row.plan_id).trim() : "";
+      return {
+        user_id: row.user_id ?? null,
+        status: String(row.status ?? ""),
+        plan_id: row.plan_id ?? null,
+        id: row.id,
+        planTitle: slug ? titleBySlug.get(slug) ?? null : null,
+      };
+    }) as unknown as OrderAgg[];
+    for (const o of orders) {
+      const uid = o.user_id;
+      if (uid) subsActivityIds.add(String(uid));
+    }
+
+    const profileSelect = await selectProfilesFlexible(subs, [
+      "id",
+      "email",
+      "username",
+      "telegram_id",
+      "telegram_username",
+      "role",
+      "created_at",
+      "last_seen",
+      "notes",
+      "tags",
+      "client_stage",
+    ]);
+
+    if (profileSelect.error) {
+      profilesError = profilesError ?? { message: profileSelect.error };
+    }
+
+    const profiles = profileSelect.rows.map((p) => ({
+      id: String(p.id),
+      email: (p.email as string | null) ?? null,
+      username: (p.username as string | null) ?? null,
+      telegram_id: (p.telegram_id as number | null) ?? null,
+      telegram_username: (p.telegram_username as string | null) ?? null,
+      role: (p.role as UserRole) ?? "client",
+      created_at: String(p.created_at ?? new Date(0).toISOString()),
+      last_seen: (p.last_seen as string | null) ?? null,
+      notes: (p.notes as string | null) ?? null,
+      tags: (p.tags as string[] | null) ?? null,
+      client_stage: (p.client_stage as string | null) ?? null,
+    })) as ProfileRow[];
+
+    const authUsers: { id: string; email: string | null; created_at: string | null }[] = [];
+    let authPage = 1;
+    while (authPage <= 50) {
+      const { data, error } = await subs.auth.admin.listUsers({ page: authPage, perPage: 100 });
+      if (error) {
+        profilesError =
+          profilesError ?? { message: `Пользователи Auth (Subs Store): ${error.message || "ошибка listUsers"}` };
+        break;
+      }
+      const list = data.users ?? [];
+      if (!list.length) break;
+      for (const u of list) {
+        authUsers.push({ id: u.id, email: u.email ?? null, created_at: u.created_at ?? null });
+      }
+      if (list.length < 100) break;
+      authPage += 1;
+    }
+
+    const profileById = new Map(profiles.map((p) => [p.id, p]));
+    mergedRows = authUsers.map((au) => {
+      const p = profileById.get(au.id);
+      const email = p?.email ?? au.email ?? null;
+      const fromProfile = effectiveRoleFromProfile((p?.role ?? null) as UserRole | null, email);
+      const byEmail = resolveRoleByEmail(email);
+      const mappedRole: UserRole = fromProfile === "client" && byEmail !== "client" ? byEmail : fromProfile;
+      return {
+        id: au.id,
+        email,
+        username: p?.username ?? null,
+        telegram_id: p?.telegram_id ?? null,
+        telegram_username: p?.telegram_username ?? null,
+        role: mappedRole,
+        created_at: p?.created_at ?? au.created_at ?? new Date(0).toISOString(),
+        last_seen: p?.last_seen ?? null,
+        notes: p?.notes ?? null,
+        tags: p?.tags ?? [],
+        client_stage: p?.client_stage ?? null,
+        has_profile: Boolean(p),
+      };
+    });
+  } else {
+    const admin = createAdminClient();
+
+    let profileRows: ProfileRow[] | null = null;
+
+    const fullSelect = await admin
       .from("profiles")
-      .select("id, email, username, telegram_id, telegram_username, role, created_at, last_seen, notes, tags")
+      .select(
+        "id, email, username, telegram_id, telegram_username, role, created_at, last_seen, notes, tags, client_stage"
+      )
       .order("created_at", { ascending: false })
       .limit(500);
-    profilesError = fallbackSelect.error ? { message: fallbackSelect.error.message } : null;
-    profileRows = (fallbackSelect.data ?? []).map((p) => ({ ...p, client_stage: null }));
-  } else {
-    profilesError = fullSelect.error ? { message: fullSelect.error.message } : null;
-    profileRows = fullSelect.data ?? null;
-  }
 
-  const profiles = profileRows ?? [];
-
-  // 2) Auth users — чтобы видеть все аккаунты даже если profile отсутствует
-  const authUsers: { id: string; email: string | null; created_at: string | null }[] = [];
-  let page = 1;
-  while (page <= 20) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) break;
-    const list = data.users ?? [];
-    if (!list.length) break;
-    for (const u of list) {
-      authUsers.push({ id: u.id, email: u.email ?? null, created_at: u.created_at ?? null });
+    if (fullSelect.error?.message?.includes("client_stage")) {
+      const fallbackSelect = await admin
+        .from("profiles")
+        .select("id, email, username, telegram_id, telegram_username, role, created_at, last_seen, notes, tags")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      profilesError = fallbackSelect.error ? { message: fallbackSelect.error.message } : null;
+      profileRows = (fallbackSelect.data ?? []).map((p) => ({ ...p, client_stage: null }));
+    } else {
+      profilesError = fullSelect.error ? { message: fullSelect.error.message } : null;
+      profileRows = fullSelect.data ?? null;
     }
-    if (list.length < 100) break;
-    page += 1;
+
+    const profiles = profileRows ?? [];
+
+    const authUsers: { id: string; email: string | null; created_at: string | null }[] = [];
+    let page = 1;
+    while (page <= 20) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+      if (error) {
+        profilesError =
+          profilesError ?? {
+            message: `Пользователи Auth (GPT Store): ${error.message || "ошибка listUsers"}`,
+          };
+        break;
+      }
+      const list = data.users ?? [];
+      if (!list.length) break;
+      for (const u of list) {
+        authUsers.push({ id: u.id, email: u.email ?? null, created_at: u.created_at ?? null });
+      }
+      if (list.length < 100) break;
+      page += 1;
+    }
+
+    const profileById = new Map(profiles.map((p) => [p.id, p]));
+
+    mergedRows = authUsers.map((au) => {
+      const p = profileById.get(au.id);
+      const email = p?.email ?? au.email ?? null;
+      const fromProfile = effectiveRoleFromProfile((p?.role ?? null) as UserRole | null, email);
+      const byEmail = resolveRoleByEmail(email);
+      const mappedRole: UserRole = fromProfile === "client" && byEmail !== "client" ? byEmail : fromProfile;
+      return {
+        id: au.id,
+        email,
+        username: p?.username ?? null,
+        telegram_id: p?.telegram_id ?? null,
+        telegram_username: p?.telegram_username ?? null,
+        role: mappedRole,
+        created_at: p?.created_at ?? au.created_at ?? new Date(0).toISOString(),
+        last_seen: p?.last_seen ?? null,
+        notes: p?.notes ?? null,
+        tags: p?.tags ?? [],
+        client_stage: p?.client_stage ?? null,
+        has_profile: Boolean(p),
+      };
+    });
+
+    const allUserIds = mergedRows.map((r) => r.id).filter((id) => id !== (user?.id ?? ""));
+
+    const siteOrdersQuery = allUserIds.length
+      ? admin.from("orders").select("user_id, status, plan_id, price, created_at, product").in("user_id", allUserIds)
+      : null;
+
+    const { data: allOrders } = siteOrdersQuery
+      ? await siteOrdersQuery.not("product", "ilike", "spotify%")
+      : { data: [] };
+
+    orders = (allOrders ?? []) as unknown as OrderAgg[];
   }
 
-  const profileById = new Map(profiles.map((p) => [p.id, p]));
-
-  const mergedRows = authUsers.map((au) => {
-    const p = profileById.get(au.id);
-    const email = p?.email ?? au.email ?? null;
-    const fromProfile = effectiveRoleFromProfile((p?.role ?? null) as UserRole | null, email);
-    const byEmail = resolveRoleByEmail(email);
-    const role: UserRole = fromProfile === "client" && byEmail !== "client" ? byEmail : fromProfile;
-    return {
-      id: au.id,
-      email,
-      username: p?.username ?? null,
-      telegram_id: p?.telegram_id ?? null,
-      telegram_username: p?.telegram_username ?? null,
-      role,
-      created_at: p?.created_at ?? au.created_at ?? new Date(0).toISOString(),
-      last_seen: p?.last_seen ?? null,
-      notes: p?.notes ?? null,
-      tags: p?.tags ?? [],
-      client_stage: p?.client_stage ?? null,
-      has_profile: Boolean(p),
-    };
-  });
+  const isSubsStoreSite = siteSlug === "subs-store";
 
   const clients = mergedRows
     .filter((r) => r.id !== (user?.id ?? ""))
     .filter((r) => (roleFilter === "all" ? true : r.role === roleFilter))
+    .filter((r) => {
+      if (r.role === "admin" || r.role === "operator") return true;
+      return r.role === "client";
+    })
     .sort((a, b) => {
       const rp = ROLE_PRIORITY[a.role] - ROLE_PRIORITY[b.role];
       if (rp !== 0) return rp;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const ids = (clients ?? []).map((c) => c.id);
-  const { data: orders } = ids.length
-    ? await admin
-        .from("orders")
-        .select("user_id, status, plan_id, price, created_at")
-        .in("user_id", ids)
-    : { data: [] };
-
   const ordersByUser = new Map<string, typeof orders>();
-  for (const o of orders ?? []) {
+  for (const o of orders) {
     if (!o.user_id) continue;
     const arr = ordersByUser.get(o.user_id) ?? [];
     arr.push(o);
@@ -148,9 +355,16 @@ export default async function AdminClientsPage({
 
   return (
     <div className="p-6">
-      <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Клиенты</h1>
+      <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">
+        Клиенты
+        <span className="ml-3 text-base font-normal" style={{ color: site.primaryColor }}>
+          {site.brandName}
+        </span>
+      </h1>
       <p className="mb-6 text-sm text-gray-600">
-        Все аккаунты по ролям + все сохранённые клиентские поля из профиля и заказов.
+        {isSubsStoreSite
+          ? "Все зарегистрированные пользователи Subs Store (auth.users в Supabase Spotify). Колонки заказов и этапа — по активности в этом проекте. Сотрудники показываются всегда."
+          : `Все зарегистрированные пользователи ${site.brandName} (auth.users). Колонки заказов и этапа — по активности в GPT STORE. Сотрудники показываются всегда.`}
       </p>
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
         {[
@@ -160,10 +374,14 @@ export default async function AdminClientsPage({
           { key: "admin", label: "Админы" },
         ].map((f) => {
           const active = roleFilter === f.key;
+          const href =
+            f.key === "all"
+              ? `/admin/clients?site=${siteSlug}`
+              : `/admin/clients?role=${f.key}&site=${siteSlug}`;
           return (
             <Link
               key={f.key}
-              href={f.key === "all" ? "/admin/clients" : `/admin/clients?role=${f.key}`}
+              href={href}
               className={
                 active
                   ? "rounded-full border border-[#10a37f]/30 bg-[#10a37f]/10 px-3 py-1 text-[#0f7d62]"
@@ -197,13 +415,30 @@ export default async function AdminClientsPage({
           <tbody className="divide-y divide-gray-100">
             {(clients ?? []).map((c) => {
               const list = ordersByUser.get(c.id) ?? [];
-              const active = list.find((o) => o.status === "active");
-              const hasPaid = list.some((o) =>
-                ["paid", "activating", "active", "waiting_client"].includes(o.status)
-              );
+              const active = isSubsStoreSite
+                ? list.find((o) => o.status === "activated" || o.status === "processing")
+                : list.find((o) => o.status === "active");
+              const hasPaid = isSubsStoreSite
+                ? list.some((o) =>
+                    ["paid", "processing", "awaiting_data", "activated", "completed"].includes(o.status)
+                  )
+                : list.some((o) => ["paid", "activating", "active", "waiting_client"].includes(o.status));
               const stageKey = c.client_stage ?? (hasPaid ? "purchased" : list.length ? "waiting" : "no_purchase");
               const stageLabel = STAGE_RU[stageKey] ?? stageKey;
               const rowHi = highlight === c.id ? "bg-[#10a37f]/10" : "";
+
+              const activeLabel = (() => {
+                if (!active) return null;
+                if (!isSubsStoreSite) return `${active.plan_id ?? "—"} (active)`;
+                const pt = active.planTitle;
+                const title =
+                  typeof pt === "string" && pt.trim()
+                    ? pt
+                    : active.plan_id
+                      ? String(active.plan_id)
+                      : null;
+                return title ? `${title} (${active.status})` : `${(active.id ?? "").slice(0, 8)}… (${active.status})`;
+              })();
 
               return (
                 <tr key={c.id} className={rowHi}>
@@ -230,9 +465,7 @@ export default async function AdminClientsPage({
                   </td>
                   <td className="px-4 py-3 text-xs">{stageLabel}</td>
                   <td className="px-4 py-3 text-xs">{list.length}</td>
-                  <td className="px-4 py-3 text-xs">
-                    {active ? `${active.plan_id} (active)` : "—"}
-                  </td>
+                  <td className="px-4 py-3 text-xs">{activeLabel ?? "—"}</td>
                   <td className="max-w-[220px] px-4 py-3 text-xs text-gray-400">
                     {c.tags?.length ? c.tags.join(", ") : "—"}
                   </td>
@@ -241,7 +474,7 @@ export default async function AdminClientsPage({
                   </td>
                   <td className="px-4 py-3">
                     <Link
-                      href="/admin/chat"
+                      href={isSubsStoreSite ? "/admin/chat?site=subs-store" : "/admin/chat"}
                       className="inline-flex items-center gap-1 text-[#10a37f] hover:underline"
                     >
                       <MessageCircle size={14} />
@@ -253,7 +486,11 @@ export default async function AdminClientsPage({
             })}
           </tbody>
         </table>
-        {profilesError ? null : null}
+        {profilesError && (
+          <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            Предупреждение при загрузке данных: {profilesError.message}
+          </p>
+        )}
         {(!clients || clients.length === 0) && (
           <p className="p-6 text-sm text-gray-500">Аккаунтов по выбранному фильтру пока нет</p>
         )}

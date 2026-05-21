@@ -1,40 +1,57 @@
 'use client'
 
 import Link from 'next/link'
-import { LayoutDashboard, ShoppingBag, MessageCircle, User } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { LayoutDashboard, ShoppingBag, MessageCircle, User, Star } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 import { useSafePathname } from '@/lib/client/useSafePathname'
+import { getSiteBySlug } from '@/lib/sites'
 
-const NAV = [
-  { href: '/dashboard', label: 'Главная', icon: LayoutDashboard },
-  { href: '/dashboard/orders', label: 'Заказы', icon: ShoppingBag },
-  { href: '/dashboard/chat', label: 'Поддержка', icon: MessageCircle },
-  { href: '/dashboard/profile', label: 'Профиль', icon: User },
+const NAV_ITEMS = [
+  { base: '/dashboard', label: 'Главная', icon: LayoutDashboard },
+  { base: '/dashboard/orders', label: 'Заказы', icon: ShoppingBag },
+  { base: '/dashboard/chat', label: 'Поддержка', icon: MessageCircle },
+  { base: '/dashboard/reviews', label: 'Отзывы', icon: Star },
+  { base: '/dashboard/profile', label: 'Профиль', icon: User },
 ]
 
-export function DashboardNav() {
+interface NavProps {
+  /** Server-resolved site slug (from cookie). Falls back to URL ?site= param. */
+  defaultSiteSlug?: string;
+}
+
+export function DashboardNav({ defaultSiteSlug }: NavProps) {
   const pathname = useSafePathname()
+  const searchParams = useSearchParams()
+  const siteSlug = searchParams.get('site') ?? defaultSiteSlug ?? null
+  const site = getSiteBySlug(siteSlug)
+  const siteQuery = siteSlug ? `?site=${siteSlug}` : ''
+  const activeColor = site.primaryColor
 
   return (
     <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
-      {NAV.map((item) => {
+      {NAV_ITEMS.map((item) => {
+        const href = item.base + siteQuery
         const isActive =
-          item.href === '/dashboard'
+          item.base === '/dashboard'
             ? pathname === '/dashboard'
-            : pathname === item.href || pathname.startsWith(item.href + '/')
+            : pathname === item.base || pathname.startsWith(item.base + '/')
         const Icon = item.icon
         return (
           <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+            key={item.base}
+            href={href}
+            style={isActive ? { color: activeColor, borderLeftColor: activeColor } : undefined}
+            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 border-l-2 ${
               isActive
-                ? 'bg-[#10a37f]/15 text-[#10a37f] border-l-2 border-[#10a37f]'
-                : 'text-gray-400 hover:bg-white/5 hover:text-gray-200 border-l-2 border-transparent'
+                ? 'border-l-2'
+                : 'text-gray-400 hover:bg-white/5 hover:text-gray-200 border-transparent'
             }`}
           >
             <Icon
               size={16}
-              className={isActive ? 'text-[#10a37f]' : 'text-gray-400'}
+              style={isActive ? { color: activeColor } : undefined}
+              className={isActive ? '' : 'text-gray-400'}
             />
             {item.label}
           </Link>
@@ -44,22 +61,29 @@ export function DashboardNav() {
   )
 }
 
-export function DashboardMobileNav() {
+export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
   const pathname = useSafePathname()
+  const searchParams = useSearchParams()
+  const siteSlug = searchParams.get('site') ?? defaultSiteSlug ?? null
+  const site = getSiteBySlug(siteSlug)
+  const siteQuery = siteSlug ? `?site=${siteSlug}` : ''
+  const isSubs = site.slug === 'subs-store'
 
   return (
     <nav className="flex gap-4">
-      {NAV.map((item) => {
+      {NAV_ITEMS.map((item) => {
+        const href = item.base + siteQuery
         const isActive =
-          item.href === '/dashboard'
+          item.base === '/dashboard'
             ? pathname === '/dashboard'
-            : pathname === item.href || pathname.startsWith(item.href + '/')
+            : pathname === item.base || pathname.startsWith(item.base + '/')
         const Icon = item.icon
         return (
           <Link
-            key={item.href}
-            href={item.href}
-            className={isActive ? 'text-[#10a37f]' : 'text-gray-500 hover:text-gray-900'}
+            key={item.base}
+            href={href}
+            style={isActive ? { color: site.primaryColor } : undefined}
+            className={isActive ? '' : cn(isSubs ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')}
             aria-label={item.label}
           >
             <Icon size={20} />

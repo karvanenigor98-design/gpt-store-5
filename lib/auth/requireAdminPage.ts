@@ -19,7 +19,7 @@ export async function requireAdminPage(): Promise<{
   }
   const role: UserRole = await resolveServerRole(user);
   if (role === "operator") {
-    redirect("/admin");
+    redirect("/operator");
   }
   if (role !== "admin") {
     redirect("/dashboard");

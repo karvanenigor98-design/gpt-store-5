@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import type { OrderStatus } from "@/types/database";
+import {
+  handleOrderPaidNotification,
+  isTransitionToPaidLike,
+} from "@/lib/notifications/order-paid";
 import { notifyCustomerOrderStatus, notifyManualOrderStatusChange } from "@/lib/telegram/notifications";
+
+const SUBS_ORDER_STATUSES = new Set([
+  "new",
+  "awaiting_payment",
+  "pending_payment_setup",
+  "awaiting_operator",
+  "paid",
+  "processing",
+  "awaiting_data",
+  "activated",
+  "completed",
+  "problem",
+  "refund",
+  "cancelled",
+]);
 
 const ALLOWED: OrderStatus[] = [
   "pending",
@@ -30,8 +50,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const next = body.status as OrderStatus;
-  if (!next || !ALLOWED.includes(next)) {
-    return NextResponse.json({ error: "Недопустимый статус" }, { status: 400 });
+  if (!next) {
+    return NextResponse.json({ error: "Нет статуса" }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -45,6 +65,89 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const role = await resolveServerRole(user);
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const site = req.nextUrl.searchParams.get("site");
+  if (site === "subs-store") {
+    const subsCtx = await requireSubsStaffContext();
+    if (subsCtx instanceof NextResponse) return subsCtx;
+    const nextSubs = String(next);
+    if (!SUBS_ORDER_STATUSES.has(nextSubs)) {
+      return NextResponse.json({ error: "Недопустимый статус для Subs Store" }, { status: 400 });
+    }
+    const { data: order, error: findErr } = await subsCtx.subs
+      .from("orders")
+      .select("id,status,user_id,plan_id,plan_name")
+      .eq("id", orderId)
+      .single();
+    if (findErr || !order) {
+      return NextResponse.json({ error: "Заказ не найден" }, { status: 404 });
+    }
+    const prev = String(order.status);
+    if (prev === nextSubs) {
+      return NextResponse.json({ ok: true, status: nextSubs });
+    }
+    const { error: updErr } = await subsCtx.subs
+      .from("orders")
+      .update({ status: nextSubs, updated_at: new Date().toISOString() })
+      .eq("id", orderId);
+    if (updErr) {
+      return NextResponse.json({ error: "Не удалось обновить" }, { status: 500 });
+    }
+
+    const userId = (order as { user_id?: string | null }).user_id;
+    const planTitle =
+      (order as { plan_name?: string | null }).plan_name
+      ?? (order as { plan_id?: string }).plan_id
+      ?? "Spotify Premium";
+
+    let subsEmail: string | null = null;
+    if (userId) {
+      const { data: subsProfile } = await subsCtx.subs.auth.admin.getUserById(userId);
+      subsEmail = subsProfile?.user?.email?.trim().toLowerCase() ?? null;
+    }
+
+    const becamePaidSubs = isTransitionToPaidLike(prev, nextSubs, "subs-store");
+    if (becamePaidSubs) {
+      void handleOrderPaidNotification({
+        orderId,
+        siteSlug: "subs-store",
+        planName: planTitle,
+        price: Number((order as { final_price?: number }).final_price ?? 0),
+        status: nextSubs,
+        customerEmail: subsEmail,
+        customerUserId: userId ?? undefined,
+        paidAt: new Date().toISOString(),
+      }).catch(() => undefined);
+    }
+
+    if (userId) {
+      const { notifySubsStoreCustomerOrderStatus } = await import("@/lib/subs/subs-notifications");
+      void notifySubsStoreCustomerOrderStatus({
+        orderId,
+        customerUserId: userId,
+        status: nextSubs,
+        planLabel: planTitle,
+      }).catch(() => undefined);
+
+      if (subsEmail && !becamePaidSubs) {
+        void notifyCustomerOrderStatus({
+          customerEmail: subsEmail,
+          customerUserId: userId,
+          orderId,
+          planName: planTitle,
+          status: nextSubs,
+          price: Number((order as { final_price?: number }).final_price ?? 0),
+          siteSlug: "subs-store",
+        }).catch(() => undefined);
+      }
+    }
+
+    return NextResponse.json({ ok: true, status: nextSubs });
+  }
+
+  if (!ALLOWED.includes(next)) {
+    return NextResponse.json({ error: "Недопустимый статус" }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -65,26 +168,62 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const planTitle = order.plan_name?.trim() || order.plan_id;
+  const meta = order.meta as Record<string, unknown> | null;
+  const siteSlug =
+    order.product === "spotify-premium" || meta?.site === "subs-store"
+      ? ("subs-store" as const)
+      : ("gpt-store" as const);
 
-  await notifyManualOrderStatusChange({
-    id: order.id,
-    plan_name: planTitle,
-    plan_id: order.plan_id,
-    price: order.price,
-    account_email: order.account_email,
-    prev,
-    next,
-  }).catch(() => {});
+  const becamePaidGpt = isTransitionToPaidLike(prev, next, siteSlug);
 
+  let customerEmail: string | null = null;
   if (order.user_id) {
     const { data: profile } = await admin.from("profiles").select("email").eq("id", order.user_id).maybeSingle();
-    if (profile?.email) {
+    customerEmail = profile?.email?.trim().toLowerCase() ?? null;
+  }
+
+  if (becamePaidGpt) {
+    void handleOrderPaidNotification({
+      orderId: order.id,
+      siteSlug,
+      planName: planTitle,
+      price: order.price,
+      status: next,
+      customerEmail,
+      customerUserId: order.user_id,
+      accountEmail: order.account_email ?? undefined,
+      paidAt: new Date().toISOString(),
+    }).catch(() => undefined);
+  } else {
+    await notifyManualOrderStatusChange({
+      id: order.id,
+      plan_name: planTitle,
+      plan_id: order.plan_id,
+      price: order.price,
+      account_email: order.account_email,
+      prev,
+      next,
+    }).catch(() => {});
+  }
+
+  if (order.user_id) {
+    const { notifyGptCustomerOrderStatus } = await import("@/lib/notifications/gpt-customer-notifications");
+    void notifyGptCustomerOrderStatus({
+      orderId: order.id,
+      customerUserId: order.user_id,
+      status: next,
+      planLabel: planTitle,
+    }).catch(() => undefined);
+
+    if (customerEmail && !becamePaidGpt) {
       await notifyCustomerOrderStatus({
-        customerEmail: profile.email,
+        customerEmail,
+        customerUserId: order.user_id,
         orderId: order.id,
         planName: planTitle,
         status: next,
         price: order.price,
+        siteSlug,
       }).catch(() => {});
     }
   }

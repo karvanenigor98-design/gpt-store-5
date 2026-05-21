@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient, type SupabaseClient } from "@supa
 import { cookies } from "next/headers";
 
 import type { Database } from "@/types/database";
+import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
 
 export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
@@ -11,6 +12,7 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: getAuthCookieOptions(),
       cookies: {
         getAll() {
           return cookieStore.getAll();

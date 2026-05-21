@@ -1,24 +1,9 @@
-﻿import Link from "next/link";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
-import {
-  LayoutDashboard, ShoppingBag, MessageCircle,
-  Star, Settings, Users, UserCircle, Percent, Tag,
-} from "lucide-react";
-
-const NAV = [
-  { href: "/admin", label: "Главная", icon: LayoutDashboard },
-  { href: "/admin/orders", label: "Заказы", icon: ShoppingBag },
-  { href: "/admin/clients", label: "Клиенты", icon: UserCircle },
-  { href: "/admin/users", label: "Пользователи", icon: Users },
-  { href: "/admin/chat", label: "Чат", icon: MessageCircle },
-  { href: "/admin/promocodes", label: "Промокоды", icon: Tag },
-  { href: "/admin/discounts", label: "Скидки", icon: Percent },
-  { href: "/admin/reviews", label: "Отзывы", icon: Star },
-  { href: "/admin/settings", label: "Настройки", icon: Settings },
-];
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
 export default async function AdminLayout({
   children,
@@ -33,59 +18,18 @@ export default async function AdminLayout({
   }
 
   const role = await resolveServerRole(user);
-  if (!["admin", "operator"].includes(role)) {
+  if (role === "operator") {
+    redirect("/operator");
+  }
+  if (role !== "admin") {
     redirect("/dashboard");
   }
-  const navItems = (role === "admin"
-    ? NAV
-    : NAV.filter((item) =>
-        ["/admin", "/admin/orders", "/admin/chat", "/admin/clients"].includes(item.href)
-      )
-  );
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <aside className="hidden w-52 flex-col bg-[#111827] md:flex">
-        <div className="flex h-14 items-center border-b border-white/10 px-4">
-          <span className="font-heading text-sm font-semibold text-white">
-            GPT STORE Admin
-          </span>
-        </div>
-        <nav className="flex flex-1 flex-col gap-0.5 p-2">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <item.icon size={15} />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="border-t border-white/10 p-2">
-          <Link
-            href="/login?switch=1"
-            className="mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-500 hover:text-gray-300"
-          >
-            Сменить аккаунт
-          </Link>
-          <form action="/api/auth/signout" method="POST">
-            <button
-              type="submit"
-              className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-gray-500 hover:text-gray-300"
-            >
-              Выйти
-            </button>
-          </form>
-          <Link
-            href="/"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-500 hover:text-gray-300"
-          >
-            На сайт →
-          </Link>
-        </div>
-      </aside>
+    <div className="flex min-h-screen bg-[#fafafa]">
+      <Suspense fallback={<div className="hidden w-52 flex-shrink-0 border-r border-black/[0.06] bg-white md:block" aria-hidden />}>
+        <AdminSidebar />
+      </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminAlertsBar />
         {children}

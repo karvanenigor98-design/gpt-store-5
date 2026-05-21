@@ -4,13 +4,14 @@ import { resolveServerRole } from "@/lib/auth/server-role";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
 import { resolveHumanSenderType } from "@/lib/chat/messageSender";
 import { getScriptedFaqAnswer, getSupportHandoffAutoReply } from "@/lib/chat/scriptedFaq";
+import { alertStaffOnClientSupportMessage } from "@/lib/notifications/client-chat-alert";
+import {
+  isChatSessionForSubsStore,
+  notifySubsStoreCustomerChatReply,
+} from "@/lib/subs/subs-notifications";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import {
-  notifyCustomerAboutChatMessage,
-  notifyNewMessage,
-  notifyStaffAboutChatMessage,
-} from "@/lib/telegram/notifications";
+import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId")?.trim() ?? null;
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   const { data: sessionRow, error: sessionError } = await supabaseAdmin
     .from("chat_sessions")
-    .select("id, user_id")
+    .select("id, user_id, site_id")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -126,33 +127,19 @@ export async function POST(req: NextRequest) {
       .is("first_message_at", null);
   }
 
-  await notifyNewMessage(sessionId, user?.email ?? null, content).catch(() => {});
+  const subsStoreChat =
+    sessionRow.site_id != null ? await isChatSessionForSubsStore(sessionRow.site_id) : false;
+  const sessionCustomerId = user?.id ?? sessionRow.user_id;
+
   if (senderType === "client") {
-    const { count: unreadForStaff } = await supabaseAdmin
-      .from("chat_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("session_id", sessionId)
-      .eq("sender_type", "client")
-      .eq("is_read", false);
-
-    // Шлем письмо только когда есть непрочитанные сообщения клиента.
-    if ((unreadForStaff ?? 0) > 0 && canSendChatEmailNotification(`staff:${sessionId}`)) {
-      const { data: staffRows } = await supabaseAdmin
-        .from("profiles")
-        .select("email")
-        .in("role", ["admin", "operator"])
-        .not("email", "is", null);
-      const recipients = (staffRows ?? [])
-        .map((row) => row.email?.trim().toLowerCase())
-        .filter((email): email is string => Boolean(email));
-
-      await notifyStaffAboutChatMessage({
-        fromEmail: user?.email ?? null,
-        messagePreview: content,
-        sessionId,
-        recipients,
-      }).catch(() => {});
-    }
+    const siteSlug: "gpt-store" | "subs-store" = subsStoreChat ? "subs-store" : "gpt-store";
+    void alertStaffOnClientSupportMessage({
+      siteSlug,
+      sessionId,
+      clientUserId: sessionCustomerId ?? null,
+      clientEmail: user?.email ?? null,
+      messagePreview: content,
+    }).catch((err) => console.error("[chat/guest] staff alert:", err));
   } else if ((senderType === "operator" || senderType === "admin") && sessionRow.user_id) {
     const { count: unreadForCustomer } = await supabaseAdmin
       .from("chat_messages")
@@ -170,14 +157,25 @@ export async function POST(req: NextRequest) {
     const customerEmail = customerProfile?.email?.trim();
     // Шлем письмо только когда у клиента есть непрочитанные сообщения от staff.
     if (customerEmail && (unreadForCustomer ?? 0) > 0) {
-      if (canSendChatEmailNotification(`customer:${sessionId}`)) {
+      const siteSlug: "gpt-store" | "subs-store" = subsStoreChat ? "subs-store" : "gpt-store";
+      if (canSendChatEmailNotification(`customer:${siteSlug}:${sessionId}`)) {
         await notifyCustomerAboutChatMessage({
           customerEmail,
+          customerUserId: sessionRow.user_id,
           senderRoleLabel: senderType === "admin" ? "Администратор" : "Оператор",
           messagePreview: content,
           sessionId,
+          siteSlug,
         }).catch(() => {});
       }
+    }
+
+    if (subsStoreChat) {
+      void notifySubsStoreCustomerChatReply({
+        sessionId,
+        customerUserId: sessionRow.user_id,
+        messagePreview: content,
+      }).catch(() => undefined);
     }
   }
 

@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
 
 /** Базовый размер кольца (px) — на десктопе чуть меньше прежнего 26. */
-const RING_SIZE = 20
+const RING_SIZE = 22
 /** Масштаб при наведении на кликабельные элементы (визуально ~30px). */
 const RING_HOVER_SCALE = 30 / RING_SIZE
-const DOT_SIZE = 4
+const DOT_SIZE = 6
 
-const INTERACTIVE = 'a,button,[role="button"],input,textarea,select,label'
+const INTERACTIVE =
+  'a,button,[role="button"],[role="link"],input,textarea,select,label,summary,.cursor-pointer'
 
 export function CursorTrail() {
   const mx = useMotionValue(-300)
@@ -37,6 +38,8 @@ export function CursorTrail() {
       setTouch(true)
       return
     }
+
+    document.documentElement.classList.add('use-custom-cursor')
 
     const applyPos = () => {
       rafId.current = null
@@ -80,6 +83,7 @@ export function CursorTrail() {
     document.addEventListener('mouseleave', leave)
     document.addEventListener('mouseenter', enter)
     return () => {
+      document.documentElement.classList.remove('use-custom-cursor')
       if (rafId.current !== null) {
         cancelAnimationFrame(rafId.current)
         rafId.current = null
@@ -105,18 +109,18 @@ export function CursorTrail() {
           zIndex: 999999,
           width: RING_SIZE,
           height: RING_SIZE,
-          border: '2px solid #10a37f',
+          border: '2px solid #111827',
         }}
         initial={false}
         animate={{
           scale: hover ? RING_HOVER_SCALE : 1,
           opacity: visible ? 1 : 0,
           backgroundColor: hover
-            ? 'rgba(16,163,127,0.12)'
-            : 'rgba(16,163,127,0.04)',
+            ? 'rgba(16,163,127,0.16)'
+            : 'rgba(255,255,255,0.3)',
           boxShadow: hover
-            ? '0 0 10px rgba(16,163,127,0.5), 0 0 18px rgba(16,163,127,0.22)'
-            : '0 0 6px rgba(16,163,127,0.32)',
+            ? '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(17,24,39,0.8), 0 0 14px rgba(16,163,127,0.45)'
+            : '0 0 0 2px rgba(255,255,255,0.95), 0 0 0 4px rgba(17,24,39,0.82), 0 0 8px rgba(17,24,39,0.25)',
         }}
         transition={{ type: 'tween', duration: 0.12, ease: 'easeOut' }}
       />
@@ -130,8 +134,9 @@ export function CursorTrail() {
           zIndex: 999999,
           width: DOT_SIZE,
           height: DOT_SIZE,
-          backgroundColor: '#10a37f',
-          boxShadow: '0 0 4px rgba(16,163,127,0.75)',
+          backgroundColor: '#111827',
+          border: '1px solid rgba(255,255,255,0.95)',
+          boxShadow: '0 0 0 1px rgba(17,24,39,0.5), 0 0 6px rgba(17,24,39,0.45)',
         }}
         initial={false}
         animate={{ opacity: visible ? 1 : 0 }}

@@ -56,6 +56,27 @@ const QUICK_PRESETS: QuickPreset[] = [
   },
 ];
 
+const SUBS_STORE_DISCOUNT_PRESETS: QuickPreset[] = [
+  {
+    id: "subs-all-10",
+    label: "Subs: вся витрина −10%",
+    name: "Spotify −10%",
+    discount_type: "percent",
+    discount_value: 10,
+    scope: "all",
+    period: "none",
+  },
+  {
+    id: "subs-fixed-50-7d",
+    label: "Subs: −50 ₽ на выбранный тариф (7 дней)",
+    name: "Spotify −50 ₽",
+    discount_type: "fixed",
+    discount_value: 50,
+    scope: "custom-plan",
+    period: "7d",
+  },
+];
+
 function toLocalInputDate(iso: string): string {
   const d = new Date(iso);
   const pad = (v: number) => String(v).padStart(2, "0");
@@ -69,7 +90,12 @@ function toIsoOrNull(value: string | null): string | null {
   return d.toISOString();
 }
 
-export function DiscountsManager() {
+interface DiscountsManagerProps {
+  siteSlug?: string;
+}
+
+export function DiscountsManager({ siteSlug = "gpt-store" }: DiscountsManagerProps) {
+  const presets = siteSlug === "subs-store" ? SUBS_STORE_DISCOUNT_PRESETS : QUICK_PRESETS;
   const [items, setItems] = useState<Row[]>([]);
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,17 +113,58 @@ export function DiscountsManager() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/discounts", { credentials: "include" });
-    const j = (await res.json()) as { items?: Row[]; error?: string };
-    if (!res.ok) setErr(j.error ?? "Ошибка");
-    else {
-      setErr(null);
-      setItems(j.items ?? []);
+    try {
+      const res = await fetch(`/api/admin/discounts?site=${encodeURIComponent(siteSlug)}`, {
+        credentials: "include",
+      });
+      let j = {} as { items?: Row[]; error?: string };
+      try {
+        j = (await res.json()) as { items?: Row[]; error?: string };
+      } catch {
+        if (!res.ok) setErr("Некорректный ответ сервера (скидки).");
+      }
+      if (!res.ok) setErr(j.error ?? `Ошибка загрузки (${res.status})`);
+      else {
+        setErr(null);
+        setItems(j.items ?? []);
+      }
+    } catch {
+      setErr("Не удалось связаться с сервером при загрузке скидок.");
     }
     setLoading(false);
-  }, []);
+  }, [siteSlug]);
 
   const loadPlans = useCallback(async () => {
+    if (siteSlug === "subs-store") {
+      try {
+        const res = await fetch("/api/admin/subs-store/tariffs", { credentials: "include" });
+        const json = (await res.json()) as {
+          items?: Array<{ slug: string; title: string }>;
+          error?: string;
+        };
+        if (!res.ok) {
+          setPlanOptions([]);
+          setErr(json.error ?? "Не удалось загрузить тарифы Subs Store для скидок.");
+          return;
+        }
+        const plans = (json.items ?? [])
+          .filter((p) => typeof p.slug === "string" && p.slug)
+          .map((p) => ({
+            id: p.slug,
+            productId: "spotify",
+            label: `${p.title} (${p.slug})`,
+          }));
+        setPlanOptions(plans);
+        setForm((f) => ({
+          ...f,
+          custom_plan_id: f.custom_plan_id || plans[0]?.id || "",
+        }));
+      } catch {
+        setPlanOptions([]);
+        setErr("Сеть: не удалось запросить тарифы Subs Store.");
+      }
+      return;
+    }
     const res = await fetch("/api/public/store-config", { credentials: "include" });
     const json = (await res.json()) as {
       plans?: Array<{ id?: string; name?: string; productId?: string }>;
@@ -114,7 +181,7 @@ export function DiscountsManager() {
       ...f,
       custom_plan_id: f.custom_plan_id || plans[0]?.id || "",
     }));
-  }, []);
+  }, [siteSlug]);
 
   useEffect(() => {
     void load();
@@ -170,6 +237,7 @@ export function DiscountsManager() {
         applies_to: appliesTo,
         valid_from: toIsoOrNull(validFrom),
         valid_until: toIsoOrNull(validUntil),
+        site_id: siteSlug,
       }),
     });
     const j = (await res.json()) as { error?: string };
@@ -182,7 +250,7 @@ export function DiscountsManager() {
   };
 
   const toggle = async (row: Row) => {
-    const res = await fetch("/api/admin/discounts", {
+    const res = await fetch(`/api/admin/discounts?site=${encodeURIComponent(siteSlug)}`, {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -200,9 +268,11 @@ export function DiscountsManager() {
       {err && <p className="text-sm text-red-600">{err}</p>}
 
       <form onSubmit={create} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
-        <p className="text-sm font-semibold text-gray-900">Новая скидка на витрине</p>
+        <p className="text-sm font-semibold text-gray-900">
+          {siteSlug === "subs-store" ? "Новая скидка Subs Store (Spotify)" : "Новая скидка на витрине"}
+        </p>
         <div className="flex flex-wrap gap-2">
-          {QUICK_PRESETS.map((p) => (
+          {presets.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -255,9 +325,13 @@ export function DiscountsManager() {
               onChange={(e) => setForm((f) => ({ ...f, scope: e.target.value as Scope }))}
             >
               <option value="all">Везде (все карточки)</option>
-              <option value="landing">Только блок витрины (landing)</option>
-              <option value="chatgpt-plus">Только продукт Plus</option>
-              <option value="chatgpt-pro">Только продукт Pro</option>
+              {siteSlug !== "subs-store" && (
+                <>
+                  <option value="landing">Только блок витрины (landing)</option>
+                  <option value="chatgpt-plus">Только продукт ChatGPT Plus</option>
+                  <option value="chatgpt-pro">Только продукт ChatGPT Pro</option>
+                </>
+              )}
               <option value="custom-plan">Один конкретный тариф</option>
             </select>
           </label>

@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Клиент не найден" }, { status: 404 });
   }
 
-  const patch: Record<string, unknown> = {};
+  const patch: { notes?: string | null; client_stage?: string | null } = {};
   if (body.notes !== undefined) patch.notes = body.notes;
   if (body.client_stage !== undefined) {
     if (body.client_stage === null || body.client_stage === "") {

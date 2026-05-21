@@ -4,9 +4,12 @@ import type { ChatMessage } from "@/types";
 import { formatTime, isImageType, sanitizeText } from "@/lib/chat/constants";
 import { cn } from "@/lib/utils";
 
+export type ChatUiVariant = "gpt" | "subs";
+
 interface MessageBubbleProps {
   message: ChatMessage;
   isOwn: boolean;
+  variant?: ChatUiVariant;
 }
 
 type Attachment = { url?: string; type?: string; name?: string };
@@ -39,8 +42,10 @@ function avatarLetter(msg: ChatMessage): string {
   return label.slice(0, 1).toUpperCase();
 }
 
-export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, variant = "gpt" }: MessageBubbleProps) {
+  const isSubs = variant === "subs";
   const isAI = message.sender_type === "ai";
+  const isAuto = message.sender_type === "auto" || message.is_auto_reply;
   const label = !isOwn ? senderLabel(message) : null;
   const att = getAttachment(message);
 
@@ -52,7 +57,17 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
         <div
           className={cn(
             "mt-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold",
-            isAI ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"
+            isAI
+              ? isSubs
+                ? "bg-violet-500/20 text-violet-200"
+                : "bg-violet-100 text-violet-700"
+              : isAuto
+                ? isSubs
+                  ? "bg-emerald-500/20 text-emerald-200"
+                  : "bg-emerald-100 text-emerald-800"
+                : isSubs
+                  ? "bg-[#1DB954]/20 text-[#1DB954]"
+                  : "bg-blue-100 text-blue-700",
           )}
         >
           {isAI ? "AI" : avatarLetter(message)}
@@ -61,17 +76,27 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
 
       <div className="flex min-w-0 flex-col gap-0.5">
         {!isOwn && label && (
-          <span className="px-1 text-xs text-gray-400">{label}</span>
+          <span className={cn("px-1 text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>{label}</span>
         )}
 
         <div
           className={cn(
             "break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
             isOwn
-              ? "rounded-tr-sm bg-[#10a37f] text-white"
+              ? isSubs
+                ? "rounded-tr-sm bg-[#1DB954] text-white"
+                : "rounded-tr-sm bg-[#10a37f] text-white"
               : isAI
-                ? "rounded-tl-sm border border-violet-100 bg-violet-50 text-violet-900"
-                : "rounded-tl-sm border border-gray-100 bg-white text-gray-800 shadow-sm"
+                ? isSubs
+                  ? "rounded-tl-sm border border-violet-500/25 bg-violet-500/10 text-violet-100"
+                  : "rounded-tl-sm border border-violet-100 bg-violet-50 text-violet-900"
+                : isAuto
+                  ? isSubs
+                    ? "rounded-tl-sm border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                    : "rounded-tl-sm border border-emerald-100 bg-emerald-50 text-emerald-900"
+                  : isSubs
+                    ? "rounded-tl-sm border border-white/10 bg-[#1c1c1c] text-gray-100"
+                    : "rounded-tl-sm border border-gray-100 bg-white text-gray-800 shadow-sm",
           )}
         >
           {att?.url && (
@@ -90,7 +115,7 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
                   rel="noopener noreferrer"
                   className={cn(
                     "flex items-center gap-2 text-sm underline",
-                    isOwn ? "text-white/90" : "text-blue-600"
+                    isOwn ? "text-white/90" : isSubs ? "text-[#1DB954]" : "text-blue-600",
                   )}
                 >
                   {att.name ?? "Файл"}
@@ -111,9 +136,13 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
         <div
           className={cn("flex items-center gap-1 px-1", isOwn ? "justify-end" : "justify-start")}
         >
-          <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
+          <span className={cn("text-xs", isSubs ? "text-gray-600" : "text-gray-400")}>
+            {formatTime(message.created_at)}
+          </span>
           {isOwn && (
-            <span className="text-xs text-gray-400">{message.is_read ? "✓✓" : "✓"}</span>
+            <span className={cn("text-xs", isSubs ? "text-gray-600" : "text-gray-400")}>
+              {message.is_read ? "✓✓" : "✓"}
+            </span>
           )}
         </div>
       </div>

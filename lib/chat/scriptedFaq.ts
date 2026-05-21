@@ -1,4 +1,21 @@
+/** Ответы для Subs Store (Spotify Premium) — те же кнопки, что OPERATOR_CHAT_QUICK_REPLIES */
+const SUBS_FAQ_OVERRIDES: Record<string, string> = {
+  "Как оформить заказ?":
+    "Выберите тариф на странице Spotify Premium, оплатите картой РФ или СБП и укажите email для активации. Обычно подключение занимает 5–15 минут после оплаты.",
+  "Когда будет готова подписка?":
+    "После оплаты мы активируем Spotify Premium на ваш аккаунт. Обычно это 5–15 минут в рабочее время. Статус смотрите в разделе «Заказы» в личном кабинете.",
+  "Есть ли гарантия на подписку?":
+    "Да. На весь срок подписки действует гарантия: если проблема на нашей стороне — восстановим доступ или оформим возврат по правилам оферты.",
+  "Какие способы оплаты?":
+    "Оплата картой банка РФ и через СБП на странице оформления заказа Subs Store.",
+  "Как связаться с поддержкой?":
+    "Вы уже в чате поддержки Subs Store. Можно также написать в Telegram: @subs_support (если указан на сайте). Оператор подключится при необходимости.",
+  "Можно ли оплатить картой РФ?":
+    "Да. Оплата картой банка РФ и через СБП доступна на странице оформления заказа Subs Store.",
+};
+
 const FAQ_SCRIPTED_ANSWERS: Record<string, string> = {
+  ...SUBS_FAQ_OVERRIDES,
   "Как оформить заказ?":
     "Выберите тариф, оплатите удобным способом и отправьте данные для активации. Обычно подключение занимает 5-15 минут.",
   "Сколько стоит подписка?":
@@ -49,12 +66,80 @@ export function normalizeFaqKey(text: string): string {
 }
 
 const NORMALIZED_FAQ_ANSWERS: Record<string, string> = Object.fromEntries(
-  Object.entries(FAQ_SCRIPTED_ANSWERS).map(([question, answer]) => [normalizeFaqKey(question), answer])
+  Object.entries(FAQ_SCRIPTED_ANSWERS).map(([question, answer]) => [normalizeFaqKey(question), answer]),
 );
+
+/** Частичное совпадение по ключевым словам (свободный текст клиента). */
+const FAQ_KEYWORD_RULES: { test: (n: string) => boolean; answer: string }[] = [
+  {
+    test: (n) => /где.*заказ|статус.*заказ|мой заказ|номер заказ/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Где мой заказ?"]!,
+  },
+  {
+    test: (n) => /возврат|вернут|refund/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Как оформить возврат?"]!,
+  },
+  {
+    test: (n) => /оплат|способ.*плат|карт|сбп|pally/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Какие способы оплаты?"]!,
+  },
+  {
+    test: (n) => /срок|когда|сколько.*жд|активац|подключ/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Когда будет готова подписка?"]!,
+  },
+  {
+    test: (n) => /гарант/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Есть ли гарантия на подписку?"]!,
+  },
+  {
+    test: (n) => /оформ|купить|заказать|тариф/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Как оформить заказ?"]!,
+  },
+  {
+    test: (n) => /telegram|телеграм|связ|поддерж|оператор/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Как связаться с поддержкой?"]!,
+  },
+  {
+    test: (n) => /рф|росси|карт.*рф/.test(n),
+    answer: FAQ_SCRIPTED_ANSWERS["Можно ли оплатить картой РФ?"]!,
+  },
+];
 
 export function getScriptedFaqAnswer(text: string): string | null {
   const normalized = normalizeFaqKey(text);
-  return NORMALIZED_FAQ_ANSWERS[normalized] ?? null;
+  if (!normalized) return null;
+
+  const exact = NORMALIZED_FAQ_ANSWERS[normalized];
+  if (exact) return exact;
+
+  for (const rule of FAQ_KEYWORD_RULES) {
+    if (rule.test(normalized)) return rule.answer;
+  }
+
+  return null;
+}
+
+/** Текст автоответа для чата поддержки (Subs / GPT). */
+export function resolveSupportAutoReply(content: string, siteSlug?: "subs-store" | "gpt-store"): string {
+  const faq = getScriptedFaqAnswer(content);
+  if (faq) return faq;
+
+  const handoff = getSupportHandoffAutoReply(content);
+  if (handoff) return handoff;
+
+  if (siteSlug === "subs-store") {
+    return "Не нашёл готовый ответ. Опишите вопрос подробнее — оператор Subs Store подключится в ближайшее время (обычно 5–15 минут).";
+  }
+
+  return "Не поняла вопроса. Перевожу вас на поддержку — оператор подключится в ближайшее время.";
+}
+
+/** Не слать автоответ, если оператор недавно писал в этот тред. */
+export function shouldSkipAutoReplyAfterStaffMessage(lastStaffMessageAt: string | null, windowMs = 20 * 60 * 1000): boolean {
+  if (!lastStaffMessageAt) return false;
+  const t = new Date(lastStaffMessageAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t < windowMs;
 }
 
 const SUPPORT_HANDOFF_PATTERNS = [
@@ -84,6 +169,31 @@ export const FAQ_SUGGESTIONS = [
 /**
  * Кнопки над полем ввода в чате с оператором: `message` должен совпадать с ключом в FAQ_SCRIPTED_ANSWERS.
  */
+/** Задержка перед показом автоответа на кнопку FAQ (мс) — ощущение «печатает 1–2 сек». */
+export const FAQ_QUICK_REPLY_DELAY_MS = 1100;
+
+export function isQuickReplyFaqMessage(text: string): boolean {
+  const key = normalizeFaqKey(text);
+  return OPERATOR_CHAT_QUICK_REPLIES.some((q) => normalizeFaqKey(q.message) === key);
+}
+
+/** Мгновенный ответ для кнопок FAQ (без ожидания сервера). */
+export function getInstantFaqAnswer(
+  questionText: string,
+  siteSlug: "subs-store" | "gpt-store" = "gpt-store",
+): string | null {
+  const normalized = normalizeFaqKey(questionText);
+  if (!normalized) return null;
+
+  if (siteSlug === "subs-store") {
+    for (const [question, answer] of Object.entries(SUBS_FAQ_OVERRIDES)) {
+      if (normalizeFaqKey(question) === normalized) return answer;
+    }
+  }
+
+  return getScriptedFaqAnswer(questionText);
+}
+
 export const OPERATOR_CHAT_QUICK_REPLIES: { label: string; message: string }[] = [
   { label: "Где мой заказ?", message: "Где мой заказ?" },
   { label: "Возврат", message: "Как оформить возврат?" },

@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, Calendar, Shield, RefreshCw, MessageCircle } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface Props {
   product: string;
@@ -10,10 +11,27 @@ interface Props {
   price: number;
   activatedAt: string;
   expiresAt?: string | null;
+  variant?: "light" | "subs";
 }
 
-export function OrderReceiptCard({ product, planId, price, activatedAt, expiresAt }: Props) {
-  const productName = product === "chatgpt-plus" ? "ChatGPT Plus" : "ChatGPT Pro";
+export function OrderReceiptCard({
+  product,
+  planId,
+  price,
+  activatedAt,
+  expiresAt,
+  variant = "light",
+}: Props) {
+  const isSubs = variant === "subs";
+  const accent = isSubs ? "#1DB954" : "#10a37f";
+
+  const productName = product.startsWith("spotify")
+    ? `Spotify Premium — ${planId.replace(/^spotify-/, "").replace(/-/g, " ")}`
+    : product === "chatgpt-plus"
+      ? "ChatGPT Plus"
+      : product === "chatgpt-pro"
+        ? "ChatGPT Pro"
+        : `${product} · ${planId}`;
 
   const activatedDate = new Date(activatedAt).toLocaleDateString("ru", {
     day: "numeric",
@@ -42,52 +60,80 @@ export function OrderReceiptCard({ product, planId, price, activatedAt, expiresA
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-2xl border border-[#10a37f]/20 bg-gradient-to-br from-[#10a37f]/[0.04] to-white overflow-hidden shadow-sm"
+      className={cn(
+        "overflow-hidden rounded-2xl border shadow-sm",
+        isSubs
+          ? "border-[#1DB954]/25 bg-gradient-to-br from-[#1DB954]/10 to-[#111111]"
+          : "border-[#10a37f]/20 bg-gradient-to-br from-[#10a37f]/[0.04] to-white",
+      )}
     >
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-dashed border-[#10a37f]/20">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#10a37f] shadow-md shadow-[#10a37f]/25">
+      <div
+        className={cn(
+          "flex items-center gap-3 border-b border-dashed px-5 py-4",
+          isSubs ? "border-[#1DB954]/25" : "border-[#10a37f]/20",
+        )}
+      >
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md"
+          style={{ backgroundColor: accent, boxShadow: `0 4px 12px ${accent}40` }}
+        >
           <CheckCircle2 size={20} className="text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-900">Подписка активирована</p>
-          <p className="text-xs text-[#10a37f] font-semibold mt-0.5">
-            {productName} · {planId}
+          <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
+            Подписка активирована
+          </p>
+          <p className="mt-0.5 text-xs font-semibold" style={{ color: accent }}>
+            {productName}
           </p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-lg font-bold text-gray-900">{price.toLocaleString("ru")} ₽</p>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">оплачено</p>
+        <div className="shrink-0 text-right">
+          <p className={cn("text-lg font-bold", isSubs ? "text-white" : "text-gray-900")}>
+            {price.toLocaleString("ru")} ₽
+          </p>
+          <p className={cn("text-[10px] font-medium uppercase tracking-wide", isSubs ? "text-gray-500" : "text-gray-400")}>
+            оплачено
+          </p>
         </div>
       </div>
 
       {/* Details */}
       <div className="px-5 py-4 space-y-2.5">
         <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 text-gray-500">
+          <div className={cn("flex items-center gap-1.5", isSubs ? "text-gray-500" : "text-gray-500")}>
             <Calendar size={12} />
             Дата активации
           </div>
-          <span className="font-semibold text-gray-800">{activatedDate}</span>
+          <span className={cn("font-semibold", isSubs ? "text-gray-200" : "text-gray-800")}>
+            {activatedDate}
+          </span>
         </div>
 
         {expiresDate && (
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 text-gray-500">
+            <div className={cn("flex items-center gap-1.5", isSubs ? "text-gray-500" : "text-gray-500")}>
               <Calendar size={12} />
               Действует до
             </div>
-            <span className="font-semibold text-gray-800">{expiresDate}</span>
+            <span className={cn("font-semibold", isSubs ? "text-gray-200" : "text-gray-800")}>
+              {expiresDate}
+            </span>
           </div>
         )}
 
         {daysLeft !== null && (
           <div
-            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold ${
+            className={cn(
+              "flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold",
               isExpiringSoon
-                ? "bg-amber-50 border border-amber-200/70 text-amber-700"
-                : "bg-[#10a37f]/6 border border-[#10a37f]/15 text-[#10a37f]"
-            }`}
+                ? isSubs
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+                  : "border-amber-200/70 bg-amber-50 text-amber-700"
+                : isSubs
+                  ? "border-[#1DB954]/25 bg-[#1DB954]/10 text-[#1DB954]"
+                  : "border-[#10a37f]/15 bg-[#10a37f]/6 text-[#10a37f]",
+            )}
           >
             <span>{isExpiringSoon ? "⚠️ Скоро истекает" : "✅ Активна"}</span>
             <span>
@@ -99,11 +145,18 @@ export function OrderReceiptCard({ product, planId, price, activatedAt, expiresA
         )}
 
         {/* Guarantee block */}
-        <div className="flex items-start gap-2.5 rounded-xl bg-white border border-black/[0.06] px-3.5 py-3 mt-1">
-          <Shield size={15} className="shrink-0 mt-0.5 text-[#10a37f]" />
+        <div
+          className={cn(
+            "mt-1 flex items-start gap-2.5 rounded-xl border px-3.5 py-3",
+            isSubs ? "border-white/10 bg-[#1a1a1a]" : "border-black/[0.06] bg-white",
+          )}
+        >
+          <Shield size={15} className="mt-0.5 shrink-0" style={{ color: accent }} />
           <div>
-            <p className="text-xs font-bold text-gray-800 mb-0.5">Гарантия 30 дней</p>
-            <p className="text-[11px] text-gray-500 leading-relaxed">
+            <p className={cn("mb-0.5 text-xs font-bold", isSubs ? "text-white" : "text-gray-800")}>
+              Гарантия 30 дней
+            </p>
+            <p className={cn("text-[11px] leading-relaxed", isSubs ? "text-gray-400" : "text-gray-500")}>
               Если подписка перестанет работать — переактивируем бесплатно или вернём деньги. Без вопросов.
             </p>
           </div>
@@ -113,22 +166,37 @@ export function OrderReceiptCard({ product, planId, price, activatedAt, expiresA
       {/* Actions */}
       <div className="grid grid-cols-3 gap-2 px-5 pb-4">
         <Link
-          href={`/checkout?plan=${planId}`}
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-[#10a37f]/30 bg-[#10a37f]/5 py-2.5 text-xs font-bold text-[#10a37f] hover:bg-[#10a37f]/10 transition-colors"
+          href={isSubs ? `/checkout/spotify?plan=${planId}` : `/checkout?plan=${planId}`}
+          className="flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-colors"
+          style={{
+            borderColor: `${accent}4d`,
+            backgroundColor: `${accent}0d`,
+            color: accent,
+          }}
         >
           <RefreshCw size={13} />
           Продлить
         </Link>
         <Link
-          href="/support"
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-black/[0.08] py-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          href={isSubs ? "/dashboard/chat?site=subs-store" : "/support"}
+          className={cn(
+            "flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-medium transition-colors",
+            isSubs
+              ? "border-white/10 text-gray-300 hover:bg-white/5"
+              : "border-black/[0.08] text-gray-600 hover:bg-gray-50",
+          )}
         >
           <MessageCircle size={13} />
           Поддержка
         </Link>
         <Link
-          href="/reviews"
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+          href={isSubs ? "/dashboard/reviews?site=subs-store" : "/reviews"}
+          className={cn(
+            "flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-semibold transition-colors",
+            isSubs
+              ? "border-amber-500/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
+              : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
+          )}
         >
           ⭐ Оставить отзыв
         </Link>

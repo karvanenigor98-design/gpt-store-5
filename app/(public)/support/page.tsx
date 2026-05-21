@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Send, Home, MessageCircle, ShoppingBag, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { resolveClientNavRole } from "@/lib/auth/anchorRoles";
 
 interface Message {
@@ -34,7 +35,7 @@ interface LatestOrderInfo {
 const getTime = () =>
   new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-const QUICK = [
+const QUICK_GPT = [
   { label: "Как оформить заказ", msg: "Как оформить заказ?" },
   { label: "Сколько стоит", msg: "Сколько стоит подписка?" },
   { label: "Срок активации", msg: "Когда будет готова подписка?" },
@@ -43,7 +44,16 @@ const QUICK = [
   { label: "Как продлить", msg: "Есть ли скидки на продление?" },
 ];
 
-const FAQ_ITEMS = [
+const QUICK_SPOTIFY = [
+  { label: "Как происходит активация", msg: "Как происходит активация?" },
+  { label: "Сколько времени", msg: "Сколько времени занимает активация?" },
+  { label: "Нужен ли пароль", msg: "Нужен ли пароль?" },
+  { label: "Гарантия", msg: "Есть ли гарантия?" },
+  { label: "Оплата из РФ", msg: "Можно ли оплатить картой РФ?" },
+  { label: "Что после оплаты", msg: "Что делать после оплаты?" },
+];
+
+const FAQ_ITEMS_GPT = [
   "Как оформить заказ?",
   "Сколько стоит подписка?",
   "Есть ли гарантия на подписку?",
@@ -61,6 +71,48 @@ const FAQ_ITEMS = [
   "Как оформить возврат средств?",
 ];
 
+const FAQ_ITEMS_SPOTIFY = [
+  "Как происходит активация?",
+  "Сколько времени занимает активация?",
+  "Нужен ли пароль?",
+  "Какие данные нужны для активации?",
+  "Нужен ли VPN после активации?",
+  "Это безопасно?",
+  "Что делать после оплаты?",
+  "Что делать, если подписка слетела?",
+  "Есть ли гарантия?",
+  "Делаете ли вы возврат средств?",
+  "Поддержка работает?",
+];
+
+// Компиляция ответов из нового Spotify FAQ
+const SPOTIFY_SCRIPTED_ANSWERS: Record<string, string> = {
+  "Как происходит активация?":
+    "После оформления заказа с вами связывается специалист. Он уточняет нужные данные для выбранного варианта подключения и помогает завершить активацию.",
+  "Сколько времени занимает активация?":
+    "Обычно активация занимает от 5 до 30 минут. В периоды высокой нагрузки возможны задержки до нескольких часов.",
+  "Нужен ли пароль?":
+    "Не всегда. В большинстве случаев пароль не требуется. Но для отдельных тарифов или аккаунтов могут понадобиться дополнительные данные, код подтверждения или инструкция по настройке доступа. Специалист заранее объяснит, что именно нужно.",
+  "Какие данные нужны для активации?":
+    "Это зависит от выбранного тарифа и аккаунта. В большинстве случаев достаточно базовых данных или кода подтверждения. В отдельных случаях специалист может запросить дополнительные данные или подсказать, как настроить доступ для активации.",
+  "Нужен ли VPN после активации?":
+    "В большинстве случаев — нет. После успешной авторизации сервис работает без VPN.",
+  "Это безопасно?":
+    "Мы используем данные только для выполнения услуги активации. После завершения подключения вы можете обновить пароль и проверить настройки безопасности аккаунта.",
+  "Что делать после оплаты?":
+    "Ожидайте сообщение от специалиста. Мы свяжемся с вами для завершения активации.",
+  "Что делать, если подписка слетела?":
+    "Напишите в поддержку. Мы проверим ситуацию и предложим доступные варианты решения.",
+  "Есть ли гарантия?":
+    "Мы предоставляем гарантию на период работы подписки согласно условиям выбранного варианта.",
+  "Делаете ли вы возврат средств?":
+    "Да, в отдельных случаях возможен перерасчёт или частичный возврат за неиспользованный период.",
+  "Поддержка работает?":
+    "Да, поддержка работает ежедневно. Время ответа может увеличиваться при высокой нагрузке.",
+  "Можно ли оплатить картой РФ?":
+    "Да. Принимаем оплату картой РФ и через СБП.",
+};
+
 const FAQ_SCRIPTED_ANSWERS: Record<string, string> = {
   "Как оформить заказ?":
     "Выберите подходящий тариф, оплатите и отправьте данные для активации. Подключение обычно занимает 5-15 минут.",
@@ -73,7 +125,7 @@ const FAQ_SCRIPTED_ANSWERS: Record<string, string> = {
   "Чем отличается Plus от Pro?":
     "Plus подходит для большинства задач. Pro — для максимальной нагрузки и более интенсивного использования.",
   "Как передать данные для активации?":
-    "Передаются только данные для активации, пароль от аккаунта не нужен.",
+    "После оплаты напишите в чат поддержки — специалист уточнит нужные данные и даст инструкцию. В большинстве случаев пароль не требуется.",
   "Когда будет готова подписка?":
     "Обычно подписка готова в течение 5-15 минут после оплаты и передачи данных.",
   "Можно ли оплатить картой РФ?":
@@ -102,8 +154,11 @@ const normalizeFaqKey = (text: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const NORMALIZED_FAQ_ANSWERS: Record<string, string> = Object.fromEntries(
-  Object.entries(FAQ_SCRIPTED_ANSWERS).map(([question, answer]) => [normalizeFaqKey(question), answer])
+const NORMALIZED_FAQ_ANSWERS_GPT: Record<string, string> = Object.fromEntries(
+  Object.entries(FAQ_SCRIPTED_ANSWERS).map(([q, a]) => [normalizeFaqKey(q), a])
+);
+const NORMALIZED_FAQ_ANSWERS_SPOTIFY: Record<string, string> = Object.fromEntries(
+  Object.entries(SPOTIFY_SCRIPTED_ANSWERS).map(([q, a]) => [normalizeFaqKey(q), a])
 );
 const ORDER_STATUS_FAQ_KEY = normalizeFaqKey("Где посмотреть статус заказа?");
 
@@ -161,11 +216,28 @@ const NAV = [
 export default function SupportPage() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const siteParam = searchParams.get("site") ?? "";
+  const isSubsStore = siteParam === "subs-store";
+
+  const QUICK = isSubsStore ? QUICK_SPOTIFY : QUICK_GPT;
+  const FAQ_ITEMS = isSubsStore ? FAQ_ITEMS_SPOTIFY : FAQ_ITEMS_GPT;
+  const NORMALIZED_FAQ_ANSWERS = isSubsStore
+    ? NORMALIZED_FAQ_ANSWERS_SPOTIFY
+    : NORMALIZED_FAQ_ANSWERS_GPT;
+
+  const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
+  const brandName = isSubsStore ? "Subs Store" : "GPT STORE";
+  const brandLetter = isSubsStore ? "S" : "G";
+  const brandHref = isSubsStore ? "/spotify" : "/";
+  const greetingMsg = isSubsStore
+    ? "Здравствуйте! Я помогу с вопросами о Spotify Premium. Чем могу помочь?"
+    : "Здравствуйте! Я отвечу на вопросы о ChatGPT Plus и Pro. Чем могу помочь?";
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content:
-        "Здравствуйте! Я отвечу на вопросы о ChatGPT Plus и Pro. Чем могу помочь?",
+      content: greetingMsg,
       time: getTime(),
     },
   ]);
@@ -180,6 +252,22 @@ export default function SupportPage() {
   }, [messages]);
 
   useEffect(() => {
+    if (isSubsStore) {
+      const subs = tryCreateSubsBrowserClient();
+      if (!subs) {
+        setIsAuthorized(false);
+        return;
+      }
+      subs.auth.getSession().then(({ data }) => {
+        setIsAuthorized(Boolean(data.session?.user));
+      });
+      const {
+        data: { subscription },
+      } = subs.auth.onAuthStateChange((_, session) => {
+        setIsAuthorized(Boolean(session?.user));
+      });
+      return () => subscription.unsubscribe();
+    }
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
       setIsAuthorized(Boolean(data.session?.user));
@@ -190,14 +278,25 @@ export default function SupportPage() {
       setIsAuthorized(Boolean(session?.user));
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isSubsStore]);
 
   const goToLiveChat = () => {
     void (async () => {
+      const chatPath = isSubsStore ? "/dashboard/chat?site=subs-store" : "/dashboard/chat";
+      if (isSubsStore) {
+        const subs = tryCreateSubsBrowserClient();
+        const { data: auth } = subs ? await subs.auth.getUser() : { data: { user: null } };
+        if (!auth.user) {
+          router.push(`/login?site=subs-store&returnUrl=${encodeURIComponent(chatPath)}`);
+          return;
+        }
+        router.push(chatPath);
+        return;
+      }
       const supabase = createClient();
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) {
-        router.push("/login?returnUrl=/dashboard/chat");
+        router.push(`/login?returnUrl=${encodeURIComponent(chatPath)}`);
         return;
       }
       const { data: prof } = await supabase
@@ -207,8 +306,8 @@ export default function SupportPage() {
         .maybeSingle();
       const r = resolveClientNavRole(prof?.email ?? auth.user.email, prof?.role ?? "client");
       if (r === "admin") router.push("/admin/chat");
-      else if (r === "operator") router.push("/admin/chat");
-      else router.push("/dashboard/chat");
+      else if (r === "operator") router.push("/operator/chat");
+      else router.push(chatPath);
     })();
   };
 
@@ -219,6 +318,25 @@ export default function SupportPage() {
     }
 
     const loadLatestOrder = async () => {
+      if (isSubsStore) {
+        const subs = tryCreateSubsBrowserClient();
+        if (!subs) return;
+        const { data: auth } = await subs.auth.getUser();
+        if (!auth.user) return;
+        const { data } = await subs
+          .from("orders")
+          .select("id,status,created_at,plan_id")
+          .eq("user_id", auth.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          setLatestOrder({ ...(data as LatestOrderInfo), product: "spotify" });
+        } else {
+          setLatestOrder(null);
+        }
+        return;
+      }
       const supabase = createClient();
       const { data } = await supabase
         .from("orders")
@@ -235,13 +353,16 @@ export default function SupportPage() {
     };
 
     void loadLatestOrder();
-  }, [isAuthorized]);
+  }, [isAuthorized, isSubsStore]);
 
   const sendMessage = (text: string) => {
     if (!text.trim()) return;
     if (isAuthorized === null) return;
     if (!isAuthorized) {
-      router.push("/login");
+      const loginUrl = isSubsStore
+        ? `/login?site=subs-store&returnUrl=${encodeURIComponent("/dashboard/chat?site=subs-store")}`
+        : "/login";
+      router.push(loginUrl);
       return;
     }
     setInput("");
@@ -280,11 +401,14 @@ export default function SupportPage() {
         }`}
       >
         <div className="border-b border-white/10 px-4 py-5">
-          <a href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#10a37f] text-sm font-bold text-white">
-              G
+          <a href={brandHref} className="flex items-center gap-2">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white"
+              style={{ backgroundColor: accentColor }}
+            >
+              {brandLetter}
             </div>
-            <span className="font-heading text-sm font-bold text-white">GPT STORE</span>
+            <span className="font-heading text-sm font-bold text-white">{brandName}</span>
           </a>
         </div>
 
@@ -333,14 +457,14 @@ export default function SupportPage() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="bg-[#10a37f] px-4 pb-0 pt-4">
+          <div className="px-4 pb-0 pt-4" style={{ backgroundColor: accentColor }}>
             <div className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-lg font-bold text-white">
-                  G
+                  {brandLetter}
                 </div>
                 <div>
-                  <p className="font-semibold text-white">GPT STORE — поддержка</p>
+                  <p className="font-semibold text-white">{brandName} — поддержка</p>
                   <p className="flex items-center gap-1 text-xs text-white/80">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                     На связи

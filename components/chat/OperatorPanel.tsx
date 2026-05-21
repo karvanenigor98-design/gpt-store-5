@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ChatRoomListItem } from "@/types/chat-ui";
 import type { Profile } from "@/types";
 import { RoomList } from "@/components/chat/RoomList";
@@ -9,19 +10,41 @@ import { StaffInternalChat } from "@/components/chat/StaffInternalChat";
 import { ClientContextSidebar } from "@/components/chat/ClientContextSidebar";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSiteBySlug } from "@/lib/sites";
 
 interface OperatorPanelProps {
   currentUser: Profile;
+  siteSlug?: string;
 }
 
-export function OperatorPanel({ currentUser }: OperatorPanelProps) {
+export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pendingRoomId =
+    searchParams.get("thread_id") ?? searchParams.get("session_id");
+
   const [tab, setTab] = useState<"clients" | "team">("clients");
   const [selectedRoom, setSelectedRoom] = useState<ChatRoomListItem | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
-  const staffBase = "/admin";
+  const staffBase = currentUser.role === "operator" ? "/operator" : "/admin";
+  const site = getSiteBySlug(siteSlug === "subs-store" ? "subs-store" : "gpt-store");
+  const accent = site.primaryColor;
+
+  useEffect(() => {
+    if (pendingRoomId) setTab("clients");
+  }, [pendingRoomId]);
+
+  const clearPendingRoomFromUrl = useCallback(() => {
+    if (!pendingRoomId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("thread_id");
+    params.delete("session_id");
+    const qs = params.toString();
+    router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, [pendingRoomId, router, searchParams]);
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -37,6 +60,13 @@ export function OperatorPanel({ currentUser }: OperatorPanelProps) {
       return;
     }
 
+    if (siteSlug === "subs-store") {
+      setSessionId(null);
+      setResolveError("Для Subs Store выберите диалог из списка (тред не найден).");
+      setResolving(false);
+      return;
+    }
+
     let cancelled = false;
     setResolving(true);
     setResolveError(null);
@@ -47,7 +77,10 @@ export function OperatorPanel({ currentUser }: OperatorPanelProps) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ userId: selectedRoom.client_id }),
+          body: JSON.stringify({
+            userId: selectedRoom.client_id,
+            ...(siteSlug === "subs-store" || siteSlug === "gpt-store" ? { site: siteSlug } : {}),
+          }),
         });
         const data = (await res.json()) as { sessionId?: string; error?: string };
         if (!res.ok || !data.sessionId) {
@@ -69,20 +102,21 @@ export function OperatorPanel({ currentUser }: OperatorPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedRoom]);
+  }, [selectedRoom, siteSlug]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-shrink-0 border-b border-gray-100 bg-white px-3 pt-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-shrink-0 border-b border-black/[0.06] bg-white px-3 pt-2">
         <button
           type="button"
           onClick={() => setTab("clients")}
           className={cn(
             "border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
             tab === "clients"
-              ? "border-[#10a37f] text-gray-900"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "text-gray-900"
+              : "border-transparent text-gray-500 hover:text-gray-700",
           )}
+          style={tab === "clients" ? { borderBottomColor: accent, color: accent } : undefined}
         >
           Клиенты
         </button>
@@ -92,9 +126,10 @@ export function OperatorPanel({ currentUser }: OperatorPanelProps) {
           className={cn(
             "border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
             tab === "team"
-              ? "border-[#10a37f] text-gray-900"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "text-gray-900"
+              : "border-transparent text-gray-500 hover:text-gray-700",
           )}
+          style={tab === "team" ? { borderBottomColor: accent, color: accent } : undefined}
         >
           {currentUser.role === "admin" ? "Чат с оператором" : "Чат с админом"}
         </button>
@@ -117,6 +152,9 @@ export function OperatorPanel({ currentUser }: OperatorPanelProps) {
               <RoomList
                 selectedClientId={selectedRoom?.client_id ?? null}
                 onSelect={setSelectedRoom}
+                siteSlug={siteSlug}
+                pendingSelectRoomId={pendingRoomId}
+                onPendingRoomConsumed={clearPendingRoomFromUrl}
               />
             </div>
           </div>
@@ -144,6 +182,7 @@ export function OperatorPanel({ currentUser }: OperatorPanelProps) {
                     selectedRoom.client?.full_name ?? selectedRoom.client?.email ?? "Клиент"
                   }
                   viewerIsStaff
+                  siteSlug={siteSlug}
                 />
               )}
               {!selectedRoom && (

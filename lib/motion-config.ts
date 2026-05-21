@@ -39,7 +39,8 @@ export const reducedMotion = (): boolean => {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 };
 
-export const responsiveFadeUp = (isMobile: boolean): Variants => ({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const responsiveFadeUp = (_isMobile: boolean): Variants => ({
   hidden: { opacity: 1, y: 0 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: easeExpoOut } },
 });

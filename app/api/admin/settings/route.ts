@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isServerAdmin } from "@/lib/auth/server-role";
+import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
+import type { Json } from "@/types/database";
 
 type Payload = {
   auto_reply_delay_minutes?: number;
@@ -11,10 +13,32 @@ type Payload = {
   promo_codes?: unknown;
   landing_sections?: unknown;
   plan_availability?: unknown;
+  seoTitle?: string;
+  seoDescription?: string;
+  supportUsername?: string;
+  spotify_account_data_notice?: string;
 };
 
 export async function POST(request: NextRequest) {
   try {
+    const site = request.nextUrl.searchParams.get("site")?.trim();
+    if (site === "subs-store") {
+      const ctx = await requireSubsStaffContext({ adminOnly: true });
+      if (ctx instanceof NextResponse) return ctx;
+
+      const body = (await request.json()) as Payload;
+      const entries = Object.entries(body).filter(([, value]) => value !== undefined);
+      if (!entries.length) return NextResponse.json({ ok: true });
+
+      for (const [key, value] of entries) {
+        const { error } = await ctx.subs.from("site_settings").upsert({ key, value: value as Json });
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -32,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     for (const [key, value] of entries) {
-      const { error } = await admin.from("site_settings").upsert({ key, value });
+      const { error } = await admin.from("site_settings").upsert({ key, value: value as Json });
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }

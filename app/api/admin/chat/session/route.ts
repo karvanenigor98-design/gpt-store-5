@@ -4,11 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { pickCanonicalOperatorSession } from "@/lib/chat/operatorSession";
+import { getSiteUUID } from "@/lib/admin/getSiteId";
+import type { Database } from "@/types/database";
+
+function normalizeStaffSiteSlug(raw: string | undefined): "gpt-store" | "subs-store" | undefined {
+  return raw === "subs-store" || raw === "gpt-store" ? raw : undefined;
+}
 
 export async function POST(req: NextRequest) {
-  let body: { userId?: string };
+  let body: { userId?: string; site?: string };
   try {
-    body = (await req.json()) as { userId?: string };
+    body = (await req.json()) as { userId?: string; site?: string };
   } catch {
     return NextResponse.json({ error: "Неверный формат запроса" }, { status: 400 });
   }
@@ -16,6 +22,15 @@ export async function POST(req: NextRequest) {
   const userId = body.userId?.trim();
   if (!userId) {
     return NextResponse.json({ error: "userId обязателен" }, { status: 400 });
+  }
+
+  const siteSlug = normalizeStaffSiteSlug(body.site?.trim());
+
+  if (siteSlug === "subs-store") {
+    return NextResponse.json(
+      { error: "Для Subs Store используйте тред из списка чатов (отдельная база), сессии GPT STORE здесь не создаются." },
+      { status: 400 }
+    );
   }
 
   const supabase = await createClient();
@@ -33,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const existing = await pickCanonicalOperatorSession(admin, userId);
+  const existing = await pickCanonicalOperatorSession(admin, userId, siteSlug);
 
   if (existing?.id) {
     if (existing.status !== "open") {
@@ -45,13 +60,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sessionId: existing.id });
   }
 
+  const siteUuid = siteSlug ? await getSiteUUID(siteSlug) : null;
+  const insertRow: Database["public"]["Tables"]["chat_sessions"]["Insert"] = {
+    user_id: userId,
+    type: "operator",
+    status: "open",
+    ...(siteUuid ? { site_id: siteUuid } : {}),
+  };
+
   const { data: created, error } = await admin
     .from("chat_sessions")
-    .insert({
-      user_id: userId,
-      type: "operator",
-      status: "open",
-    })
+    .insert(insertRow)
     .select("id")
     .single();
 

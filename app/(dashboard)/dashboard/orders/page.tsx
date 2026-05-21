@@ -1,14 +1,29 @@
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
+import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { OrderStatus } from "@/types/database";
 import { RefreshCw, Plus } from "lucide-react";
+import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
+import { getSiteBySlug, filterOrdersBySite } from "@/lib/sites";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Мои заказы" };
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+function getProductDisplayName(product: string, planId: string): string {
+  if (product.startsWith("spotify")) {
+    const suffix = planId.replace(/^spotify-/, "").replace(/-/g, " ");
+    return `Spotify Premium — ${suffix}`;
+  }
+  if (product === "chatgpt-plus") return "ChatGPT Plus";
+  if (product === "chatgpt-pro") return "ChatGPT Pro";
+  return `${product} — ${planId}`;
+}
+
+const STATUS_LABELS_LIGHT: Record<string, { label: string; color: string }> = {
   pending: { label: "Ожидает оплаты", color: "text-amber-600 bg-amber-50 border-amber-200" },
   activating: { label: "Активируется", color: "text-blue-600 bg-blue-50 border-blue-200" },
   waiting_client: { label: "Ожидает данных", color: "text-orange-600 bg-orange-50 border-orange-200" },
@@ -16,45 +31,106 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   failed: { label: "Ошибка", color: "text-red-600 bg-red-50 border-red-200" },
   expired: { label: "Истёк", color: "text-gray-500 bg-gray-50 border-gray-200" },
   refunded: { label: "Возврат", color: "text-gray-500 bg-gray-50 border-gray-200" },
+  paid: { label: "Оплачен", color: "text-blue-600 bg-blue-50 border-blue-200" },
+  processing: { label: "В обработке", color: "text-blue-600 bg-blue-50 border-blue-200" },
+  awaiting_data: { label: "Ожидает данных", color: "text-orange-600 bg-orange-50 border-orange-200" },
+  activated: { label: "Активирован", color: "text-green-600 bg-green-50 border-green-200" },
+  completed: { label: "Завершён", color: "text-green-700 bg-green-50 border-green-200" },
 };
 
-export default async function OrdersPage() {
-  const supabase = await createClient();
+const STATUS_LABELS_SUBS: Record<string, { label: string; color: string }> = {
+  pending: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
+  activating: { label: "Активируется", color: "text-sky-200 bg-sky-500/15 border-sky-500/30" },
+  waiting_client: { label: "Ожидает данных", color: "text-orange-200 bg-orange-500/15 border-orange-500/30" },
+  active: { label: "Активен", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
+  failed: { label: "Ошибка", color: "text-red-200 bg-red-500/15 border-red-500/30" },
+  expired: { label: "Истёк", color: "text-gray-300 bg-white/10 border-white/15" },
+  refunded: { label: "Возврат", color: "text-gray-300 bg-white/10 border-white/15" },
+  paid: { label: "Оплачен", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
+  processing: { label: "В обработке", color: "text-sky-200 bg-sky-500/15 border-sky-500/30" },
+  awaiting_data: { label: "Ожидает данных", color: "text-orange-200 bg-orange-500/15 border-orange-500/30" },
+  activated: { label: "Активирован", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
+  completed: { label: "Завершён", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
+};
+
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ site?: string; highlight?: string }>;
+}) {
+  const params = await searchParams;
+  const cookieStore = await cookies();
+  const rawSite = params.site ?? cookieStore.get("current_site")?.value;
+  const siteSlug: SiteSlug = rawSite === "subs-store" ? "subs-store" : "gpt-store";
+  const site = getSiteBySlug(siteSlug);
+  const isSubs = siteSlug === "subs-store";
+  const STATUS_LABELS = isSubs ? STATUS_LABELS_SUBS : STATUS_LABELS_LIGHT;
+  const chatHref = `/dashboard/chat?site=${siteSlug}`;
+  const primaryColor = site.primaryColor;
+
+  const { browserLike: supabase } = await createSiteSessionClient(siteSlug);
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: orders } = await supabase
+  const { data: allOrders } = await supabase
     .from("orders")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(50);
+
+  const orders =
+    siteSlug === "subs-store" ? (allOrders ?? []) : filterOrdersBySite(allOrders ?? [], siteSlug);
 
   return (
-    <div className="w-full max-w-none space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-2xl font-bold text-gray-900">История заказов</h1>
+    <div className={cn("w-full max-w-none space-y-6", isSubs && "text-gray-100")}>
+      <HighlightScroll accent={isSubs ? "subs" : "gpt"} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className={cn("font-heading text-2xl font-bold", isSubs ? "text-white" : "text-gray-900")}>
+          {isSubs ? "Spotify — История заказов" : "История заказов"}
+        </h1>
         <Link
-          href="/checkout"
-          className="flex items-center gap-1.5 rounded-xl bg-[#10a37f] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-[#10a37f]/20 hover:opacity-90 transition-opacity"
+          href={site.checkoutPath}
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
+          style={{
+            backgroundColor: primaryColor,
+            boxShadow: `0 4px 8px ${primaryColor}33`,
+          }}
         >
           <Plus size={15} />
-          Новый заказ
+          {isSubs ? "Подключить Premium" : "Новый заказ"}
         </Link>
       </div>
 
       {!orders || orders.length === 0 ? (
-        <div className="rounded-2xl border border-black/[0.07] bg-gray-50 p-10 text-center">
-          <p className="text-gray-600 font-medium mb-1">Заказов пока нет</p>
-          <p className="text-sm text-gray-400 mb-5">Оформите первый заказ — активация за 5–15 минут</p>
+        <div
+          className={cn(
+            "rounded-2xl border p-10 text-center",
+            isSubs ? "border-white/10 bg-[#161616]" : "border-black/[0.07] bg-gray-50",
+          )}
+        >
+          <p className={cn("mb-1 font-medium", isSubs ? "text-gray-100" : "text-gray-600")}>
+            Заказов пока нет
+          </p>
+          <p className={cn("mb-5 text-sm", isSubs ? "text-gray-400" : "text-gray-400")}>
+            {isSubs
+              ? "Подключите Spotify Premium — активация 10–15 минут"
+              : "Оформите первый заказ — активация за 5–15 минут"}
+          </p>
           <Link
-            href="/checkout"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#10a37f] px-6 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+            href={site.checkoutPath}
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: primaryColor }}
           >
-            Оформить подписку
+            {isSubs ? "Подключить Premium" : "Оформить подписку"}
           </Link>
+          {isSubs ? (
+            <p className="mt-6 text-xs text-gray-500">
+              Вопросы по подключению — напишите в чат справа (или ниже на телефоне).
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-4">
@@ -67,16 +143,23 @@ export default async function OrdersPage() {
             return (
               <div
                 key={order.id}
-                className="rounded-2xl border border-black/[0.07] bg-white overflow-hidden shadow-sm"
+                id={`row-${order.id}`}
+                className={cn(
+                  "scroll-mt-6 overflow-hidden rounded-2xl border shadow-sm",
+                  isSubs ? "border-white/10 bg-[#161616]" : "border-black/[0.07] bg-white",
+                )}
               >
-                {/* Order header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+                <div
+                  className={cn(
+                    "flex items-center justify-between border-b px-5 py-4",
+                    isSubs ? "border-white/10" : "border-gray-50",
+                  )}
+                >
                   <div>
-                    <p className="text-sm font-bold text-gray-900">
-                      {order.product === "chatgpt-plus" ? "ChatGPT Plus" : "ChatGPT Pro"}{" "}
-                      <span className="text-gray-400 font-normal">· {order.plan_id}</span>
+                    <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
+                      {getProductDisplayName(order.product, order.plan_id)}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className={cn("mt-0.5 text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>
                       {new Date(order.created_at).toLocaleDateString("ru", {
                         day: "numeric",
                         month: "long",
@@ -90,27 +173,24 @@ export default async function OrdersPage() {
                     >
                       {statusInfo.label}
                     </span>
-                    <p className="mt-1 text-sm font-bold text-gray-900">
+                    <p className={cn("mt-1 text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
                       {order.price.toLocaleString("ru")} ₽
                     </p>
                   </div>
                 </div>
 
-                <div className="px-5 py-4 space-y-3">
-                  {/* In-progress: show status tracker */}
+                <div className="space-y-3 px-5 py-4">
                   {isInProgress && (
                     <OrderStatusTracker
                       orderId={order.id}
                       initialStatus={order.status as OrderStatus}
                       planId={order.plan_id}
                       activatedAt={order.activated_at}
-                      onOpenChat={() => {
-                        window.location.href = "/dashboard/chat";
-                      }}
+                      variant={isSubs ? "subs" : "light"}
+                      chatHref={chatHref}
                     />
                   )}
 
-                  {/* Active: show receipt card */}
                   {isActive && order.activated_at && (
                     <OrderReceiptCard
                       product={order.product}
@@ -118,23 +198,32 @@ export default async function OrdersPage() {
                       price={order.price}
                       activatedAt={order.activated_at}
                       expiresAt={order.expires_at}
+                      variant={isSubs ? "subs" : "light"}
                     />
                   )}
 
-                  {/* Expired/failed: "Repeat in 1 click" */}
                   {isExpiredOrFailed && (
-                    <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+                    <div
+                      className={cn(
+                        "flex items-center justify-between rounded-xl border px-4 py-3",
+                        isSubs ? "border-white/10 bg-[#111111]" : "border-gray-100 bg-gray-50",
+                      )}
+                    >
                       <div>
-                        <p className="text-xs font-semibold text-gray-700">
-                          {isExpiredOrFailed ? "Оформить снова?" : ""}
+                        <p className={cn("text-xs font-semibold", isSubs ? "text-gray-200" : "text-gray-700")}>
+                          Оформить снова?
                         </p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">
+                        <p className={cn("mt-0.5 text-[11px]", isSubs ? "text-gray-500" : "text-gray-400")}>
                           Тот же тариф — один клик
                         </p>
                       </div>
                       <Link
-                        href={`/checkout?plan=${order.plan_id}`}
-                        className="flex items-center gap-1.5 rounded-xl bg-[#10a37f] px-4 py-2 text-xs font-bold text-white hover:opacity-90 transition-opacity shadow-sm shadow-[#10a37f]/20"
+                        href={`${site.checkoutPath}?plan=${order.plan_id}`}
+                        className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90"
+                        style={{
+                          backgroundColor: primaryColor,
+                          boxShadow: `0 2px 8px ${primaryColor}33`,
+                        }}
                       >
                         <RefreshCw size={12} />
                         Повторить в 1 клик
@@ -148,15 +237,16 @@ export default async function OrdersPage() {
         </div>
       )}
 
-      {/* Bottom CTA */}
-      <div className="flex gap-3 flex-wrap pt-2">
-        <Link
-          href="/dashboard/chat"
-          className="flex items-center gap-2 rounded-xl border border-black/[0.08] px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          Написать в поддержку
-        </Link>
-      </div>
+      {!isSubs && (
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Link
+            href={chatHref}
+            className="flex items-center gap-2 rounded-xl border border-black/[0.08] px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Написать в поддержку
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

@@ -18,83 +18,97 @@ import { TokenSafetySection } from "@/components/sections/TokenSafetySection";
 import { WhyCheaperSection } from "@/components/sections/WhyCheaperSection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { getPublicSiteOrigin } from "@/lib/app-url";
+import { getStaticGptLandingPayload, getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { getPublicReviews } from "@/lib/reviews/publicReviews";
-import { getStoreConfig } from "@/lib/store-config";
 
 const APP_URL = getPublicSiteOrigin();
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "ChatGPT Plus без иностранной карты",
   description:
     "Подключаем ChatGPT Plus и Pro на ваш аккаунт. Оплата картой РФ, активация за 5–15 минут, гарантия на весь срок.",
   openGraph: {
-    title: "ChatGPT Plus без иностранной карты — GPT STORE",
-    description: "Подключаем ChatGPT Plus и Pro. Оплата картой РФ, активация за 5–15 минут.",
+    title: "ChatGPT Plus без иностранной карты | GPT STORE",
+    description:
+      "Подключаем ChatGPT Plus и Pro на ваш аккаунт. Оплата картой РФ, активация за 5–15 минут, гарантия на весь срок.",
     url: APP_URL,
-    siteName: "GPT STORE",
-    locale: "ru_RU",
     type: "website",
   },
-  alternates: { canonical: APP_URL },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "GPT STORE",
-  url: APP_URL,
-  description: "Подключение ChatGPT Plus и Pro для пользователей из России. Оплата картой РФ.",
-  contactPoint: {
-    "@type": "ContactPoint",
-    contactType: "customer support",
-    availableLanguage: "Russian",
-  },
-};
+export const dynamic = "force-dynamic";
 
+/** Одобренные отзывы из БД; статика — только если БД пуста. */
 export default async function HomePage() {
-  const storeConfig = await getStoreConfig();
-  const reviews = await getPublicReviews(40, {
-    uniqueAuthors: true,
-  });
+  const { storeConfig } = getStaticGptLandingPayload();
+  let reviews = getStaticGptLandingReviews(40);
+  try {
+    const live = await getPublicReviews(40);
+    if (live.length) reviews = live;
+  } catch {
+    /* fallback static */
+  }
+
+  const showReviews = storeConfig.landingSections.showReviews !== false;
+  const showFaq = storeConfig.landingSections.showFaq !== false;
+  const showCompare = storeConfig.landingSections.showCompare !== false;
 
   return (
     <>
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-    />
-    <div className="relative text-gray-900">
-      <div className="relative z-10">
-        <StoreConfigAutoRefresh />
+      <div className="min-h-screen bg-white">
         <ChatGptLandingNav />
-        <main>
+        <main className="pt-0">
           <HeroSection />
-          <AnimateSection><Ticker /></AnimateSection>
-          <AnimateSection delay={0.05}><HowItWorksSection /></AnimateSection>
-          <AnimateSection delay={0.05}><SafetySection /></AnimateSection>
-          <AnimateSection delay={0.05}><TokenSafetySection /></AnimateSection>
-          <AnimateSection delay={0.05}><RussiaSection /></AnimateSection>
-          <AnimateSection delay={0.05}><WhyCheaperSection /></AnimateSection>
-          {storeConfig.landingSections.showReviews && (
-            <AnimateSection delay={0.05}><ReviewsSection reviews={reviews} /></AnimateSection>
+          <AnimateSection>
+            <Ticker />
+          </AnimateSection>
+          <AnimateSection delay={0.05}>
+            <HowItWorksSection />
+          </AnimateSection>
+          <AnimateSection delay={0.05}>
+            <SafetySection />
+          </AnimateSection>
+          <AnimateSection delay={0.05}>
+            <TokenSafetySection />
+          </AnimateSection>
+          <AnimateSection delay={0.05}>
+            <RussiaSection />
+          </AnimateSection>
+          <AnimateSection delay={0.05}>
+            <WhyCheaperSection />
+          </AnimateSection>
+          {showReviews && (
+            <AnimateSection delay={0.05}>
+              <ReviewsSection reviews={reviews} />
+            </AnimateSection>
           )}
-          {storeConfig.landingSections.showCompare && (
-            <AnimateSection delay={0.05}><CompareSection /></AnimateSection>
+          {showCompare && (
+            <AnimateSection delay={0.05}>
+              <CompareSection />
+            </AnimateSection>
           )}
           <AnimateSection delay={0.05}>
-            <PricingSection initialPlans={storeConfig.plans} initialLandingDiscounts={storeConfig.landingDiscounts} />
+            <PricingSection
+              initialPlans={storeConfig.plans}
+              initialLandingDiscounts={storeConfig.landingDiscounts}
+            />
           </AnimateSection>
-          <AnimateSection delay={0.05}><GuaranteeSection /></AnimateSection>
-          {storeConfig.landingSections.showFaq && (
-            <AnimateSection delay={0.05}><FaqSection /></AnimateSection>
+          <AnimateSection delay={0.05}>
+            <GuaranteeSection />
+          </AnimateSection>
+          {showFaq && (
+            <AnimateSection delay={0.05}>
+              <FaqSection />
+            </AnimateSection>
           )}
-          <AnimateSection delay={0.05}><FinalCtaSection /></AnimateSection>
+          <AnimateSection delay={0.05}>
+            <FinalCtaSection />
+          </AnimateSection>
         </main>
         <LandingFooter />
         <ChatWidget />
+        <StoreConfigAutoRefresh />
       </div>
-    </div>
     </>
   );
 }

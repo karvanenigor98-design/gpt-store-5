@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { Check, X, ChevronDown } from "lucide-react";
 import { fadeUp, staggerContainer } from "@/lib/motion-config";
 
 type CellValue = boolean | string;
@@ -33,6 +34,34 @@ function Cell({ value, accentColor }: { value: CellValue; accentColor: string })
   );
 }
 
+function MobileCompareCard({ row }: { row: CompareRow }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-black/[0.08] bg-white p-4">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="text-sm font-medium text-gray-800">{row.feature}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-black/[0.06] pt-3">
+          <div className="rounded-lg bg-[#10a37f]/5 p-3 text-center">
+            <p className="mb-2 text-xs font-semibold text-[#10a37f]">Plus</p>
+            <Cell value={row.plus} accentColor="#10a37f" />
+          </div>
+          <div className="rounded-lg bg-[#1a56db]/5 p-3 text-center">
+            <p className="mb-2 text-xs font-semibold text-[#1a56db]">Pro</p>
+            <Cell value={row.pro} accentColor="#1a56db" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CompareSection() {
   return (
     <section id="compare" className="px-4 py-20 md:px-6 md:py-28">
@@ -55,14 +84,20 @@ export function CompareSection() {
           </p>
         </motion.div>
 
+        <div className="flex flex-col gap-3 md:hidden">
+          {ROWS.map((row) => (
+            <MobileCompareCard key={row.feature} row={row} />
+          ))}
+        </div>
+
         <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-80px" }}
           variants={fadeUp}
-          className="overflow-x-auto rounded-2xl border border-black/[0.08] bg-white shadow-sm md:overflow-hidden"
+          className="hidden overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-sm md:block"
         >
-          <div className="min-w-[640px] grid grid-cols-3 border-b border-black/[0.06] md:min-w-0">
+          <div className="grid grid-cols-3 border-b border-black/[0.06]">
             <div className="p-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
               Возможность
             </div>
@@ -74,7 +109,7 @@ export function CompareSection() {
             </div>
           </div>
 
-          <motion.div variants={staggerContainer} className="min-w-[640px] md:min-w-0">
+          <motion.div variants={staggerContainer}>
             {ROWS.map((row, i) => (
               <motion.div
                 key={row.feature}
@@ -97,5 +132,3 @@ export function CompareSection() {
     </section>
   );
 }
-
-

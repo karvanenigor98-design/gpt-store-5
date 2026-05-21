@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
 
 const BUCKET = process.env.SUPABASE_CHAT_ATTACHMENTS_BUCKET ?? "chat-attachments";
 
@@ -27,7 +29,8 @@ export async function POST(req: NextRequest) {
   const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { data, error } = await supabaseAdmin.storage.from(BUCKET).upload(path, buffer, {
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.storage.from(BUCKET).upload(path, buffer, {
     contentType: file.type || "application/octet-stream",
     upsert: false,
   });
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: pub } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(data.path);
+  const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(data.path);
   return NextResponse.json({
     url: pub.publicUrl,
     type: file.type || "application/octet-stream",

@@ -97,16 +97,6 @@ function normalizePlans(input: unknown, availability: PlanAvailabilityConfig): E
   return normalized;
 }
 
-/** Pro на витрине всегда из кода (5x / 20x): в БД часто лежит устаревший один тариф pro-1. Plus оставляем из БД. */
-function mergeCanonicalProPlans(plans: ExtendedPlan[], availability: PlanAvailabilityConfig): ExtendedPlan[] {
-  const plus = plans.filter((p) => p.productId !== "chatgpt-pro");
-  const canonicalPro = CHATGPT_PLANS.pro.map((p) => ({
-    ...p,
-    inStock: availability[p.id] !== false,
-  }));
-  return [...plus, ...canonicalPro];
-}
-
 function normalizePromoCodes(input: unknown): PromoCode[] {
   if (!Array.isArray(input)) return [];
   return input
@@ -165,6 +155,17 @@ function applyLandingDiscountsToPlans(plans: ExtendedPlan[], discounts: LandingD
 }
 
 export async function getStoreConfig(): Promise<StoreConfig> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !serviceKey) {
+    return {
+      plans: DEFAULT_PLANS,
+      promoCodes: [],
+      landingSections: DEFAULT_SECTIONS,
+      landingDiscounts: [],
+    };
+  }
+
   try {
     const supabase = createAdminClient();
     const { data } = await supabase
@@ -201,7 +202,7 @@ export async function getStoreConfig(): Promise<StoreConfig> {
 
     const availability = normalizePlanAvailability(map.plan_availability);
 
-    const mergedPlans = mergeCanonicalProPlans(normalizePlans(map.pricing_plans, availability), availability);
+    const mergedPlans = normalizePlans(map.pricing_plans, availability);
 
     return {
       plans: applyLandingDiscountsToPlans(mergedPlans, dbDiscounts),

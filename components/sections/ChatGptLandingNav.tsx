@@ -72,13 +72,14 @@ export function ChatGptLandingNav() {
             <User size={14} />
             Кабинет
           </Link>
-          <a
-            href="/checkout"
+          <button
+            type="button"
+            onClick={() => handleAnchorClick("#pricing")}
             className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-opacity duration-100 hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
             style={{ background: "#10a37f" }}
           >
             Подключить
-          </a>
+          </button>
           <button
             className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors duration-100 hover:bg-gray-100 md:hidden"
             onClick={() => setOpen((v) => !v)}
@@ -117,14 +118,14 @@ export function ChatGptLandingNav() {
               >
                 Личный кабинет
               </Link>
-              <a
-                href="/checkout"
-                onClick={() => setOpen(false)}
+              <button
+                type="button"
+                onClick={() => handleAnchorClick("#pricing")}
                 className="mt-1 rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-white"
                 style={{ background: "#10a37f" }}
               >
                 Подключить
-              </a>
+              </button>
             </nav>
           </motion.div>
         )}

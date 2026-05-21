@@ -16,6 +16,8 @@ export type PublicReview = {
 
 const FALLBACK_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 const CHATGPT_REVIEW_PATTERN = /(chat\s*gpt|чат\s*gpt|gpt[-\s]?4|gpt[-\s]?4o|gpt\b)/i;
+const SPOTIFY_REVIEW_PATTERN =
+  /(spotify|спотифай|spotify\s*premium|premium\s*spotify|премиум\s*spotify|subs\s*store|подписк[аи]\s*spotify|spotify\s*plus)/i;
 const SERVICE_AUTHOR_PATTERN = /(наши отзывы|gpt store|subs store|spotify premium)/i;
 const SERVICE_CONTENT_PATTERN = /(номер заказа|заказ[:#]|клиент[:#]|отзыв[:#])/i;
 
@@ -40,8 +42,17 @@ function formatDateLabel(value: string | null): string {
   });
 }
 
+function sanitizeBotMentions(text: string): string {
+  return text
+    .replace(/\bчерез\s+бота\b/gi, "через поддержку")
+    .replace(/\bв\s+боте\b/gi, "в чате")
+    .replace(/\bбот\b/gi, "поддержка")
+    .replace(/\bbot\b/gi, "support");
+}
+
 function cleanReviewText(value: string): string {
-  return value
+  return sanitizeBotMentions(
+    value
     .replace(/номер\s+заказа[:#]?\s*\d+\s*/gi, "")
     .replace(/клиент[:#]?\s*@[\w_]+\s*/gi, "")
     .replace(/отзыв[:#]?\s*/gi, "")
@@ -52,7 +63,8 @@ function cleanReviewText(value: string): string {
     .replace(/^[^\p{L}\p{N}@]+/u, "")
     .replace(/\s+/g, " ")
     .replace(/\s+([,.:;!?])/g, "$1")
-    .trim();
+    .trim(),
+  );
 }
 
 function extractRating(value: string): number | null {
@@ -81,6 +93,7 @@ function shuffle<T>(items: T[]): T[] {
 
 type GetPublicReviewsOptions = {
   chatgptOnly?: boolean;
+  spotifyOnly?: boolean;
   randomize?: boolean;
   uniqueAuthors?: boolean;
 };
@@ -160,6 +173,13 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
 
     if (options?.chatgptOnly) {
       mapped = mapped.filter((item) => CHATGPT_REVIEW_PATTERN.test(item.content));
+    }
+
+    if (options?.spotifyOnly) {
+      mapped = mapped.filter(
+        (item) =>
+          SPOTIFY_REVIEW_PATTERN.test(item.content) && !CHATGPT_REVIEW_PATTERN.test(item.content),
+      );
     }
 
     if (options?.uniqueAuthors) {

@@ -9,7 +9,7 @@ export function resolvePostLoginPath(returnUrl: string, role: UserRole): string 
     returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/dashboard";
 
   if (role === "admin" || role === "operator") {
-    const staffBase = "/admin";
+    const staffBase = role === "admin" ? "/admin" : "/operator";
     if (safe.startsWith("/dashboard/chat")) {
       return `${staffBase}/chat`;
     }

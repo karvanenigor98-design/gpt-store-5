@@ -22,6 +22,58 @@ type EditablePlan = {
   currency: string;
 };
 
+function toEditable(plan: ExtendedPlan): EditablePlan {
+  return {
+    ...plan,
+    currency: plan.currency ?? "₽",
+  };
+}
+
+function normalizeAdminPlans(rawPlans: unknown, fallbackPlans: EditablePlan[]): EditablePlan[] {
+  const parsedRaw = Array.isArray(rawPlans)
+    ? rawPlans
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const p = item as Record<string, unknown>;
+          const id = typeof p.id === "string" ? p.id : "";
+          if (!id) return null;
+          const fallback = fallbackPlans.find((x) => x.id === id) ?? fallbackPlans[0];
+          return {
+            id,
+            productId: p.productId === "chatgpt-pro" ? "chatgpt-pro" : "chatgpt-plus",
+            name: typeof p.name === "string" ? p.name : fallback?.name ?? id,
+            price: typeof p.price === "number" ? p.price : Number(p.price ?? fallback?.price ?? 0),
+            period: typeof p.period === "string" ? p.period : fallback?.period ?? "мес",
+            badge: typeof p.badge === "string" ? p.badge : fallback?.badge,
+            description:
+              typeof p.description === "string" ? p.description : fallback?.description ?? "",
+            features: Array.isArray(p.features)
+              ? p.features.filter((f): f is string => typeof f === "string")
+              : (fallback?.features ?? []),
+            isPopular: typeof p.isPopular === "boolean" ? p.isPopular : Boolean(fallback?.isPopular),
+            cta: typeof p.cta === "string" ? p.cta : fallback?.cta ?? "Подключить",
+            currency: typeof p.currency === "string" ? p.currency : fallback?.currency ?? "₽",
+          } satisfies EditablePlan;
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null) as EditablePlan[]
+    : [];
+
+  const plusPlans = parsedRaw.filter((p) => p.productId === "chatgpt-plus");
+  const plusFallback = fallbackPlans.filter((p) => p.productId === "chatgpt-plus");
+
+  const normalizedPlus = plusPlans.length
+    ? plusPlans
+    : plusFallback;
+
+  // Для Pro в админке всегда показываем canonical 5x/20x.
+  // Если в БД legacy pro-1, он не подменяет canonical набор.
+  const proFallback = fallbackPlans.filter((p) => p.productId === "chatgpt-pro");
+  const proById = new Map(parsedRaw.filter((p) => p.productId === "chatgpt-pro").map((p) => [p.id, p]));
+  const normalizedPro = proFallback.map((p) => proById.get(p.id) ?? p);
+
+  return [...normalizedPlus, ...normalizedPro];
+}
+
 const FIELDS = [
   { key: "auto_reply_delay_minutes", label: "Задержка авто-ответа", type: "select" as const },
   { key: "operator_telegram_url", label: "Ссылка на оператора в Telegram", type: "text" },
@@ -31,43 +83,12 @@ const FIELDS = [
 
 export function SettingsForm({ initialSettings }: Props) {
   const fallbackPlans = useMemo<EditablePlan[]>(
-    () =>
-      [...CHATGPT_PLANS.plus, ...CHATGPT_PLANS.pro].map((plan) => ({
-        ...plan,
-        currency: plan.currency ?? "₽",
-      })),
+    () => [...CHATGPT_PLANS.plus, ...CHATGPT_PLANS.pro].map(toEditable),
     []
   );
 
   const initialPlans = useMemo<EditablePlan[]>(() => {
-    const raw = initialSettings.pricing_plans;
-    if (!Array.isArray(raw)) return fallbackPlans;
-    const parsed = raw
-      .map((item) => {
-        if (!item || typeof item !== "object") return null;
-        const p = item as Record<string, unknown>;
-        const id = typeof p.id === "string" ? p.id : "";
-        const fallback = fallbackPlans.find((x) => x.id === id) ?? fallbackPlans[0];
-        if (!id) return null;
-        return {
-          id,
-          productId: p.productId === "chatgpt-pro" ? "chatgpt-pro" : "chatgpt-plus",
-          name: typeof p.name === "string" ? p.name : fallback?.name ?? id,
-          price: typeof p.price === "number" ? p.price : Number(p.price ?? fallback?.price ?? 0),
-          period: typeof p.period === "string" ? p.period : fallback?.period ?? "мес",
-          badge: typeof p.badge === "string" ? p.badge : fallback?.badge,
-          description:
-            typeof p.description === "string" ? p.description : fallback?.description ?? "",
-          features: Array.isArray(p.features)
-            ? p.features.filter((f): f is string => typeof f === "string")
-            : (fallback?.features ?? []),
-          isPopular: typeof p.isPopular === "boolean" ? p.isPopular : Boolean(fallback?.isPopular),
-          cta: typeof p.cta === "string" ? p.cta : fallback?.cta ?? "Подключить",
-          currency: typeof p.currency === "string" ? p.currency : fallback?.currency ?? "₽",
-        };
-      })
-      .filter((p): p is EditablePlan => Boolean(p));
-    return parsed.length ? parsed : fallbackPlans;
+    return normalizeAdminPlans(initialSettings.pricing_plans, fallbackPlans);
   }, [fallbackPlans, initialSettings.pricing_plans]);
 
   const initialAvailability = useMemo<Record<string, boolean>>(() => {

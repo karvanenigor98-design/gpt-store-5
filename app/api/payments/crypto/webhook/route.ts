@@ -2,6 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { incrementPromocodeUsage } from "@/lib/promocodes/db-promo";
 import { createAdminClient } from "@/lib/supabase/server";
 import { mapCryptoStatus } from "@/lib/payments/crypto";
+import {
+  handleOrderPaidNotification,
+  isTransitionToPaidLike,
+  resolveGptOrderSiteSlug,
+} from "@/lib/notifications/order-paid";
 import { notifyCustomerOrderStatus, notifyPaymentStatus } from "@/lib/telegram/notifications";
 
 export async function POST(request: NextRequest) {
@@ -27,35 +32,74 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const updates: Record<string, unknown> = {
-    status: internalStatus === "paid" ? "activating" : internalStatus,
-  };
+  const prevStatus = String(order.status);
+  const newOrderStatus = (internalStatus === "paid" ? "activating" : internalStatus) as import("@/types/database").OrderStatus;
+  const siteSlug = resolveGptOrderSiteSlug(order);
 
-  await supabase.from("orders").update(updates).eq("id", order.id);
+  await supabase.from("orders").update({ status: newOrderStatus }).eq("id", order.id);
 
-  const becamePaidLike =
-    internalStatus === "paid" &&
-    !["paid", "activating", "active", "waiting_client"].includes(order.status);
+  const becamePaidLike = isTransitionToPaidLike(prevStatus, newOrderStatus, siteSlug);
   if (becamePaidLike) {
     const meta = order.meta as Record<string, unknown> | null;
     const promoCode = typeof meta?.promo_code === "string" ? meta.promo_code : null;
     await incrementPromocodeUsage(supabase, promoCode).catch(() => undefined);
   }
 
-  await notifyPaymentStatus(order, internalStatus).catch(() => {});
+  const planTitle = (order as { plan_name?: string | null }).plan_name?.trim() || order.plan_id;
+
+  let customerEmail: string | null = null;
   if (order.user_id) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("email")
       .eq("id", order.user_id)
       .maybeSingle();
-    if (profile?.email) {
-      await notifyCustomerOrderStatus({
-        customerEmail: profile.email,
-        orderId: order.id,
-        planName: order.plan_id,
-        status: updates.status as string,
+    customerEmail = profile?.email?.trim().toLowerCase() ?? null;
+  }
+
+  if (becamePaidLike) {
+    void handleOrderPaidNotification({
+      orderId: order.id,
+      siteSlug,
+      planName: planTitle,
+      price: order.price,
+      status: newOrderStatus,
+      customerEmail,
+      customerUserId: order.user_id,
+      accountEmail: order.account_email ?? undefined,
+      paidAt: new Date().toISOString(),
+    }).catch(() => undefined);
+
+    await notifyPaymentStatus(
+      {
+        id: order.id,
+        plan_name: planTitle,
         price: order.price,
+        account_email: order.account_email ?? undefined,
+      },
+      newOrderStatus,
+      { siteSlug, skipStaffInAppAndEmail: true },
+    );
+  } else {
+    await notifyPaymentStatus(
+      {
+        id: order.id,
+        plan_name: planTitle,
+        price: order.price,
+        account_email: order.account_email ?? undefined,
+      },
+      newOrderStatus,
+      { siteSlug },
+    );
+    if (customerEmail) {
+      await notifyCustomerOrderStatus({
+        customerEmail,
+        customerUserId: order.user_id,
+        orderId: order.id,
+        planName: planTitle,
+        status: newOrderStatus,
+        price: order.price,
+        siteSlug,
       }).catch(() => {});
     }
   }

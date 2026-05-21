@@ -57,6 +57,37 @@ const QUICK_PRESETS: QuickPreset[] = [
   },
 ];
 
+/** Пресеты для Subs Store (slug тарифов приходят из Supabase тарифной таблицы; здесь только типичные ключи fallback). */
+const SUBS_STORE_QUICK_PRESETS: QuickPreset[] = [
+  {
+    id: "subs-all-10",
+    label: "Subs: −10% на все Spotify-тарифы",
+    discount_type: "percent",
+    discount_value: 10,
+    plan_ids: null,
+    max_uses: null,
+    periodDays: null,
+  },
+  {
+    id: "subs-individual-490-7d",
+    label: "Subs: −50 ₽ на «1 месяц» индив. (slug: spotify-ind-1m, 7 дн.)",
+    discount_type: "fixed",
+    discount_value: 50,
+    plan_ids: ["spotify-ind-1m"],
+    max_uses: 500,
+    periodDays: 7,
+  },
+  {
+    id: "subs-percent-30d",
+    label: "Subs: −15% (30 дней, все тарифы)",
+    discount_type: "percent",
+    discount_value: 15,
+    plan_ids: null,
+    max_uses: 200,
+    periodDays: 30,
+  },
+];
+
 function toLocalInputDate(iso: string): string {
   const d = new Date(iso);
   const pad = (v: number) => String(v).padStart(2, "0");
@@ -69,7 +100,12 @@ function generatePromoCode(): string {
   return `PROMO-${rand}`;
 }
 
-export function PromocodesManager() {
+interface PromocodesManagerProps {
+  siteSlug?: string;
+}
+
+export function PromocodesManager({ siteSlug = "gpt-store" }: PromocodesManagerProps) {
+  const presets = siteSlug === "subs-store" ? SUBS_STORE_QUICK_PRESETS : QUICK_PRESETS;
   const [items, setItems] = useState<Row[]>([]);
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,17 +124,53 @@ export function PromocodesManager() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/promocodes", { credentials: "include" });
-    const j = (await res.json()) as { items?: Row[]; error?: string };
-    if (!res.ok) setErr(j.error ?? "Ошибка");
-    else {
-      setErr(null);
-      setItems(j.items ?? []);
+    try {
+      const res = await fetch(`/api/admin/promocodes?site=${encodeURIComponent(siteSlug)}`, {
+        credentials: "include",
+      });
+      let j = {} as { items?: Row[]; error?: string };
+      try {
+        j = (await res.json()) as { items?: Row[]; error?: string };
+      } catch {
+        setErr(!res.ok ? "Некорректный ответ сервера (промокоды)." : null);
+      }
+      if (!res.ok) setErr(j.error ?? `Ошибка загрузки (${res.status})`);
+      else {
+        setErr(null);
+        setItems(j.items ?? []);
+      }
+    } catch {
+      setErr("Не удалось связаться с сервером при загрузке промокодов.");
     }
     setLoading(false);
-  }, []);
+  }, [siteSlug]);
 
   const loadPlans = useCallback(async () => {
+    if (siteSlug === "subs-store") {
+      try {
+        const res = await fetch("/api/admin/subs-store/tariffs", { credentials: "include" });
+        const json = (await res.json()) as {
+          items?: Array<{ slug: string; title: string }>;
+          error?: string;
+        };
+        if (!res.ok) {
+          setPlanOptions([]);
+          setErr(json.error ?? "Не удалось загрузить тарифы Subs Store для промокодов.");
+          return;
+        }
+        const plans = (json.items ?? [])
+          .filter((p) => typeof p.slug === "string" && p.slug)
+          .map((p) => ({
+            id: p.slug,
+            label: `${p.title} (${p.slug})`,
+          }));
+        setPlanOptions(plans);
+      } catch {
+        setPlanOptions([]);
+        setErr("Сеть: не удалось запросить тарифы Subs Store.");
+      }
+      return;
+    }
     const res = await fetch("/api/public/store-config", { credentials: "include" });
     const json = (await res.json()) as {
       plans?: Array<{ id?: string; name?: string; productId?: string }>;
@@ -110,7 +182,7 @@ export function PromocodesManager() {
         label: `${p.productId === "chatgpt-pro" ? "PRO" : "PLUS"} · ${p.name ?? p.id} (${p.id})`,
       }));
     setPlanOptions(plans);
-  }, []);
+  }, [siteSlug]);
 
   useEffect(() => {
     void load();
@@ -164,6 +236,7 @@ export function PromocodesManager() {
         max_uses: form.use_limit ? Number(form.max_uses) : null,
         valid_from: validFrom,
         valid_until: validUntil,
+        site_id: siteSlug,
       }),
     });
     const j = (await res.json()) as { error?: string };
@@ -185,7 +258,7 @@ export function PromocodesManager() {
   };
 
   const toggle = async (row: Row) => {
-    const res = await fetch("/api/admin/promocodes", {
+    const res = await fetch(`/api/admin/promocodes?site=${encodeURIComponent(siteSlug)}`, {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -205,7 +278,7 @@ export function PromocodesManager() {
       <form onSubmit={create} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-semibold text-gray-900">Новый промокод</p>
         <div className="flex flex-wrap gap-2">
-          {QUICK_PRESETS.map((p) => (
+          {presets.map((p) => (
             <button
               key={p.id}
               type="button"

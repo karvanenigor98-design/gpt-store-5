@@ -4,20 +4,34 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatRoomListItem } from "@/types/chat-ui";
 import { formatTime } from "@/lib/chat/constants";
+import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
 import { cn } from "@/lib/utils";
+import { getSiteBySlug } from "@/lib/sites";
 import { Search } from "lucide-react";
 
 interface RoomListProps {
   selectedClientId: string | null;
   onSelect: (room: ChatRoomListItem) => void;
+  siteSlug?: string;
+  /** Открыть диалог из URL (?thread_id= / ?session_id=) после загрузки списка */
+  pendingSelectRoomId?: string | null;
+  onPendingRoomConsumed?: () => void;
 }
 
-export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
+export function RoomList({
+  selectedClientId,
+  onSelect,
+  siteSlug,
+  pendingSelectRoomId,
+  onPendingRoomConsumed,
+}: RoomListProps) {
   const [rooms, setRooms] = useState<ChatRoomListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const supabase = createClient();
+  const accent = getSiteBySlug(siteSlug === "subs-store" ? "subs-store" : "gpt-store").primaryColor;
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(search.trim()), 320);
@@ -26,13 +40,27 @@ export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
 
   const loadRooms = useCallback(async () => {
     const q = debounced ? `&q=${encodeURIComponent(debounced)}` : "";
-    const res = await fetch(`/api/chat/rooms?list=1${q}`, { credentials: "include" });
+    const isSubs = siteSlug === "subs-store";
+    const url = isSubs
+      ? `/api/admin/subs-store/chat/rooms?list=1${q}`
+      : `/api/chat/rooms?list=1${q}${siteSlug ? `&site=${encodeURIComponent(siteSlug)}` : ""}`;
+    setLoadError(null);
+    const res = await fetch(url, { credentials: "include" });
     if (res.ok) {
       const data = (await res.json()) as ChatRoomListItem[];
       setRooms(Array.isArray(data) ? data : []);
+      refreshStaffNavBadges();
+    } else {
+      setRooms([]);
+      try {
+        const j = (await res.json()) as { error?: string };
+        setLoadError(j.error ?? `Ошибка ${res.status}`);
+      } catch {
+        setLoadError(`Ошибка ${res.status}`);
+      }
     }
     setLoading(false);
-  }, [debounced]);
+  }, [debounced, siteSlug]);
 
   useEffect(() => {
     setLoading(true);
@@ -40,6 +68,8 @@ export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
   }, [loadRooms]);
 
   useEffect(() => {
+    if (siteSlug === "subs-store") return;
+
     const channel = supabase
       .channel("rooms-list-refresh")
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_sessions" }, () => {
@@ -55,10 +85,32 @@ export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [supabase, loadRooms]);
+  }, [supabase, loadRooms, siteSlug]);
+
+  useEffect(() => {
+    if (siteSlug !== "subs-store") return;
+    const t = window.setInterval(() => {
+      void loadRooms();
+    }, 5000);
+    return () => window.clearInterval(t);
+  }, [siteSlug, loadRooms]);
+
+  useEffect(() => {
+    if (!pendingSelectRoomId || loading || !rooms.length) return;
+    const room = rooms.find((r) => r.id === pendingSelectRoomId);
+    if (room) {
+      onSelect(room);
+      onPendingRoomConsumed?.();
+    }
+  }, [pendingSelectRoomId, loading, rooms, onSelect, onPendingRoomConsumed]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {loadError && (
+        <p className="mx-3 mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+          {loadError}
+        </p>
+      )}
       <div className="relative border-b border-gray-50 px-3 py-2">
         <Search className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
@@ -66,7 +118,14 @@ export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск email или имени…"
-          className="w-full rounded-lg border border-gray-100 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#10a37f]/40"
+          className="w-full rounded-lg border border-gray-100 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2"
+          style={{ ["--tw-ring-color" as string]: `${accent}33` }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = `${accent}66`;
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "";
+          }}
         />
       </div>
       {loading ? (
@@ -96,11 +155,21 @@ export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
             onClick={() => onSelect(room)}
             className={cn(
               "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50",
-              isSelected && "bg-[#10a37f]/10 hover:bg-[#10a37f]/10"
+              isSelected && "hover:opacity-100"
             )}
+            style={
+              isSelected
+                ? { backgroundColor: `${accent}12` }
+                : undefined
+            }
           >
             <div className="relative flex-shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#10a37f] to-[#0a6b4a] text-sm font-bold text-white">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
+                }}
+              >
                 {initials}
               </div>
               <div
@@ -142,8 +211,12 @@ export function RoomList({ selectedClientId, onSelect }: RoomListProps) {
                           : "Можно написать первым"}
                 </span>
                 {hasUnread && (
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#10a37f] text-xs font-medium text-white">
-                    {Math.min(room.unread_operator ?? 0, 9)}
+                  <span
+                    className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums text-white"
+                    style={{ backgroundColor: accent }}
+                    title={`${room.unread_operator} непрочитанных`}
+                  >
+                    {(room.unread_operator ?? 0) > 999 ? "999+" : room.unread_operator}
                   </span>
                 )}
               </div>

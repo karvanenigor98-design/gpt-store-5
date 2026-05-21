@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { HOW_IT_WORKS_STEPS } from "@/lib/chatgpt-data";
 import { fadeUp, scaleIn, staggerContainer } from "@/lib/motion-config";
+import { chatLandingLucideIcon } from "@/components/sections/chatgpt-landing-icons";
 
 export function HowItWorksSection() {
   return (
@@ -34,7 +35,7 @@ export function HowItWorksSection() {
           className="grid gap-6 md:grid-cols-4"
         >
           {HOW_IT_WORKS_STEPS.map((step, index) => {
-            const Icon = step.icon;
+            const Icon = chatLandingLucideIcon(step.icon);
             return (
               <motion.article
                 key={step.title}
@@ -46,7 +47,7 @@ export function HowItWorksSection() {
                   {index + 1}
                 </span>
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#10a37f]/10 border border-[#10a37f]/15">
-                  <Icon size={22} color="#10a37f" />
+                  <Icon size={22} color="#10a37f" className="shrink-0" aria-hidden />
                 </div>
                 <h3 className="font-heading text-base font-semibold text-gray-900">
                   {step.title}

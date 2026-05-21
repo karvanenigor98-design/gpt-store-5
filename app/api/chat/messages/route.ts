@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
-import { getScriptedFaqAnswer, getSupportHandoffAutoReply } from "@/lib/chat/scriptedFaq";
+import { resolveSupportAutoReply } from "@/lib/chat/scriptedFaq";
+import { markStaffChatNotificationsRead } from "@/lib/admin/mark-staff-notifications-read";
 import { resolveHumanSenderType } from "@/lib/chat/messageSender";
 import { isStaffSessionParticipant } from "@/lib/chat/staffSession";
+import {
+  isChatSessionForSubsStore,
+  notifySubsStoreCustomerChatReply,
+} from "@/lib/subs/subs-notifications";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import {
-  notifyCustomerAboutChatMessage,
-  notifyNewMessage,
-  notifyStaffAboutChatMessage,
-} from "@/lib/telegram/notifications";
+import { alertStaffOnClientSupportMessage } from "@/lib/notifications/client-chat-alert";
+import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
 import type { ChatMessage } from "@/types";
 import type { Json } from "@/types/database";
 
@@ -20,6 +22,7 @@ type SessionAccessRow = {
   user_id: string | null;
   type: string;
   staff_peer_id: string | null;
+  site_id: string | null;
 };
 
 function canAccessSupportSession(
@@ -67,7 +70,7 @@ export async function GET(req: NextRequest) {
 
   const { data: sessionRow, error: sessionError } = await supabaseAdmin
     .from("chat_sessions")
-    .select("id, user_id, type, staff_peer_id")
+    .select("id, user_id, type, staff_peer_id, site_id")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -104,6 +107,9 @@ export async function GET(req: NextRequest) {
       .update({ is_read: true })
       .eq("session_id", sessionId)
       .eq("sender_type", "client");
+    const subsChat =
+      session.site_id != null ? await isChatSessionForSubsStore(session.site_id) : false;
+    await markStaffChatNotificationsRead(sessionId, subsChat ? "subs-store" : "gpt-store");
   } else {
     await supabaseAdmin
       .from("chat_messages")
@@ -146,7 +152,7 @@ export async function POST(req: NextRequest) {
 
   const { data: sessionRow, error: sessionError } = await supabaseAdmin
     .from("chat_sessions")
-    .select("id, user_id, type, staff_peer_id")
+    .select("id, user_id, type, staff_peer_id, site_id")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -212,33 +218,18 @@ export async function POST(req: NextRequest) {
 
   const textForNotify = content || body.attachment?.name || "вложение";
   if (session.type === "operator" || session.type === "ai") {
-    await notifyNewMessage(sessionId, user.email ?? null, textForNotify).catch(() => undefined);
+    const subsStoreChat =
+      session.site_id != null ? await isChatSessionForSubsStore(session.site_id) : false;
+    const siteSlug: "gpt-store" | "subs-store" = subsStoreChat ? "subs-store" : "gpt-store";
+
     if (senderType === "client") {
-      const { count: unreadForStaff } = await supabaseAdmin
-        .from("chat_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("session_id", sessionId)
-        .eq("sender_type", "client")
-        .eq("is_read", false);
-
-      // Шлем письмо только когда есть непрочитанные сообщения клиента.
-      if ((unreadForStaff ?? 0) > 0 && canSendChatEmailNotification(`staff:${sessionId}`)) {
-        const { data: staffRows } = await supabaseAdmin
-          .from("profiles")
-          .select("email")
-          .in("role", ["admin", "operator"])
-          .not("email", "is", null);
-        const recipients = (staffRows ?? [])
-          .map((row) => row.email?.trim().toLowerCase())
-          .filter((email): email is string => Boolean(email));
-
-        await notifyStaffAboutChatMessage({
-          fromEmail: user.email ?? null,
-          messagePreview: textForNotify,
-          sessionId,
-          recipients,
-        }).catch(() => undefined);
-      }
+      void alertStaffOnClientSupportMessage({
+        siteSlug,
+        sessionId,
+        clientUserId: session.user_id ?? user.id,
+        clientEmail: user.email ?? null,
+        messagePreview: textForNotify,
+      }).catch((err) => console.error("[chat/messages] staff alert:", err));
     } else if ((senderType === "operator" || senderType === "admin") && session.user_id) {
       const { count: unreadForCustomer } = await supabaseAdmin
         .from("chat_messages")
@@ -256,14 +247,31 @@ export async function POST(req: NextRequest) {
       const customerEmail = customerProfile?.email?.trim();
       // Шлем письмо только когда у клиента есть непрочитанные сообщения от staff.
       if (customerEmail && (unreadForCustomer ?? 0) > 0) {
-        if (canSendChatEmailNotification(`customer:${sessionId}`)) {
+        if (canSendChatEmailNotification(`customer:${siteSlug}:${sessionId}`)) {
           await notifyCustomerAboutChatMessage({
             customerEmail,
+            customerUserId: session.user_id,
             senderRoleLabel: senderType === "admin" ? "Администратор" : "Оператор",
             messagePreview: textForNotify,
             sessionId,
+            siteSlug,
           }).catch(() => undefined);
         }
+      }
+
+      if (subsStoreChat) {
+        void notifySubsStoreCustomerChatReply({
+          sessionId,
+          customerUserId: session.user_id,
+          messagePreview: textForNotify,
+        }).catch(() => undefined);
+      } else {
+        const { notifyGptCustomerChatReply } = await import("@/lib/notifications/gpt-customer-notifications");
+        void notifyGptCustomerChatReply({
+          sessionId,
+          customerUserId: session.user_id,
+          messagePreview: textForNotify,
+        }).catch(() => undefined);
       }
     }
   }
@@ -271,10 +279,7 @@ export async function POST(req: NextRequest) {
   let autoReply: ChatMessage | null = null;
 
   if (!isStaff && (session.type === "operator" || session.type === "ai")) {
-    const scriptedAnswer =
-      getScriptedFaqAnswer(content) ??
-      getSupportHandoffAutoReply(content) ??
-      "Не поняла вопроса. Перевожу вас на поддержку — оператор подключится в ближайшее время.";
+    const scriptedAnswer = resolveSupportAutoReply(content, "gpt-store");
 
     const { data: autoRow } = await supabaseAdmin
       .from("chat_messages")

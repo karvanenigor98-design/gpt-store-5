@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
+
 import { createClient } from "@/lib/supabase/server";
 import { createPallyPayment } from "@/lib/payments/pally";
 import { CHATGPT_PLANS } from "@/lib/chatgpt-data";
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     if (!planId || !accountEmail) {
       return NextResponse.json(
         { error: "Укажите тариф и email аккаунта ChatGPT" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -42,6 +43,12 @@ export async function POST(request: NextRequest) {
     }
 
     const promo = findPromo(config.promoCodes, promoCode, plan.id);
+    if (promoCode?.trim() && !promo) {
+      return NextResponse.json(
+        { error: "Промокод недействителен или не подходит к этому тарифу" },
+        { status: 400 },
+      );
+    }
     const { finalPrice, discountValue } = applyPromo(plan.price, promo);
 
     const { data: order, error: orderError } = await supabase
@@ -80,7 +87,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         amount: finalPrice,
         description: `GPT STORE: ${plan.name}`,
-        returnUrl: `${appUrl}/checkout/success`,
+        returnUrl: `${appUrl}/checkout/success?order=${order.id}`,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
         customerEmail: user.email ?? undefined,
       });
@@ -99,15 +106,17 @@ export async function POST(request: NextRequest) {
 
     await notifyNewOrder(
       { id: order.id, plan_name: plan.name, price: finalPrice, account_email: accountEmail },
-      { email: user.email ?? null }
+      { email: user.email ?? null },
     );
     if (user.email) {
       await notifyCustomerOrderCreated({
         customerEmail: user.email,
+        customerUserId: user.id,
         orderId: order.id,
         planName: plan.name,
         price: finalPrice,
         accountEmail,
+        siteSlug: "gpt-store",
       }).catch(() => {});
     }
 
@@ -116,7 +125,7 @@ export async function POST(request: NextRequest) {
     console.error("[Checkout] Ошибка:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Внутренняя ошибка" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -21,7 +21,7 @@ export function TokenSafetySection() {
           <h2 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">
             Данные сессии — честно и понятно
           </h2>
-          <p className="mt-3 text-gray-500">
+          <p className="mt-3 text-gray-700">
             Рассказываем, зачем могут понадобиться данные сессии, как их получить по ссылке chatgpt.com и как
             передавать их безопасно — только в чат сайта GPT STORE.
           </p>

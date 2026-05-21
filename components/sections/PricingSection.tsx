@@ -212,10 +212,21 @@ export function PricingSection({
             transition={{ duration: 0.35 }}
             className="mb-10"
           >
+            <div className="mx-auto mb-4 grid max-w-xl grid-cols-1 gap-2 md:hidden">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                <span className="font-semibold">Новый аккаунт:</span> минимальная цена, стандартная очередь.
+              </div>
+              <div className="rounded-xl border border-[#10a37f]/35 bg-[#10a37f]/5 px-3 py-2 text-xs text-gray-700">
+                <span className="font-semibold">Популярный:</span> лучший баланс цены и скорости.
+              </div>
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="font-semibold">Быстрая активация:</span> приоритетное подключение.
+              </div>
+            </div>
             <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
               Три тарифа — отличаются цена и скорость подключения
             </p>
-            <div className="mx-auto grid max-w-6xl gap-4 md:grid-cols-3 md:gap-4">
+            <div className="mx-auto hidden max-w-6xl gap-4 md:grid md:grid-cols-3 md:gap-4">
               <div className="relative overflow-hidden rounded-2xl border border-slate-200/95 bg-gradient-to-br from-slate-50/50 via-white to-white p-4 shadow-sm shadow-slate-500/5 md:p-5">
                 <p className="relative text-xs font-bold uppercase tracking-wider text-slate-500">Новые аккаунты</p>
                 <p className="relative mt-1 font-heading text-base font-bold text-slate-900 md:text-lg">
@@ -274,10 +285,18 @@ export function PricingSection({
             transition={{ duration: 0.35 }}
             className="mb-10"
           >
+            <div className="mx-auto mb-4 grid max-w-xl grid-cols-1 gap-2 md:hidden">
+              <div className="rounded-xl border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                <span className="font-semibold">Pro 5x:</span> для активной ежедневной работы.
+              </div>
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                <span className="font-semibold">Pro 20x:</span> для высокой нагрузки и бизнеса.
+              </div>
+            </div>
             <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
               Одинаковые функции — разные лимиты
             </p>
-            <div className="mx-auto grid w-full max-w-5xl auto-rows-fr grid-cols-1 gap-6 md:grid-cols-2 md:items-stretch">
+            <div className="mx-auto hidden w-full max-w-5xl auto-rows-fr grid-cols-1 gap-6 md:grid md:grid-cols-2 md:items-stretch">
               <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border-2 border-sky-400/70 bg-gradient-to-br from-sky-50 via-white to-white p-5 shadow-md shadow-sky-500/10 md:p-6">
                 <div className="absolute right-2 top-1 text-[4.75rem] font-black leading-none text-sky-300/95 drop-shadow-[0_2px_10px_rgba(14,165,233,0.22)] select-none md:text-[5rem]">
                   5×
@@ -399,9 +418,6 @@ export function PricingSection({
               const cardAccent = proTier ? proAccent : plusTier ? plusAccent : product.accentColor;
               const cardGlow = proTier ? proGlow : plusTier ? plusGlow : product.glowColor;
 
-              const isHeroCta =
-                plan.isPopular && (activeProduct === "chatgpt-pro" || activeProduct === "chatgpt-plus");
-              const isSecondaryPlusCta = activeProduct === "chatgpt-plus" && plusTier === "fast";
               const isHovered = hoveredPlanId === plan.id;
               const hoverDetails =
                 PLAN_HOVER_DETAILS[plan.id] ??

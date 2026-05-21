@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Package, CheckCircle, MessageCircle, Plus, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { ClientLoyaltyBlock } from "@/components/ui/ClientLoyaltyBlock";
+import { ReviewSubmitForm } from "@/components/dashboard/ReviewSubmitForm";
 import type { OrderStatus } from "@/types/database";
 
 interface Order {
@@ -26,10 +28,16 @@ interface Props {
   ordersCount: number;
   activeCount: number;
   chatsCount: number;
+  siteSlug?: string;
+  sitePrimaryColor?: string;
+  siteBrandName?: string;
+  siteCheckoutPath?: string;
+  siteSupportPath?: string;
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string }> = {
   pending: { label: "Ожидает", bg: "bg-yellow-100", text: "text-yellow-700" },
+  paid: { label: "Оплачен", bg: "bg-emerald-100", text: "text-emerald-700" },
   activating: { label: "В работе", bg: "bg-blue-100", text: "text-blue-700" },
   waiting_client: { label: "Нужен токен", bg: "bg-orange-100", text: "text-orange-700" },
   active: { label: "Активно", bg: "bg-green-100", text: "text-green-700" },
@@ -38,11 +46,31 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string }> = 
   refunded: { label: "Возврат", bg: "bg-gray-100", text: "text-gray-600" },
 };
 
+const STATUS_MAP_SUBS: Record<string, { label: string; bg: string; text: string }> = {
+  pending: { label: "Ожидает", bg: "bg-yellow-500/15", text: "text-yellow-200" },
+  paid: { label: "Оплачен", bg: "bg-emerald-500/20", text: "text-emerald-200" },
+  activating: { label: "В работе", bg: "bg-sky-500/15", text: "text-sky-200" },
+  waiting_client: { label: "Нужен токен", bg: "bg-orange-500/15", text: "text-orange-200" },
+  active: { label: "Активно", bg: "bg-emerald-500/20", text: "text-emerald-200" },
+  expired: { label: "Истекло", bg: "bg-white/10", text: "text-gray-300" },
+  failed: { label: "Ошибка", bg: "bg-red-500/15", text: "text-red-200" },
+  refunded: { label: "Возврат", bg: "bg-white/10", text: "text-gray-300" },
+};
+
 const FU = {
   initial: { opacity: 0, y: 14 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.4, ease: "easeOut" },
 } as const;
+
+function getProductDisplayName(product: string, planId: string): string {
+  if (product.startsWith("spotify")) {
+    return `Spotify Premium — ${planId.replace("spotify-", "").replace(/-/g, " ")}`;
+  }
+  if (product === "chatgpt-plus") return "ChatGPT Plus";
+  if (product === "chatgpt-pro") return "ChatGPT Pro";
+  return `${product} — ${planId}`;
+}
 
 export function DashboardClient({
   userEmail,
@@ -52,7 +80,15 @@ export function DashboardClient({
   ordersCount,
   activeCount,
   chatsCount,
+  siteSlug,
+  sitePrimaryColor = "#10a37f",
+  siteCheckoutPath = "/checkout",
+  siteSupportPath = "/dashboard/chat",
 }: Props) {
+  const isSpotify = siteSlug === "subs-store";
+  const primaryColor = sitePrimaryColor;
+  const statusStyles = isSpotify ? STATUS_MAP_SUBS : STATUS_MAP;
+
   const activeOrPendingOrders = orders.filter((o) =>
     ["pending", "waiting_client", "activating"].includes(o.status)
   );
@@ -62,26 +98,52 @@ export function DashboardClient({
   const greeting = username ? `Привет, ${username}!` : "Добро пожаловать!";
 
   return (
-    <div className="w-full max-w-none space-y-5">
+    <div className={cn("w-full max-w-none space-y-5", isSpotify && "text-gray-100")}>
+      {/* Site context badge */}
+      {isSpotify && (
+        <div
+          className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+          style={{
+            backgroundColor: "#000000",
+            borderColor: `${primaryColor}40`,
+            color: primaryColor,
+          }}
+        >
+          Spotify Premium
+        </div>
+      )}
+
       {/* Header */}
       <motion.div
         {...FU}
         transition={{ ...FU.transition, delay: 0 }}
-        className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
+        className={cn(
+          "flex items-center justify-between rounded-2xl border p-5",
+          isSpotify
+            ? "border-white/10 bg-[#161616] shadow-none"
+            : "border-gray-100 bg-white shadow-sm"
+        )}
       >
         <div>
-          <h1 className="text-xl font-bold text-gray-900">{greeting}</h1>
-          <p className="mt-0.5 text-sm text-gray-500">{userEmail}</p>
+          <h1 className={cn("text-xl font-bold", isSpotify ? "text-white" : "text-gray-900")}>{greeting}</h1>
+          <p className={cn("mt-0.5 text-sm", isSpotify ? "text-gray-400" : "text-gray-500")}>{userEmail}</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href="/checkout"
-            className="hidden sm:flex items-center gap-2 rounded-xl bg-[#10a37f] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-[#10a37f]/20 hover:opacity-90 transition-opacity"
+            href={siteCheckoutPath}
+            className="hidden sm:flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
+            style={{
+              backgroundColor: primaryColor,
+              boxShadow: `0 4px 12px ${primaryColor}33`,
+            }}
           >
             <Plus size={15} />
-            Новый заказ
+            {isSpotify ? "Подключить Premium" : "Новый заказ"}
           </Link>
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#10a37f] text-base font-bold text-white shadow-sm">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-white shadow-sm"
+            style={{ backgroundColor: primaryColor }}
+          >
             {userEmail[0]?.toUpperCase()}
           </div>
         </div>
@@ -90,35 +152,50 @@ export function DashboardClient({
       {/* Stats */}
       <motion.div {...FU} transition={{ ...FU.transition, delay: 0.07 }} className="grid grid-cols-3 gap-3">
         {[
-          { icon: Package, label: "Заказов", value: ordersCount, color: "#10a37f" },
-          { icon: CheckCircle, label: "Активных", value: activeCount, color: "#1a56db" },
-          { icon: MessageCircle, label: "Обращений", value: chatsCount, color: "#8b5cf6" },
-        ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-            <card.icon size={18} style={{ color: card.color }} className="mb-2 opacity-80" />
+          { icon: Package, label: "Заказов", value: ordersCount, color: primaryColor },
+          { icon: CheckCircle, label: "Активных", value: activeCount, color: isSpotify ? "#38bdf8" : "#1a56db" },
+          { icon: MessageCircle, label: "Обращений", value: chatsCount, color: isSpotify ? "#a78bfa" : "#8b5cf6" },
+        ].map((card) => {
+          const Icon = card.icon;
+          return (
+          <div
+            key={card.label}
+            className={cn(
+              "rounded-2xl border p-4",
+              isSpotify ? "border-white/10 bg-[#161616]" : "border-gray-100 bg-white shadow-sm"
+            )}
+          >
+            <Icon size={18} style={{ color: card.color }} className="mb-2 opacity-80" />
             <p className="text-2xl font-bold" style={{ color: card.color }}>
               {card.value}
             </p>
-            <p className="mt-0.5 text-xs text-gray-500">{card.label}</p>
+            <p className={cn("mt-0.5 text-xs", isSpotify ? "text-gray-500" : "text-gray-500")}>{card.label}</p>
           </div>
-        ))}
+          );
+        })}
       </motion.div>
 
       {/* Active orders — real-time status trackers */}
       {activeOrPendingOrders.length > 0 && (
         <motion.div {...FU} transition={{ ...FU.transition, delay: 0.14 }} className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400 px-1">
+          <h2
+            className={cn(
+              "text-sm font-semibold uppercase tracking-wide px-1",
+              isSpotify ? "text-gray-500" : "text-gray-400"
+            )}
+          >
             В процессе
           </h2>
           {activeOrPendingOrders.map((order) => (
             <div key={order.id} className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <p className="text-sm font-semibold text-gray-800">
-                  {order.product === "chatgpt-plus" ? "ChatGPT Plus" : "ChatGPT Pro"} — {order.plan_id}
+                <p className={cn("text-sm font-semibold", isSpotify ? "text-gray-100" : "text-gray-800")}>
+                  {getProductDisplayName(order.product, order.plan_id)}
                 </p>
                 <Link
-                  href="/dashboard/chat"
-                  className="text-xs text-[#10a37f] hover:underline"
+                  href={siteSupportPath}
+                  className="text-xs hover:underline"
+                  style={{ color: primaryColor }}
                 >
                   Написать в чат
                 </Link>
@@ -128,8 +205,10 @@ export function DashboardClient({
                 initialStatus={order.status as OrderStatus}
                 planId={order.plan_id}
                 activatedAt={order.activated_at ?? undefined}
+                variant={isSpotify ? "subs" : "light"}
+                chatHref={siteSupportPath}
                 onOpenChat={() => {
-                  window.location.href = "/dashboard/chat";
+                  window.location.href = siteSupportPath;
                 }}
               />
             </div>
@@ -145,17 +224,31 @@ export function DashboardClient({
             createdAt={profileCreatedAt}
             completedOrders={completedOrders}
             totalOrders={ordersCount}
+            variant={isSpotify ? "subs" : "default"}
           />
         </motion.div>
 
         {/* Recent orders */}
         <motion.div {...FU} transition={{ ...FU.transition, delay: 0.28 }} className="lg:col-span-2">
-          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden h-full">
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
-              <h2 className="text-sm font-semibold text-gray-900">Последние заказы</h2>
+          <div
+            className={cn(
+              "rounded-2xl border shadow-sm overflow-hidden h-full",
+              isSpotify ? "border-white/10 bg-[#161616]" : "border-gray-100 bg-white"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center justify-between border-b px-5 py-3.5",
+                isSpotify ? "border-white/10" : "border-gray-100"
+              )}
+            >
+              <h2 className={cn("text-sm font-semibold", isSpotify ? "text-white" : "text-gray-900")}>
+                {isSpotify ? "Spotify — последние заказы" : "Последние заказы"}
+              </h2>
               <Link
-                href="/dashboard/orders"
-                className="flex items-center gap-1 text-xs text-[#10a37f] hover:underline"
+                href={`/dashboard/orders${siteSlug ? `?site=${siteSlug}` : ""}`}
+                className="flex items-center gap-1 text-xs hover:underline"
+                style={{ color: primaryColor }}
               >
                 Все заказы <ArrowRight size={12} />
               </Link>
@@ -163,32 +256,46 @@ export function DashboardClient({
 
             {recentOrders.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="mb-2 text-sm font-medium text-gray-600">Пока нет заказов</p>
-                <p className="text-sm text-gray-500 mb-4">Оформите подписку в один клик</p>
+                <p className={cn("mb-2 text-sm font-medium", isSpotify ? "text-gray-200" : "text-gray-600")}>
+                  Пока нет заказов
+                </p>
+                <p className={cn("text-sm mb-4", isSpotify ? "text-gray-500" : "text-gray-500")}>
+                  {isSpotify
+                    ? "Подключите Spotify Premium в несколько кликов"
+                    : "Оформите подписку в один клик"}
+                </p>
                 <Link
-                  href="/checkout"
-                  className="inline-block rounded-xl bg-[#10a37f] px-5 py-2 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                  href={siteCheckoutPath}
+                  className="inline-block rounded-xl px-5 py-2 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                  style={{ backgroundColor: primaryColor }}
                 >
-                  Оформить подписку
+                  {isSpotify ? "Подключить Premium" : "Оформить подписку"}
                 </Link>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className={cn("divide-y", isSpotify ? "divide-white/10" : "divide-gray-50")}>
                 {recentOrders.map((order) => {
-                  const statusInfo = STATUS_MAP[order.status] ?? STATUS_MAP.pending;
+                  const statusInfo = statusStyles[order.status] ?? statusStyles.pending;
                   const canRepeat = ["expired", "failed"].includes(order.status);
                   const isActive = order.status === "active";
                   return (
                     <div
                       key={order.id}
-                      className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors"
+                      className={cn(
+                        "flex items-center gap-3 px-5 py-3 transition-colors",
+                        isSpotify ? "hover:bg-white/[0.04]" : "hover:bg-gray-50/60"
+                      )}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {order.product === "chatgpt-plus" ? "ChatGPT Plus" : "ChatGPT Pro"}
+                        <p
+                          className={cn(
+                            "text-sm font-semibold truncate",
+                            isSpotify ? "text-gray-100" : "text-gray-900"
+                          )}
+                        >
+                          {getProductDisplayName(order.product, order.plan_id)}
                         </p>
-                        <p className="text-xs text-gray-400">
-                          {order.plan_id} ·{" "}
+                        <p className={cn("text-xs", isSpotify ? "text-gray-500" : "text-gray-400")}>
                           {new Date(order.created_at).toLocaleDateString("ru", {
                             day: "numeric",
                             month: "short",
@@ -200,13 +307,22 @@ export function DashboardClient({
                       >
                         {statusInfo.label}
                       </span>
-                      <span className="shrink-0 text-sm font-bold text-gray-900 w-16 text-right">
+                      <span
+                        className={cn(
+                          "shrink-0 text-sm font-bold w-16 text-right",
+                          isSpotify ? "text-white" : "text-gray-900"
+                        )}
+                      >
                         {order.price.toLocaleString("ru")} ₽
                       </span>
                       {(canRepeat || isActive) && (
                         <Link
-                          href={`/checkout?plan=${order.plan_id}`}
-                          className="shrink-0 rounded-lg border border-[#10a37f]/25 px-2.5 py-1.5 text-[11px] font-semibold text-[#10a37f] hover:bg-[#10a37f]/5 transition-colors"
+                          href={`${siteCheckoutPath}?plan=${order.plan_id}`}
+                          className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors hover:opacity-80"
+                          style={{
+                            borderColor: `${primaryColor}40`,
+                            color: primaryColor,
+                          }}
                         >
                           {isActive ? "Продлить" : "Повторить"}
                         </Link>
@@ -223,20 +339,34 @@ export function DashboardClient({
       {/* CTA buttons */}
       <motion.div {...FU} transition={{ ...FU.transition, delay: 0.35 }} className="flex flex-wrap gap-3 pt-1">
         <Link
-          href="/checkout"
-          className="flex items-center gap-2 rounded-xl bg-[#10a37f] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#10a37f]/20 transition-opacity hover:opacity-90"
+          href={siteCheckoutPath}
+          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-90"
+          style={{
+            backgroundColor: primaryColor,
+            boxShadow: `0 4px 16px ${primaryColor}33`,
+          }}
         >
           <Plus size={16} />
-          Новый заказ
+          {isSpotify ? "Подключить Premium" : "Новый заказ"}
         </Link>
         <Link
-          href="/dashboard/chat"
-          className="flex items-center gap-2 rounded-xl border border-[#10a37f]/30 px-5 py-2.5 text-sm font-semibold text-[#10a37f] transition-colors hover:bg-[#10a37f]/5"
+          href={siteSupportPath}
+          className="flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-colors hover:opacity-80"
+          style={{
+            borderColor: `${primaryColor}4d`,
+            color: primaryColor,
+          }}
         >
           <MessageCircle size={16} />
           Написать в поддержку
         </Link>
       </motion.div>
+
+      {(activeCount > 0 || orders.some((o) => o.status === "active")) && (
+        <motion.div {...FU} transition={{ ...FU.transition, delay: 0.4 }} className="pt-2">
+          <ReviewSubmitForm siteSlug={isSpotify ? "subs-store" : "gpt-store"} />
+        </motion.div>
+      )}
     </div>
   );
 }

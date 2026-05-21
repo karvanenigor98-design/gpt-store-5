@@ -2,12 +2,15 @@ const fs = require("fs");
 const path = require("path");
 
 const projectRoot = path.resolve(__dirname, "..");
-const candidates = [
-  path.join(projectRoot, ".next"),
-  path.join(projectRoot, "app", ".next"),
-];
 
-for (const target of candidates) {
+const allDistDirs = [".next", ".next-subs", ".next-gpt", path.join("app", ".next")];
+
+const only = (process.env.NEXT_DEV_DIST_DIR || "").trim();
+const targets = only
+  ? [path.join(projectRoot, only)]
+  : allDistDirs.map((d) => path.join(projectRoot, d));
+
+for (const target of targets) {
   try {
     fs.rmSync(target, { recursive: true, force: true });
   } catch {
@@ -15,4 +18,8 @@ for (const target of candidates) {
   }
 }
 
-console.log("Cleaned Next cache folders.");
+if (only) {
+  console.log(`Cleaned Next cache: ${only}`);
+} else {
+  console.log("Cleaned Next cache folders (.next, .next-subs, .next-gpt).");
+}

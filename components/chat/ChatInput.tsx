@@ -2,14 +2,24 @@
 
 import { useState, useRef, type ChangeEvent, type KeyboardEvent } from "react";
 import { validateMessage, validateFile, MAX_MESSAGE_LENGTH } from "@/lib/chat/constants";
+import type { ChatUiVariant } from "@/components/chat/MessageBubble";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSend: (content: string, attachment?: { url: string; type: string; name: string }) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
+  variant?: ChatUiVariant;
 }
 
-export function ChatInput({ onSend, disabled, placeholder = "Напишите сообщение..." }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  disabled,
+  placeholder = "Напишите сообщение...",
+  variant = "gpt",
+}: ChatInputProps) {
+  const isSubs = variant === "subs";
+  const accent = isSubs ? "#1DB954" : "#10a37f";
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -77,17 +87,30 @@ export function ChatInput({ onSend, disabled, placeholder = "Напишите с
   const isImage = preview?.type.startsWith("image/");
 
   return (
-    <div className="space-y-2 border-t border-gray-100 bg-white p-3">
+    <div
+      className={cn(
+        "space-y-2 border-t p-3",
+        isSubs ? "border-white/10 bg-[#111111]" : "border-gray-100 bg-white",
+      )}
+    >
       {preview && (
-        <div className="flex items-center gap-2 rounded-xl bg-[#10a37f]/10 px-3 py-2">
+        <div
+          className="flex items-center gap-2 rounded-xl px-3 py-2"
+          style={{ backgroundColor: `${accent}1a` }}
+        >
           {isImage ? (
             <img src={preview.url} alt="" className="h-10 w-10 rounded-lg object-cover" />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#10a37f]/20">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg"
+              style={{ backgroundColor: `${accent}33` }}
+            >
               <span className="text-xs">📎</span>
             </div>
           )}
-          <span className="flex-1 truncate text-sm text-gray-700">{preview.name}</span>
+          <span className={cn("flex-1 truncate text-sm", isSubs ? "text-gray-200" : "text-gray-700")}>
+            {preview.name}
+          </span>
           <button
             type="button"
             onClick={() => setPreview(null)}
@@ -98,14 +121,19 @@ export function ChatInput({ onSend, disabled, placeholder = "Напишите с
         </div>
       )}
 
-      {error && <p className="px-1 text-xs text-red-500">{error}</p>}
+      {error && <p className="px-1 text-xs text-red-400">{error}</p>}
 
       <div className="flex items-end gap-2">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={disabled || uploading}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 transition-colors hover:bg-gray-200 disabled:opacity-40"
+          className={cn(
+            "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-colors disabled:opacity-40",
+            isSubs
+              ? "bg-white/10 text-gray-300 hover:bg-white/15"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200",
+          )}
           title="Прикрепить файл"
         >
           {uploading ? (
@@ -139,7 +167,12 @@ export function ChatInput({ onSend, disabled, placeholder = "Напишите с
             disabled={disabled || sending}
             rows={1}
             maxLength={MAX_MESSAGE_LENGTH}
-            className="max-h-32 w-full min-h-[38px] resize-none overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 transition-colors focus:border-[#10a37f] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#10a37f]/20 disabled:opacity-50"
+            className={cn(
+              "max-h-32 w-full min-h-[38px] resize-none overflow-y-auto rounded-xl border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 disabled:opacity-50",
+              isSubs
+                ? "border-white/10 bg-[#161616] text-gray-100 placeholder-gray-500 focus:border-[#1DB954] focus:ring-[#1DB954]/25"
+                : "border-gray-200 bg-gray-50 text-gray-800 placeholder-gray-400 focus:border-[#10a37f] focus:bg-white focus:ring-[#10a37f]/20",
+            )}
             onInput={(e) => {
               const el = e.currentTarget;
               el.style.height = "auto";
@@ -147,7 +180,12 @@ export function ChatInput({ onSend, disabled, placeholder = "Напишите с
             }}
           />
           {text.length > MAX_MESSAGE_LENGTH * 0.8 && (
-            <span className="absolute bottom-2 right-2 text-xs text-gray-400">
+            <span
+              className={cn(
+                "absolute bottom-2 right-2 text-xs",
+                isSubs ? "text-gray-600" : "text-gray-400",
+              )}
+            >
               {text.length}/{MAX_MESSAGE_LENGTH}
             </span>
           )}
@@ -157,7 +195,10 @@ export function ChatInput({ onSend, disabled, placeholder = "Напишите с
           type="button"
           onClick={() => void handleSend()}
           disabled={disabled || sending || (!text.trim() && !preview)}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#10a37f] text-white transition-colors hover:bg-[#0d8f68] disabled:cursor-not-allowed disabled:opacity-40"
+          className={cn(
+            "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+            isSubs ? "bg-[#1DB954] hover:bg-[#1ed760]" : "bg-[#10a37f] hover:bg-[#0d8f68]",
+          )}
         >
           {sending ? (
             <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
@@ -177,7 +218,14 @@ export function ChatInput({ onSend, disabled, placeholder = "Напишите с
         </button>
       </div>
 
-      <p className="hidden text-center text-xs text-gray-400 sm:block">Enter — отправить · Shift+Enter — новая строка</p>
+      <p
+        className={cn(
+          "hidden text-center text-xs sm:block",
+          isSubs ? "text-gray-600" : "text-gray-400",
+        )}
+      >
+        Enter — отправить · Shift+Enter — новая строка
+      </p>
     </div>
   );
 }

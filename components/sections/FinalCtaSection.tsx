@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, Clock3, Lock, ShieldCheck } from "lucide-react";
+import { CrossSellSection } from "@/components/sections/CrossSellSection";
 import { fadeUp } from "@/lib/motion-config";
 
 export function FinalCtaSection() {
@@ -19,7 +20,7 @@ export function FinalCtaSection() {
         whileInView="visible"
         viewport={{ once: true, margin: "-80px" }}
         variants={fadeUp}
-        className="relative z-10 mx-auto max-w-2xl px-4 text-center"
+        className="relative z-10 mx-auto max-w-4xl px-4 text-center"
       >
         <span className="mb-4 inline-block text-xs font-semibold uppercase tracking-widest text-[#10a37f]">
           Готовы начать?
@@ -33,7 +34,11 @@ export function FinalCtaSection() {
 
         <div className="mt-10">
           <motion.a
-            href="/checkout"
+            href="#pricing"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-lg md:px-10 md:py-5 md:text-xl"
@@ -46,6 +51,8 @@ export function FinalCtaSection() {
             <ArrowRight size={20} />
           </motion.a>
         </div>
+
+        <CrossSellSection />
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4 md:gap-8">
           {[

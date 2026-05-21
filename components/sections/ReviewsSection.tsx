@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { fadeUp } from "@/lib/motion-config";
@@ -41,37 +41,11 @@ function ReviewCard({ review }: { review: PublicReview }) {
 }
 
 export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
-  const visibleCount = 4;
-  const [offset, setOffset] = useState(0);
-  const [isFading, setIsFading] = useState(false);
+  const initialCount = 4;
+  const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    if (reviews.length <= visibleCount) return;
-
-    let fadeTimeout: ReturnType<typeof setTimeout> | null = null;
-    const timer = setInterval(() => {
-      setIsFading(true);
-      fadeTimeout = setTimeout(() => {
-        setOffset((prev) => (prev + visibleCount) % reviews.length);
-        setIsFading(false);
-      }, 500);
-    }, 10000);
-
-    return () => {
-      clearInterval(timer);
-      if (fadeTimeout) clearTimeout(fadeTimeout);
-    };
-  }, [reviews.length]);
-
-  const visibleReviews = useMemo(() => {
-    if (reviews.length <= visibleCount) return reviews.slice(0, visibleCount);
-
-    const result: PublicReview[] = [];
-    for (let i = 0; i < visibleCount; i += 1) {
-      result.push(reviews[(offset + i) % reviews.length]);
-    }
-    return result;
-  }, [reviews, offset]);
+  const visibleReviews = expanded ? reviews : reviews.slice(0, initialCount);
+  const hasMore = reviews.length > initialCount;
 
   const leftCol = visibleReviews.filter((_, i) => i % 2 === 0);
   const rightCol = visibleReviews.filter((_, i) => i % 2 !== 0);
@@ -98,7 +72,7 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
         </motion.div>
 
         {/* Desktop masonry */}
-        <div className={`hidden items-start gap-6 transition-opacity duration-500 md:flex ${isFading ? "opacity-40" : "opacity-100"}`}>
+        <div className="hidden items-start gap-6 md:flex">
           <div className="flex flex-1 flex-col gap-6">
             {leftCol.map((review) => (
               <ReviewCard key={review.id} review={review} />
@@ -112,18 +86,27 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
         </div>
 
         {/* Mobile list */}
-        <div className={`flex flex-col gap-4 transition-opacity duration-500 md:hidden ${isFading ? "opacity-40" : "opacity-100"}`}>
+        <div className="flex flex-col gap-4 md:hidden">
           {visibleReviews.map((review) => (
             <ReviewCard key={review.id} review={review} />
           ))}
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          {hasMore && !expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="inline-flex items-center rounded-lg border border-black/10 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            >
+              Показать больше
+            </button>
+          )}
           <Link
             href="/reviews"
-            className="inline-flex items-center rounded-lg border border-black/10 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            className="inline-flex items-center rounded-lg border border-[#10a37f]/20 px-4 py-2 text-sm font-medium text-[#10a37f] transition-colors hover:bg-[#10a37f]/5"
           >
-            Показать больше
+            Все отзывы
           </Link>
         </div>
       </div>

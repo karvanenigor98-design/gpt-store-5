@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       .upsert(
         {
           telegram_message_id: message.message_id,
-          telegram_chat_id: message.chat?.id,
+          telegram_chat_id: typeof message.chat?.id === "number" ? message.chat.id : null,
           author_name: authorName,
           author_username: message.from?.username ?? null,
           content: text,

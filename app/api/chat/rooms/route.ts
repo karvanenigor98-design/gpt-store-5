@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { getOrCreateClientOperatorSession, pickBestOperatorSessionForUser } from "@/lib/chat/operatorSession";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { getSiteUUID } from "@/lib/admin/getSiteId";
 import type { Database } from "@/types/database";
 import type { ChatRoomListItem } from "@/types/chat-ui";
 
@@ -45,12 +46,28 @@ async function handleRooms(req: NextRequest) {
 
     const clientIds = clientRows.map((c) => c.id);
 
-    const { data: sessions, error: sesErr } = await admin
+    // Site filter: only show sessions for the selected site
+    // chat_sessions.site_id is a UUID FK (migration 005) — must use UUID, not slug
+    const siteParam = req.nextUrl.searchParams.get("site");
+    const siteId = siteParam ? await getSiteUUID(siteParam) : null;
+
+    let sessionsQuery = admin
       .from("chat_sessions")
-      .select("id, user_id, type, status, first_message_at, last_operator_reply_at, created_at, updated_at")
+      .select("id, user_id, site_id, type, status, staff_peer_id, first_message_at, last_operator_reply_at, created_at, updated_at")
       .eq("type", "operator")
       .in("user_id", clientIds)
       .order("created_at", { ascending: false });
+
+    if (siteId) {
+      if (siteParam === "gpt-store") {
+        // GPT STORE: include sessions with gpt-store UUID or legacy null site_id
+        sessionsQuery = sessionsQuery.or(`site_id.eq.${siteId},site_id.is.null`);
+      } else {
+        sessionsQuery = sessionsQuery.eq("site_id", siteId);
+      }
+    }
+
+    const { data: sessions, error: sesErr } = await sessionsQuery;
 
     if (sesErr) {
       return NextResponse.json({ error: "Не удалось загрузить сессии" }, { status: 500 });
@@ -118,6 +135,7 @@ async function handleRooms(req: NextRequest) {
         client_id: c.id,
         status: uiStatus,
         last_message_at: lastAt,
+        last_message_preview: null,
         unread_operator: s ? unreadBySession.get(s.id) ?? 0 : 0,
         client: {
           full_name: c.username ?? null,
@@ -137,7 +155,9 @@ async function handleRooms(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const session = await getOrCreateClientOperatorSession(admin, user.id);
+  // Pass site context so the session is tagged with the correct site_id
+  const clientSiteParam = req.nextUrl.searchParams.get("site") ?? undefined;
+  const session = await getOrCreateClientOperatorSession(admin, user.id, clientSiteParam);
   if (!session) {
     return NextResponse.json({ error: "Не удалось создать чат" }, { status: 500 });
   }
