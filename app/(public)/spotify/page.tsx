@@ -18,7 +18,6 @@ import { SpotifyFooter } from "@/components/spotify/SpotifyFooter";
 import { SpotifyLandingProvider } from "@/components/spotify/SpotifyLandingProvider";
 import { SpotifyStoreConfigAutoRefresh } from "@/components/spotify/SpotifyStoreConfigAutoRefresh";
 import { AnimateSection } from "@/components/ui/AnimateSection";
-import { ChatWidget } from "@/components/sections/ChatWidget";
 
 const APP_URL = getPublicSiteOrigin();
 const SPOTIFY_URL = `${APP_URL}/spotify`;
@@ -104,7 +103,6 @@ export default async function SpotifyPage() {
             </AnimateSection>
           </main>
           <SpotifyFooter />
-          <ChatWidget siteSlug="subs-store" />
         </div>
       </SpotifyLandingProvider>
     </>

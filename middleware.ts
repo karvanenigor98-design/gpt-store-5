@@ -13,6 +13,7 @@ import {
 } from "@/lib/supabase/subs-auth-env";
 import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
 import {
+  getStoreProfileFromEnv,
   isGptDevPort,
   isSubsDevPort,
   resolveAuthSiteContext,
@@ -30,10 +31,13 @@ export async function middleware(request: NextRequest) {
   const devPort = request.nextUrl.port || null;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-invoke-pathname", path);
+  const envStoreProfile = getStoreProfileFromEnv();
   if (isGptDevPort(devPort)) {
     requestHeaders.set("x-dev-store-profile", "gpt-store");
   } else if (isSubsDevPort(devPort)) {
     requestHeaders.set("x-dev-store-profile", "subs-store");
+  } else if (envStoreProfile) {
+    requestHeaders.set("x-dev-store-profile", envStoreProfile);
   }
   const siteQuery = request.nextUrl.searchParams.get("site");
   if (siteQuery === "subs-store" || siteQuery === "gpt-store") {
@@ -47,12 +51,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (
-    process.env.NODE_ENV === "development" &&
-    path === "/" &&
-    isSubsDevPort(devPort) &&
-    !isGptLandingAlias
-  ) {
+  if (isSubsDevPort(devPort) && path === "/" && !isGptLandingAlias) {
+    return NextResponse.redirect(new URL("/spotify", request.url));
+  }
+
+  if (isSubsDevPort(devPort) && isGptLandingAlias) {
     return NextResponse.redirect(new URL("/spotify", request.url));
   }
 
@@ -199,7 +202,21 @@ export async function middleware(request: NextRequest) {
     pathname: path,
   });
 
-  if (inferredSite) {
+  if (path === "/" || path === "/gpt" || path === "/gpt-store" || path === "/chatgpt") {
+    supabaseResponse.cookies.set("current_site", isSubsDevPort(devPort) ? "subs-store" : "gpt-store", {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: "lax",
+      httpOnly: false,
+    });
+  } else if (path.startsWith("/spotify") || path.startsWith("/checkout/spotify")) {
+    supabaseResponse.cookies.set("current_site", "subs-store", {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: "lax",
+      httpOnly: false,
+    });
+  } else if (inferredSite) {
     supabaseResponse.cookies.set("current_site", inferredSite, {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,

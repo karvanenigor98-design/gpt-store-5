@@ -2,11 +2,22 @@ import type { SiteSlug } from "@/lib/auth/siteUiSession";
 
 export type DevStoreProfile = SiteSlug;
 
-/** Профиль dev-сервера из `DEV_STORE_PROFILE` (задаётся в run-next-dev-*-port.js). */
-export function getDevStoreProfileFromEnv(): DevStoreProfile | null {
-  const p = process.env.DEV_STORE_PROFILE?.trim();
+/**
+ * Профиль магазина: dev (`DEV_STORE_PROFILE`) или отдельный Vercel (`STORE_PROFILE`).
+ * subs-store → лендинг на /spotify, gpt-store → лендинг на /.
+ */
+export function getStoreProfileFromEnv(): DevStoreProfile | null {
+  const p =
+    process.env.STORE_PROFILE?.trim() ||
+    process.env.DEV_STORE_PROFILE?.trim() ||
+    process.env.NEXT_PUBLIC_STORE_PROFILE?.trim();
   if (p === "gpt-store" || p === "subs-store") return p;
   return null;
+}
+
+/** @deprecated используй getStoreProfileFromEnv */
+export function getDevStoreProfileFromEnv(): DevStoreProfile | null {
+  return getStoreProfileFromEnv();
 }
 
 export function portFromHostHeader(host: string | null): string | null {
@@ -20,13 +31,19 @@ export function resolvePortFromHeaders(headers: Headers): string | null {
 }
 
 export function isGptDevPort(port: string | null | undefined): boolean {
+  const profile = getStoreProfileFromEnv();
+  if (profile === "gpt-store") return true;
+  if (profile === "subs-store") return false;
   if (port === "3056") return true;
-  return getDevStoreProfileFromEnv() === "gpt-store";
+  return false;
 }
 
 export function isSubsDevPort(port: string | null | undefined): boolean {
+  const profile = getStoreProfileFromEnv();
+  if (profile === "subs-store") return true;
+  if (profile === "gpt-store") return false;
   if (port === "3055") return true;
-  return getDevStoreProfileFromEnv() === "subs-store";
+  return false;
 }
 
 /**
@@ -55,11 +72,6 @@ export function resolveAuthSiteContext(params: {
     return siteDirect;
   }
 
-  const cookie = params.cookieSite?.trim();
-  if (cookie === "subs-store" || cookie === "gpt-store") {
-    return cookie;
-  }
-
   const returnUrl = params.returnUrl ?? "";
   if (
     returnUrl.includes("site=subs-store") ||
@@ -69,5 +81,19 @@ export function resolveAuthSiteContext(params: {
     return "subs-store";
   }
 
-  return "gpt-store";
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password")
+  ) {
+    return "gpt-store";
+  }
+
+  const cookie = params.cookieSite?.trim();
+  if (cookie === "subs-store" || cookie === "gpt-store") {
+    return cookie;
+  }
+
+  return getStoreProfileFromEnv() ?? "gpt-store";
 }

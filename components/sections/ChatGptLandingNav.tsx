@@ -66,7 +66,7 @@ export function ChatGptLandingNav() {
         {/* CTA + auth */}
         <div className="flex items-center gap-2">
           <Link
-            href="/dashboard"
+            href="/login?site=gpt-store&returnUrl=%2Fdashboard"
             className="hidden items-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-1.5 text-sm text-gray-600 transition-colors duration-100 hover:bg-gray-50 sm:flex"
           >
             <User size={14} />
@@ -112,7 +112,7 @@ export function ChatGptLandingNav() {
                 </button>
               ))}
               <Link
-                href="/dashboard"
+                href="/login?site=gpt-store&returnUrl=%2Fdashboard"
                 onClick={() => setOpen(false)}
                 className="mt-1 rounded-lg border border-black/[0.1] px-3 py-2.5 text-center text-sm text-gray-600"
               >

@@ -13,8 +13,6 @@ import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { isSiteUiLoggedOut, type SiteSlug } from "@/lib/auth/siteUiSession";
 import { getSiteBySlug } from "@/lib/sites";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
-import { SubsSupportChatPanel } from "@/components/dashboard/SubsSupportChatPanel";
-
 export default async function DashboardLayout({
   children,
 }: {
@@ -75,10 +73,7 @@ export default async function DashboardLayout({
   const isGptShell = siteSlug === "gpt-store";
   const isProfileRoute =
     invokePath === "/dashboard/profile" || invokePath.startsWith("/dashboard/profile/");
-  const isChatRoute =
-    invokePath === "/dashboard/chat" || invokePath.startsWith("/dashboard/chat/");
   const useDarkCabinetShell = isSubsShell || isProfileRoute;
-  const subsSplitWithChat = isSubsShell && !isChatRoute;
   const avatarColor = site.primaryColor;
   const fallbackLetter = site.logoLetter;
   const fallbackBrand = site.brandName;
@@ -168,25 +163,14 @@ export default async function DashboardLayout({
             <DashboardMobileNav defaultSiteSlug={siteSlug} />
           </div>
         </header>
-        {subsSplitWithChat ? (
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <main className="min-w-0 flex-1 overflow-y-auto bg-[#0a0a0a] p-4 md:p-6 lg:p-8">
-              {children}
-            </main>
-            <aside className="flex h-[min(420px,45vh)] w-full shrink-0 flex-col border-t border-white/10 lg:h-auto lg:min-h-0 lg:w-[min(400px,38vw)] lg:max-w-[440px] lg:border-l lg:border-t-0">
-              <SubsSupportChatPanel user={user} />
-            </aside>
-          </div>
-        ) : (
-          <main
-            className={cn(
-              "min-w-0 flex-1 overflow-y-auto p-4 md:p-6 lg:p-8",
-              useDarkCabinetShell && "bg-[#0a0a0a]",
-            )}
-          >
-            {children}
-          </main>
-        )}
+        <main
+          className={cn(
+            "min-w-0 flex-1 overflow-y-auto p-4 md:p-6 lg:p-8",
+            useDarkCabinetShell && "bg-[#0a0a0a]",
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

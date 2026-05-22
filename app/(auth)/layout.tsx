@@ -34,9 +34,12 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
             background: "rgba(10,10,10,0.95)",
           }}
         >
-          <span className="font-heading text-sm font-semibold text-white select-none">
+          <Link
+            href="/spotify"
+            className="font-heading text-sm font-semibold text-white transition-opacity hover:opacity-80"
+          >
             Subs <span style={{ color: SPOTIFY_GREEN }}>Store</span>
-          </span>
+          </Link>
         </header>
 
         <main className="flex flex-1 items-center justify-center px-4 py-12">

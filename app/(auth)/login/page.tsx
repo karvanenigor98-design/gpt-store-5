@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { resolveAuthSiteContext, resolvePortFromHeaders } from "@/lib/auth/devStoreProfile";
