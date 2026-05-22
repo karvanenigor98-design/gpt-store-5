@@ -198,12 +198,23 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   if (pathname === "/support" && !isSubsStore) return null;
   if (loading) return null;
 
-  if (pathname === "/" || (isSubsStore && (pathname === "/spotify" || pathname === "/support"))) {
+  const subsProfileRoot =
+    process.env.NEXT_PUBLIC_STORE_PROFILE === "subs-store" && pathname === "/";
+  const isSubsLanding =
+    isSubsStore &&
+    (pathname === "/spotify" ||
+      pathname.startsWith("/spotify/") ||
+      subsProfileRoot);
+
+  const subsFabPosition =
+    "fixed bottom-24 right-4 z-[110] flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-28 sm:right-6";
+
+  if (pathname === "/" || isSubsLanding || (isSubsStore && pathname === "/support")) {
     if (pathname === "/support" && isSubsStore) return null;
 
     if (user && user.role !== "admin" && user.role !== "operator") {
       return (
-        <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+        <div className={cn(isSubsLanding ? subsFabPosition : "fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6")}>
           <div
             className={cn(
               "overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
@@ -263,7 +274,13 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
 
     const landingSupportHref = user ? chatDashboardHref : loginHref;
     return (
-      <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+      <div
+        className={cn(
+          isSubsLanding
+            ? subsFabPosition
+            : "fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6",
+        )}
+      >
         <a
           href={landingSupportHref}
           className="flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
