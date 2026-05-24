@@ -36,16 +36,34 @@ async function fetchOrderRows(
   admin: SupabaseClient,
   select: string,
   maxRows: number,
+  gptSiteId: string | null,
 ): Promise<{ rows: GptOrderRowRaw[]; error: string | null; missingSiteColumn: boolean }> {
-  const { data, error } = await admin
-    .from("orders")
-    .select(select)
-    .order("created_at", { ascending: false })
-    .limit(maxRows);
+  let q = admin.from("orders").select(select).order("created_at", { ascending: false }).limit(maxRows);
+
+  if (gptSiteId) {
+    q = q.eq("site_id", gptSiteId);
+  } else {
+    q = q.not("product", "ilike", "spotify%");
+  }
+
+  let { data, error } = await q;
 
   if (error) {
     const missingSiteColumn = /site_id|column/i.test(error.message);
-    return { rows: [], error: error.message, missingSiteColumn };
+    if (missingSiteColumn && gptSiteId) {
+      const fallback = await admin
+        .from("orders")
+        .select(select)
+        .not("product", "ilike", "spotify%")
+        .order("created_at", { ascending: false })
+        .limit(maxRows);
+      data = fallback.data;
+      error = fallback.error;
+    }
+    if (error) {
+      return { rows: [], error: error.message, missingSiteColumn };
+    }
+    return { rows: (data ?? []) as unknown as GptOrderRowRaw[], error: null, missingSiteColumn: true };
   }
 
   return { rows: (data ?? []) as unknown as GptOrderRowRaw[], error: null, missingSiteColumn: false };
@@ -62,10 +80,10 @@ export async function loadGptStoreOrderRows(
     getSiteUUID("subs-store"),
   ]);
 
-  let result = await fetchOrderRows(admin, ORDERS_SELECT_WITH_SITE, maxRows);
+  let result = await fetchOrderRows(admin, ORDERS_SELECT_WITH_SITE, maxRows, gptSiteId);
 
   if (result.error && result.missingSiteColumn) {
-    result = await fetchOrderRows(admin, ORDERS_SELECT, maxRows);
+    result = await fetchOrderRows(admin, ORDERS_SELECT, maxRows, null);
   }
 
   if (result.error) {
@@ -90,11 +108,12 @@ export function filterGptOrderRowsByStatus(
   rows: GptOrderRowRaw[],
   filterStatus?: string,
 ): GptOrderRowRaw[] {
-  if (filterStatus === "awaiting_payment") {
+  const normalized = filterStatus?.trim();
+  if (!normalized || normalized === "all") {
+    return rows;
+  }
+  if (normalized === "awaiting_payment") {
     return rows.filter((o) => o.status === "pending");
   }
-  if (filterStatus) {
-    return rows.filter((o) => o.status === filterStatus);
-  }
-  return rows;
+  return rows.filter((o) => o.status === normalized);
 }

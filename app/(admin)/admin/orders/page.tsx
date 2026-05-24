@@ -18,14 +18,24 @@ import { MarkOrdersSeenOnVisit } from "@/components/admin/MarkOrdersSeenOnVisit"
 export const metadata: Metadata = { title: "Admin · Заказы" };
 
 const GPT_STATUS_CLASSES: Record<string, string> = {
-  pending: "bg-amber-900/30 text-amber-400 border-amber-700/30",
-  paid: "bg-emerald-900/30 text-emerald-400 border-emerald-700/30",
-  activating: "bg-blue-900/30 text-blue-400 border-blue-700/30",
-  waiting_client: "bg-orange-900/30 text-orange-400 border-orange-700/30",
-  active: "bg-green-900/30 text-green-400 border-green-700/30",
-  failed: "bg-red-900/30 text-red-400 border-red-700/30",
-  expired: "bg-gray-800 text-gray-500 border-gray-700",
-  refunded: "bg-gray-800 text-gray-500 border-gray-700",
+  pending: "bg-[#1DB954]/18 text-[#0a6b38] border-[#1DB954]/50 shadow-sm",
+  paid: "bg-emerald-50 text-emerald-800 border-emerald-300",
+  activating: "bg-sky-50 text-sky-800 border-sky-300",
+  waiting_client: "bg-amber-50 text-amber-900 border-amber-300",
+  active: "bg-[#1DB954]/25 text-[#0a6b38] border-[#1DB954]/55 font-bold",
+  failed: "bg-red-50 text-red-800 border-red-300",
+  expired: "bg-gray-100 text-gray-600 border-gray-300",
+  refunded: "bg-gray-100 text-gray-600 border-gray-300",
+};
+
+const SUBS_STATUS_CLASSES: Record<string, string> = {
+  new: "bg-[#1DB954]/18 text-[#0a6b38] border-[#1DB954]/50 shadow-sm",
+  awaiting_payment: "bg-[#1DB954]/18 text-[#0a6b38] border-[#1DB954]/50 shadow-sm",
+  pending_payment_setup: "bg-[#1DB954]/12 text-[#0d8f4a] border-[#1DB954]/40",
+  paid: "bg-emerald-50 text-emerald-800 border-emerald-300",
+  processing: "bg-sky-50 text-sky-800 border-sky-300",
+  activated: "bg-[#1DB954]/25 text-[#0a6b38] border-[#1DB954]/55 font-bold",
+  problem: "bg-red-50 text-red-800 border-red-300",
 };
 
 const GPT_STATUS_LABELS: Record<string, string> = {
@@ -156,7 +166,12 @@ export default async function AdminOrdersPage({
                     <td className="px-4 py-3 text-xs">{order.tariffTitle}</td>
                     <td className="px-4 py-3 text-xs font-semibold">{Number(order.final_price ?? 0).toLocaleString("ru")} ₽</td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                          SUBS_STATUS_CLASSES[order.status] ??
+                          "border-gray-200 bg-gray-50 text-gray-700"
+                        }`}
+                      >
                         {subsOrderStatusLabelRu(order.status)}
                       </span>
                     </td>
@@ -282,9 +297,9 @@ export default async function AdminOrdersPage({
                     <span className="text-xs">{resolveGptOrderPlanLabel(order)}</span>
                   </td>
                   <td className="px-4 py-3 text-xs font-semibold">{order.price.toLocaleString("ru")} ₽</td>
-                  <td className="px-4 py-3">
+                    <td className="px-4 py-3">
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${GPT_STATUS_CLASSES[order.status] ?? GPT_STATUS_CLASSES.pending}`}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${GPT_STATUS_CLASSES[order.status] ?? GPT_STATUS_CLASSES.pending}`}
                     >
                       {GPT_STATUS_LABELS[order.status] ?? order.status}
                     </span>
