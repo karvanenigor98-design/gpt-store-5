@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { dispatchStaffSiteEmails } from "@/lib/email/dispatch";
 import type { EmailEventType } from "@/lib/email/events";
-import { buildStaffOrderUrl } from "@/lib/email/site-urls";
+import { buildStaffOrderUrl, resolveAppBaseUrl } from "@/lib/email/site-urls";
 import type { NotificationType } from "@/types/database";
 
 import {
@@ -45,7 +45,7 @@ async function sendStaffEmailForEvent(params: {
     bodyLines: [params.message],
     ctaLabel: chatId ? "Открыть чат" : orderId ? "Открыть заказ" : "Админка",
     ctaUrl: chatId
-      ? `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000"}/operator/chat?site=${params.siteSlug}${params.siteSlug === "subs-store" ? `&thread_id=${chatId}` : `&session_id=${chatId}`}`
+      ? `${resolveAppBaseUrl()}/operator/chat?site=${params.siteSlug}${params.siteSlug === "subs-store" ? `&thread_id=${chatId}` : `&session_id=${chatId}`}`
       : buildStaffOrderUrl(params.siteSlug, orderId),
     dedupeKey: `staff:${params.type}:${params.siteSlug}:${params.entity_id ?? params.title}`,
     relatedEntityType: params.entity_type ?? null,

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { SPOTIFY_PLANS, SPOTIFY_ACCENT, SPOTIFY_GLOW, type SpotifyPlan } from "@/lib/content/spotify";
-import { createClient } from "@/lib/supabase/client";
+import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
@@ -14,7 +14,6 @@ const ACCOUNT_DATA_HINT =
   "После оплаты оператор уточнит данные, которые нужны именно для вашего варианта подключения. Обычно это email от Spotify-аккаунта, а в отдельных случаях может потребоваться временный доступ для активации.";
 
 export function SpotifyCheckoutFlow() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const planIdFromUrl = searchParams.get("plan");
   const [step, setStep] = useState(1);
@@ -27,7 +26,7 @@ export function SpotifyCheckoutFlow() {
   const [promoCode, setPromoCode] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const [ready, setReady] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,23 +58,24 @@ export function SpotifyCheckoutFlow() {
     const planId = searchParams.get("plan");
     if (planId && plans.length) {
       const found = plans.find((p) => p.id === planId);
-      if (found) setSelectedPlan(found);
+      if (found) {
+        setSelectedPlan(found);
+        setStep(2);
+      }
     }
   }, [searchParams, plans]);
 
   useEffect(() => {
-    void createClient()
-      .auth.getUser()
-      .then(({ data }) => {
-        if (!data.user) {
-          const ret = `/checkout/spotify${planIdFromUrl ? `?plan=${planIdFromUrl}` : ""}`;
-          router.replace(`/login?returnUrl=${encodeURIComponent(ret)}`);
-          return;
-        }
-        if (data.user.email) setEmail(data.user.email);
-        setAuthReady(true);
-      });
-  }, [router, planIdFromUrl]);
+    const subs = tryCreateSubsBrowserClient();
+    if (!subs) {
+      setReady(true);
+      return;
+    }
+    void subs.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setEmail(data.user.email);
+      setReady(true);
+    });
+  }, []);
 
   const displayPrice = useMemo(() => selectedPlan?.price ?? 0, [selectedPlan]);
 
@@ -129,7 +129,7 @@ export function SpotifyCheckoutFlow() {
     }
   }
 
-  if (!authReady) {
+  if (!ready) {
     return (
       <div className="flex min-h-[40vh] flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: SPOTIFY_ACCENT }} />

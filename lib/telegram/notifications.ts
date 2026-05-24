@@ -120,7 +120,7 @@ export async function notifyNewOrder(
   const siteSlug: "gpt-store" | "subs-store" =
     options?.siteSlug ??
     (order.product?.toLowerCase().includes("spotify") ? "subs-store" : "gpt-store");
-  const brand = siteSlug === "subs-store" ? "Subs Store" : "GPT STORE";
+  const brand = siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
   const text = `🔔 <b>Новый заказ</b>
 🛒 Тариф: ${order.plan_name ?? order.id}
 💰 Сумма: ${order.price} ₽

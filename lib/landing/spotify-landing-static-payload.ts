@@ -48,7 +48,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
   return {
     hero: { ...SPOTIFY_HERO },
     heroPlayerPreview: {
-      cardBadge: "Subs Store",
+      cardBadge: "SPOTIFY STORE",
       cardTitle: "Spotify Premium",
       cardSubtitle: "Активация 10–15 минут",
       fromLabel: "От",
@@ -136,7 +136,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
         { href: "#pricing", label: "Тарифы" },
         { href: "#reviews", label: "Отзывы" },
         { href: "#faq", label: "FAQ" },
-        { href: "/support?site=subs-store", label: "Поддержка" },
+        { href: "/dashboard/chat?site=subs-store", label: "Поддержка" },
       ],
     },
     footer: {
@@ -150,7 +150,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
         { href: "#pricing", label: "Тарифы" },
         { href: "#reviews", label: "Отзывы" },
         { href: "#faq", label: "FAQ" },
-        { href: "/support?site=subs-store", label: "Поддержка" },
+        { href: "/dashboard/chat?site=subs-store", label: "Поддержка" },
         { href: "/spotify/privacy", label: "Конфиденциальность" },
         { href: "/spotify/terms", label: "Условия" },
       ],

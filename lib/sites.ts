@@ -42,7 +42,7 @@ export const SITES: SiteDefinition[] = [
   {
     id: "subs-store",
     slug: "subs-store",
-    brandName: "Subs Store",
+    brandName: "SPOTIFY STORE",
     productType: "spotify",
     primaryColor: "#1DB954",
     accentColor: "#1DB954",
@@ -72,6 +72,19 @@ export function getSiteForProduct(product: string): SiteDefinition {
     if (site.productPrefix && lower.startsWith(site.productPrefix)) return site;
   }
   return DEFAULT_SITE;
+}
+
+/** Публичное имя для UI (subs-store → SPOTIFY STORE). */
+export function getPublicBrandName(slug: SiteSlug | string | null | undefined): string {
+  return getSiteBySlug(slug).brandName;
+}
+
+/** Короткое имя для обычного текста (Title Case). */
+export function getPublicBrandNameShort(slug: SiteSlug | string | null | undefined): string {
+  const name = getPublicBrandName(slug);
+  if (slug === "subs-store") return "Spotify Store";
+  if (slug === "gpt-store") return "GPT Store";
+  return name;
 }
 
 /** Quick check: does plan_id/product belong to Subs Store (Spotify)? */

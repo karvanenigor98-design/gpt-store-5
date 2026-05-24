@@ -46,7 +46,7 @@ export default async function AdminSettingsPage({
             </span>
           </h1>
           <p className="max-w-xl text-sm text-gray-600">
-            Подключите Subs Store на сервере: задайте{" "}
+            Подключите Spotify Store на сервере: задайте{" "}
             <code className="rounded bg-gray-100 px-1 text-xs">SUBS_SUPABASE_URL</code> и{" "}
             <code className="rounded bg-gray-100 px-1 text-xs">SUBS_SUPABASE_SERVICE_ROLE_KEY</code> (см.{" "}
             <code className="rounded bg-gray-100 px-1 text-xs">.env.example</code>).

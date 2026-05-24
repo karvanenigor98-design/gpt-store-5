@@ -5,24 +5,16 @@ import { applyPromo, findPromo } from "@/lib/store-config";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
 import { createSubsAwaitingPaymentOrder } from "@/lib/subs/create-subs-order";
 import { notifySubsStoreStaffOrderEvent } from "@/lib/subs/subs-notifications";
+import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
 import {
   notifyCustomerOrderCreated,
   notifyNewOrder,
   notifyOperationalFailure,
 } from "@/lib/telegram/notifications";
-import { createClient } from "@/lib/supabase/server";
+import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
-    }
-
     const body = (await request.json()) as {
       planId?: string;
       accountEmail?: string;
@@ -37,7 +29,7 @@ export async function POST(request: NextRequest) {
     const config = await getSubsStoreConfig();
     const plan = config.plans.find((p) => p.id === planId);
     if (!plan) {
-      return NextResponse.json({ error: "Тариф не найден" }, { status: 400 });
+      return NextResponse.json({ error: "Тариф не найден" }, { status: 404 });
     }
 
     const promoAllowed = plan.allowPromocodes !== false;
@@ -47,7 +39,20 @@ export async function POST(request: NextRequest) {
     }
 
     const { finalPrice, discountValue } = applyPromo(plan.price, promo);
-    const customerEmail = accountEmail.trim();
+    const customerEmail = accountEmail.trim().toLowerCase();
+
+    let subsUserId: string | null = null;
+    let sessionEmail: string | null = null;
+    const subsAuth = await createSubsAuthServerClient();
+    if (subsAuth) {
+      const {
+        data: { user },
+      } = await subsAuth.auth.getUser();
+      if (user) {
+        subsUserId = user.id;
+        sessionEmail = user.email ?? null;
+      }
+    }
 
     const created = await createSubsAwaitingPaymentOrder({
       tariffSlug: plan.id,
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
       discountAmount: discountValue,
       promocodeCode: promo?.code ?? null,
       promocodeId: promo?.dbId ?? null,
+      userId: subsUserId,
       paymentProvider: "pally",
     });
 
@@ -66,17 +72,18 @@ export async function POST(request: NextRequest) {
     }
 
     const orderId = created.orderId;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3056";
+    const { getPublicSiteOrigin } = await import("@/lib/app-url");
+    const appUrl = getPublicSiteOrigin();
 
     let payment: { paymentId: string; paymentUrl: string };
     try {
       payment = await createPallyPayment({
         orderId,
         amount: finalPrice,
-        description: `Subs Store: ${plan.name}`,
+        description: `SPOTIFY STORE: ${plan.name}`,
         returnUrl: `${appUrl}/checkout/success?order=${orderId}`,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
-        customerEmail: user.email ?? customerEmail,
+        customerEmail: sessionEmail ?? customerEmail,
       });
     } catch (payErr) {
       await notifyOperationalFailure({
@@ -99,30 +106,36 @@ export async function POST(request: NextRequest) {
 
     await notifySubsStoreStaffOrderEvent({
       type: "new_order",
-      title: "Subs Store: новый заказ Spotify",
+      title: "SPOTIFY STORE: новый заказ ожидает оплаты",
       message: msg,
       orderId,
-      emailSubject: "🔔 Новый заказ Spotify — Subs Store",
-      emailBody: `Новый заказ Subs Store\nТариф: ${planLabel}\nСумма: ${finalPrice} ₽\nEmail: ${customerEmail}\n\nАдминка: ${appUrl}/admin/orders?site=subs-store&status=awaiting_payment&highlight=${orderId}`,
+      emailSubject: "🔔 Новый заказ ожидает оплаты — SPOTIFY STORE",
+      emailBody: `Новый заказ SPOTIFY STORE\nТариф: ${planLabel}\nСумма: ${finalPrice} ₽\nEmail: ${customerEmail}\n\nАдминка: ${appUrl}/admin/orders?site=subs-store&status=awaiting_payment&highlight=${orderId}`,
     });
 
     await notifyNewOrder(
       { id: orderId, plan_name: planLabel, price: finalPrice, account_email: customerEmail, product: "spotify-premium" },
-      { email: user.email ?? null },
+      { email: sessionEmail ?? customerEmail },
       { siteSlug: "subs-store" },
     );
 
-    if (user.email) {
-      await notifyCustomerOrderCreated({
-        customerEmail: user.email,
-        orderId,
-        planName: planLabel,
-        price: finalPrice,
-        accountEmail: customerEmail,
-        siteSlug: "subs-store",
-        customerUserId: user.id,
-      }).catch(() => {});
-    }
+    await notifyCustomerOrderCreated({
+      customerEmail,
+      orderId,
+      planName: planLabel,
+      price: finalPrice,
+      accountEmail: customerEmail,
+      siteSlug: "subs-store",
+      customerUserId: subsUserId,
+    }).catch(() => {});
+
+    await scheduleUnpaidOrderReminder({
+      siteSlug: "subs-store",
+      orderId,
+      recipientEmail: customerEmail,
+      planName: planLabel,
+      price: finalPrice,
+    }).catch(() => {});
 
     return NextResponse.json({ paymentUrl: payment.paymentUrl, orderId });
   } catch (err) {

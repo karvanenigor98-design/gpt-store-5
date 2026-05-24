@@ -63,7 +63,7 @@ export function SpotifyNav() {
 
         <div className="flex items-center gap-2">
           <Link
-            href="/login?site=subs-store&returnUrl=%2Fdashboard%3Fsite%3Dsubs-store"
+            href="/cabinet?site=subs-store"
             className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
             style={{
               borderColor: "rgba(255,255,255,0.15)",
@@ -79,17 +79,13 @@ export function SpotifyNav() {
             <User size={14} />
             Кабинет
           </Link>
-          <a
-            href="#pricing"
-            onClick={(e) => {
-              e.preventDefault();
-              handleAnchorClick("#pricing");
-            }}
+          <Link
+            href="/checkout/spotify"
             className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-opacity duration-100 hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
             style={{ background: SPOTIFY_ACCENT, boxShadow: "0 4px 16px rgba(29,185,84,0.3)" }}
           >
             {hero.primaryCta}
-          </a>
+          </Link>
           <button
             className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-100 md:hidden"
             style={{ color: "rgba(255,255,255,0.7)" }}
@@ -136,7 +132,7 @@ export function SpotifyNav() {
                 )
               )}
               <Link
-                href="/login?site=subs-store&returnUrl=%2Fdashboard%3Fsite%3Dsubs-store"
+                href="/cabinet?site=subs-store"
                 onClick={() => setOpen(false)}
                 className="mt-1 rounded-lg border px-3 py-2.5 text-center text-sm"
                 style={{
@@ -146,17 +142,14 @@ export function SpotifyNav() {
               >
                 Личный кабинет
               </Link>
-              <a
-                href="#pricing"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleAnchorClick("#pricing");
-                }}
+              <Link
+                href="/checkout/spotify"
+                onClick={() => setOpen(false)}
                 className="mt-1 rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-white"
                 style={{ background: SPOTIFY_ACCENT }}
               >
                 {hero.primaryCta}
-              </a>
+              </Link>
             </nav>
           </motion.div>
         )}

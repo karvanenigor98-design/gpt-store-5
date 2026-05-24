@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { detectAuthSiteFromStrings } from "@/lib/auth/detectAuthSite";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -13,7 +13,7 @@ function devPortFromHeaders(h: Headers): string | null {
 
 /**
  * Какой магазин обслуживает личный кабинет (GPT vs Subs).
- * Источники: query/cookie site, путь, dev-порт (3055 = Subs, 3056 = GPT).
+ * Источники: query site, путь, dev-порт (3055 = Subs, 3056 = GPT), cookie current_site.
  */
 export async function resolveCustomerSiteSlug(params: {
   siteParam?: string | null;
@@ -22,6 +22,13 @@ export async function resolveCustomerSiteSlug(params: {
   const h = await headers();
   const port = devPortFromHeaders(h);
   const pathname = params.pathname ?? h.get("x-invoke-pathname") ?? "";
+  const cookieStore = await cookies();
+  const cookieSite = cookieStore.get("current_site")?.value;
+
+  const siteParam = params.siteParam?.trim();
+  if (siteParam === "subs-store" || siteParam === "gpt-store") {
+    return siteParam;
+  }
 
   if (port === "3055") return "subs-store";
   if (port === "3056") return "gpt-store";
@@ -30,10 +37,5 @@ export async function resolveCustomerSiteSlug(params: {
     return "subs-store";
   }
 
-  const cookieSite = params.siteParam?.trim();
-  if (cookieSite === "subs-store" || cookieSite === "gpt-store") {
-    return cookieSite;
-  }
-
-  return detectAuthSiteFromStrings("", "", cookieSite);
+  return detectAuthSiteFromStrings("", "", cookieSite, pathname);
 }

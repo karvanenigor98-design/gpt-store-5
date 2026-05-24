@@ -1,28 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { resolveAuthSiteContext } from "@/lib/auth/devStoreProfile";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 
 const SPOTIFY_GREEN = "#1DB954";
 
 function AuthLayoutInner({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const returnUrl = searchParams.get("returnUrl") ?? "";
   const siteDirect = searchParams.get("site") ?? "";
   const cookieSite = readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
-
-  const onGptDevPort =
-    typeof window !== "undefined" && window.location.port === "3056";
+  const port = typeof window !== "undefined" ? window.location.port || null : null;
 
   const isSubsStore =
-    !onGptDevPort &&
-    (siteDirect === "subs-store" ||
-      cookieSite === "subs-store" ||
-      returnUrl.includes("site=subs-store") ||
-      returnUrl.includes("/spotify"));
+    resolveAuthSiteContext({
+      siteDirect,
+      returnUrl,
+      cookieSite,
+      port,
+      pathname,
+    }) === "subs-store";
 
   if (isSubsStore) {
     return (

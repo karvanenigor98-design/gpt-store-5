@@ -147,21 +147,6 @@ export function SettingsForm({ initialSettings }: Props) {
       for (const field of FIELDS) {
         payload[field.key] = field.type === "select" ? Number(values[field.key]) : values[field.key];
       }
-      const plansToSave: ExtendedPlan[] = pricingPlans.map((plan) => ({
-        id: plan.id,
-        productId: plan.productId,
-        name: plan.name,
-        price: Math.max(0, Number(plan.price || 0)),
-        currency: plan.currency || "₽",
-        period: plan.period || "мес",
-        badge: plan.badge || undefined,
-        description: plan.description,
-        features: plan.features,
-        isPopular: plan.isPopular,
-        cta: plan.cta,
-      }));
-
-      payload.pricing_plans = plansToSave;
       payload.landing_sections = sections;
       payload.plan_availability = planAvailability;
 
@@ -253,7 +238,15 @@ export function SettingsForm({ initialSettings }: Props) {
         </div>
       </div>
 
-      <div>
+      <p className="text-sm text-gray-600">
+        Цены и состав тарифов редактируются в{" "}
+        <a href="/admin/tariffs?site=gpt-store" className="text-[#10a37f] hover:underline">
+          разделе «Тарифы»
+        </a>
+        .
+      </p>
+
+      <div style={{ display: "none" }} aria-hidden>
         <label className="mb-1.5 block text-sm font-medium text-gray-700">Тарифы</label>
         <div className="space-y-3">
           {pricingPlans.map((plan) => (

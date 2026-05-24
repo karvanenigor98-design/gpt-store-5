@@ -26,13 +26,17 @@ export default async function LoginPage({
           pathname: "/login",
         });
   const isSubsStore = authSite === "subs-store";
+  const registerHref =
+    isSubsStore
+      ? "/register?site=subs-store"
+      : "/register?site=gpt-store";
 
   if (isSubsStore) {
     return (
       <div className="w-full max-w-sm">
         <h1 className="font-heading mb-8 text-2xl font-bold text-white">
           Войти в{" "}
-          <span style={{ color: "#1DB954" }}>Subs Store</span>
+          <span style={{ color: "#1DB954" }}>SPOTIFY STORE</span>
         </h1>
         <LoginForm />
       </div>
@@ -44,7 +48,7 @@ export default async function LoginPage({
       <h1 className="font-heading text-2xl font-bold text-gray-900 mb-2">Вход в кабинет</h1>
       <p className="text-sm text-gray-500 mb-8">
         Нет аккаунта?{" "}
-        <a href="/register" className="text-[#10a37f] hover:underline">
+        <a href={registerHref} className="text-[#10a37f] hover:underline">
           Зарегистрироваться
         </a>
       </p>

@@ -180,9 +180,12 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   const chatDashboardHref = isSubsStore
     ? "/dashboard/chat?site=subs-store"
     : "/dashboard/chat";
+  const subsAuthHref = `/register?site=subs-store&returnUrl=${encodeURIComponent("/dashboard/chat?site=subs-store")}`;
   const loginHref = isSubsStore
-    ? `/login?site=subs-store&returnUrl=${encodeURIComponent("/dashboard/chat?site=subs-store")}`
+    ? subsAuthHref
     : `/login?returnUrl=${encodeURIComponent("/dashboard/chat")}`;
+  const subsLandingSupportLink =
+    isSubsStore && (pathname === "/spotify" || pathname === "/support");
 
   const chatIconSvg = (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,89 +201,103 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   if (pathname === "/support" && !isSubsStore) return null;
   if (loading) return null;
 
-  const subsProfileRoot =
-    process.env.NEXT_PUBLIC_STORE_PROFILE === "subs-store" && pathname === "/";
-  const isSubsLanding =
-    isSubsStore &&
-    (pathname === "/spotify" ||
-      pathname.startsWith("/spotify/") ||
-      subsProfileRoot);
+  if (subsLandingSupportLink) {
+    const landingSupportHref =
+      user?.role === "admin"
+        ? "/admin/chat?site=subs-store"
+        : user?.role === "operator"
+          ? "/operator/chat?site=subs-store"
+          : user
+            ? chatDashboardHref
+            : loginHref;
 
-  const subsFabPosition =
-    "fixed bottom-24 right-4 z-[110] flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-28 sm:right-6";
+    return (
+      <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+        <a
+          href={landingSupportHref}
+          className="flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
+          style={{
+            backgroundColor: accentColor,
+            boxShadow: `0 4px 14px ${accentColor}40`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = accentHover;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = accentColor;
+          }}
+        >
+          {chatIconSvg}
+          Чат поддержки
+        </a>
+      </div>
+    );
+  }
 
-  if (pathname === "/" || isSubsLanding || (isSubsStore && pathname === "/support")) {
-    if (pathname === "/support" && isSubsStore) return null;
-
-    if (user && user.role !== "admin" && user.role !== "operator") {
-      return (
-        <div className={cn(isSubsLanding ? subsFabPosition : "fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6")}>
-          <div
-            className={cn(
-              "overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
-              isSubsStore ? "border border-white/10 bg-[#111111]" : "border border-gray-200 bg-white",
-              open
-                ? "h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] translate-y-0 opacity-100"
-                : "pointer-events-none h-0 w-0 translate-y-4 opacity-0",
-            )}
-          >
-            {open && session && (
-              <div className="h-full w-full">
-                <ChatWindow
-                  currentUser={user}
-                  sessionId={session.id}
-                  roomStatus={session.status === "closed" ? "closed" : "open"}
-                  otherPartyName={chatPartyName}
-                  viewerIsStaff={false}
-                  siteSlug={siteSlug}
-                />
-              </div>
-            )}
-            {open && !session?.id && (
-              <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm">
-                <p className={isSubsStore ? "text-gray-400" : "text-gray-600"}>
-                  {openSessionLoading ? "Подключаем чат…" : sessionError ?? ""}
-                </p>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="relative flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
-            style={{
-              backgroundColor: accentColor,
-              boxShadow: `0 4px 14px ${accentColor}40`,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = accentHover;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = accentColor;
-            }}
-            aria-label={open ? "Закрыть чат" : "Открыть чат поддержки"}
-          >
-            {chatIconSvg}
-            Чат поддержки
-            {unread > 0 && !open && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-                {Math.min(unread, 9)}
-              </span>
-            )}
-          </button>
+  if (pathname === "/" && user && user.role !== "admin" && user.role !== "operator") {
+    return (
+      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+        <div
+          className={cn(
+            "overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
+            "border border-gray-200 bg-white",
+            open
+              ? "h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] translate-y-0 opacity-100"
+              : "pointer-events-none h-0 w-0 translate-y-4 opacity-0",
+          )}
+        >
+          {open && session && (
+            <div className="h-full w-full">
+              <ChatWindow
+                currentUser={user}
+                sessionId={session.id}
+                roomStatus={session.status === "closed" ? "closed" : "open"}
+                otherPartyName={chatPartyName}
+                viewerIsStaff={false}
+                siteSlug={siteSlug}
+              />
+            </div>
+          )}
+          {open && !session?.id && (
+            <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm">
+              <p className="text-gray-600">
+                {openSessionLoading ? "Подключаем чат…" : sessionError ?? ""}
+              </p>
+            </div>
+          )}
         </div>
-      );
-    }
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="relative flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
+          style={{
+            backgroundColor: accentColor,
+            boxShadow: `0 4px 14px ${accentColor}40`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = accentHover;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = accentColor;
+          }}
+          aria-label={open ? "Закрыть чат" : "Открыть чат поддержки"}
+        >
+          {chatIconSvg}
+          Чат поддержки
+          {unread > 0 && !open && (
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+              {Math.min(unread, 9)}
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
 
+  if (pathname === "/") {
     const landingSupportHref = user ? chatDashboardHref : loginHref;
     return (
-      <div
-        className={cn(
-          isSubsLanding
-            ? subsFabPosition
-            : "fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6",
-        )}
-      >
+      <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
         <a
           href={landingSupportHref}
           className="flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"

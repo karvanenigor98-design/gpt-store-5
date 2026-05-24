@@ -3,5 +3,15 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [
+    {
+      "path": "/api/cron/daily-stats",
+      "schedule": "59 20 * * *"
+    },
+    {
+      "path": "/api/cron/unpaid-order-reminders",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

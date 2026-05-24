@@ -13,6 +13,7 @@ import {
   buildReviewUrl,
   buildStaffChatUrl,
   buildStaffOrderUrl,
+  resolveAppBaseUrl,
 } from "@/lib/email/site-urls";
 
 const STATUS_RU: Record<string, string> = {
@@ -78,7 +79,7 @@ export async function emailStaffClientChatMessage(params: {
 }): Promise<void> {
   const preview = (params.messagePreview || "—").slice(0, 400);
   const who = params.clientEmail?.trim() || "клиент";
-  const brand = params.siteSlug === "subs-store" ? "Subs Store" : "GPT STORE";
+  const brand = params.siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
 
   await dispatchStaffSiteEmails({
     siteSlug: params.siteSlug,
@@ -189,7 +190,7 @@ export async function emailStaffNewOrder(params: {
   price: number;
   clientEmail: string | null;
 }): Promise<void> {
-  const brand = params.siteSlug === "subs-store" ? "Subs Store" : "GPT STORE";
+  const brand = params.siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
   await dispatchStaffSiteEmails({
     siteSlug: params.siteSlug,
     eventType: "staff_new_order",
@@ -212,7 +213,7 @@ export async function emailStaffPromocodeUsed(params: {
   code: string;
   orderId: string;
 }): Promise<void> {
-  const brand = params.siteSlug === "subs-store" ? "Subs Store" : "GPT STORE";
+  const brand = params.siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
   await dispatchStaffSiteEmails({
     siteSlug: params.siteSlug,
     eventType: "promocode_used",
@@ -232,8 +233,8 @@ export async function emailStaffNewReview(params: {
   content: string;
   reviewId?: string;
 }): Promise<void> {
-  const brand = params.siteSlug === "subs-store" ? "Subs Store" : "GPT STORE";
-  const app = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+  const brand = params.siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
+  const app = resolveAppBaseUrl();
   await dispatchStaffSiteEmails({
     siteSlug: params.siteSlug,
     eventType: "new_review",

@@ -1,35 +1,20 @@
+import { getPublicSiteOrigin } from "@/lib/app-url";
 import type { SiteSlug } from "@/lib/sites";
 import { getSiteBySlug } from "@/lib/sites";
+import { getGptStoreLandingUrl, getSubsStoreLandingUrl } from "@/lib/store-urls";
 
 /** Базовый URL приложения для ссылок в письмах (без trailing slash). */
 export function resolveAppBaseUrl(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim() ||
-    "http://localhost:3000";
-  if (raw.startsWith("http")) return raw.replace(/\/$/, "");
-  return `https://${raw.replace(/\/$/, "")}`;
+  return getPublicSiteOrigin();
 }
 
 /** Публичный URL лендинга/кабинета по сайту (env приоритетнее APP_URL для multi-domain). */
 export function resolveSitePublicUrl(siteSlug: SiteSlug): string {
-  if (siteSlug === "subs-store") {
-    const subs = process.env.NEXT_PUBLIC_SUBS_STORE_URL?.trim();
-    if (subs) return subs.replace(/\/$/, "");
-  }
-  if (siteSlug === "gpt-store") {
-    const gpt = process.env.NEXT_PUBLIC_GPT_STORE_URL?.trim();
-    if (gpt) return gpt.replace(/\/$/, "");
-  }
+  if (siteSlug === "subs-store") return getSubsStoreLandingUrl();
+  if (siteSlug === "gpt-store") return getGptStoreLandingUrl();
   const app = resolveAppBaseUrl();
   const site = getSiteBySlug(siteSlug);
-  if (siteSlug === "subs-store") {
-    return `${app}${site.landingPath.startsWith("/") ? site.landingPath : `/${site.landingPath}`}`.replace(
-      /\/spotify\/?$/,
-      "",
-    );
-  }
-  return app;
+  return `${app}${site.landingPath.startsWith("/") ? site.landingPath : `/${site.landingPath}`}`;
 }
 
 export function buildCustomerChatUrl(siteSlug: SiteSlug, sessionOrThreadId: string): string {

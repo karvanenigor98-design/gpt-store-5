@@ -18,6 +18,7 @@ import {
   recordGptStaffNotification,
   recordSubsStaffNotification,
 } from "@/lib/notifications/staff-events";
+import { cancelUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
 
 const GPT_PAID_LIKE = new Set([
   "paid",
@@ -161,6 +162,8 @@ export async function handleOrderPaidNotification(
       : `Клиент ${clientEmail ?? "—"} оплатил: ${params.planName}, ${params.price} ₽.`;
 
     const siteSlug = params.siteSlug as "gpt-store" | "subs-store";
+    await cancelUnpaidOrderReminder(siteSlug, params.orderId);
+
     await recordGptStaffNotification({
       type: "payment_success",
       title: staffTitle,
@@ -173,7 +176,7 @@ export async function handleOrderPaidNotification(
     if (params.siteSlug === "subs-store") {
       await recordSubsStaffNotification({
         type: "payment_success",
-        title: `Subs Store: ${isRenewal ? "продление" : "новая оплата"}`,
+        title: `SPOTIFY STORE: ${isRenewal ? "продление" : "новая оплата"}`,
         message: staffMessage,
         entity_type: "order",
         entity_id: params.orderId,

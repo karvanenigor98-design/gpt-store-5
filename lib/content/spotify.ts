@@ -5,7 +5,7 @@ export const SPOTIFY_GLOW = "rgba(29,185,84,0.15)";
 export const SPOTIFY_BORDER = "rgba(255,255,255,0.08)";
 
 export const SPOTIFY_HERO = {
-  badge: "Subs Store · Spotify Premium",
+  badge: "SPOTIFY STORE · Spotify Premium",
   title: "Spotify Premium",
   accentTitle: "в России без сложностей",
   subtitle:

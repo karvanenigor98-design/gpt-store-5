@@ -13,7 +13,6 @@ import {
 } from "@/lib/supabase/subs-auth-env";
 import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
 import {
-  getStoreProfileFromEnv,
   isGptDevPort,
   isSubsDevPort,
   resolveAuthSiteContext,
@@ -31,13 +30,10 @@ export async function middleware(request: NextRequest) {
   const devPort = request.nextUrl.port || null;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-invoke-pathname", path);
-  const envStoreProfile = getStoreProfileFromEnv();
   if (isGptDevPort(devPort)) {
     requestHeaders.set("x-dev-store-profile", "gpt-store");
   } else if (isSubsDevPort(devPort)) {
     requestHeaders.set("x-dev-store-profile", "subs-store");
-  } else if (envStoreProfile) {
-    requestHeaders.set("x-dev-store-profile", envStoreProfile);
   }
   const siteQuery = request.nextUrl.searchParams.get("site");
   if (siteQuery === "subs-store" || siteQuery === "gpt-store") {
@@ -51,11 +47,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (isSubsDevPort(devPort) && path === "/" && !isGptLandingAlias) {
-    return NextResponse.redirect(new URL("/spotify", request.url));
-  }
-
-  if (isSubsDevPort(devPort) && isGptLandingAlias) {
+  if (
+    process.env.NODE_ENV === "development" &&
+    path === "/" &&
+    isSubsDevPort(devPort) &&
+    !isGptLandingAlias
+  ) {
     return NextResponse.redirect(new URL("/spotify", request.url));
   }
 
@@ -142,9 +139,17 @@ export async function middleware(request: NextRequest) {
   if (isProtected && !sessionUiActive) {
     const url = request.nextUrl.clone();
     const fullPath = path + (request.nextUrl.search || "");
+    const loginSite = resolveAuthSiteContext({
+      siteDirect: request.nextUrl.searchParams.get("site"),
+      returnUrl: fullPath,
+      cookieSite: cookieSiteEarly,
+      port: devPort,
+      pathname: path,
+    });
     url.pathname = "/login";
     url.search = "";
     url.searchParams.set("returnUrl", fullPath);
+    url.searchParams.set("site", loginSite);
     return NextResponse.redirect(url);
   }
 
@@ -181,29 +186,21 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL("/operator", request.url));
       }
 
-      const siteParamForRedirect = request.nextUrl.searchParams.get("site");
-      const returnUrlParam = request.nextUrl.searchParams.get("returnUrl") ?? "";
-      const isSubsStoreContext =
-        siteParamForRedirect === "subs-store" ||
-        returnUrlParam.includes("site=subs-store") ||
-        returnUrlParam.includes("/spotify") ||
-        incoming.cookies.get("current_site")?.value === "subs-store";
-
-      const dashboardTarget = isSubsStoreContext ? "/dashboard?site=subs-store" : "/dashboard";
+      const loginSite = resolveAuthSiteContext({
+        siteDirect: request.nextUrl.searchParams.get("site"),
+        returnUrl: request.nextUrl.searchParams.get("returnUrl"),
+        cookieSite: cookieSiteEarly,
+        port: devPort,
+        pathname: path,
+      });
+      const dashboardTarget =
+        loginSite === "subs-store" ? "/dashboard?site=subs-store" : "/dashboard?site=gpt-store";
       return NextResponse.redirect(new URL(dashboardTarget, request.url));
     }
   }
 
-  const inferredSite: SiteSlug | null = resolveAuthSiteContext({
-    siteDirect: request.nextUrl.searchParams.get("site"),
-    returnUrl: request.nextUrl.searchParams.get("returnUrl"),
-    cookieSite: cookieSiteEarly,
-    port: devPort,
-    pathname: path,
-  });
-
   if (path === "/" || path === "/gpt" || path === "/gpt-store" || path === "/chatgpt") {
-    supabaseResponse.cookies.set("current_site", isSubsDevPort(devPort) ? "subs-store" : "gpt-store", {
+    supabaseResponse.cookies.set("current_site", "gpt-store", {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
       sameSite: "lax",
@@ -216,13 +213,23 @@ export async function middleware(request: NextRequest) {
       sameSite: "lax",
       httpOnly: false,
     });
-  } else if (inferredSite) {
-    supabaseResponse.cookies.set("current_site", inferredSite, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "lax",
-      httpOnly: false,
+  } else {
+    const inferredSite: SiteSlug | null = resolveAuthSiteContext({
+      siteDirect: request.nextUrl.searchParams.get("site"),
+      returnUrl: request.nextUrl.searchParams.get("returnUrl"),
+      cookieSite: cookieSiteEarly,
+      port: devPort,
+      pathname: path,
     });
+
+    if (inferredSite) {
+      supabaseResponse.cookies.set("current_site", inferredSite, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+        sameSite: "lax",
+        httpOnly: false,
+      });
+    }
   }
 
   if (gptUser && gptSb && (path.startsWith("/admin") || path.startsWith("/operator"))) {

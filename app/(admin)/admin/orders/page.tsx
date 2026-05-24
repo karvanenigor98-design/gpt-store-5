@@ -9,6 +9,7 @@ import { applySubsOrdersStatusFilter } from "@/lib/admin/subs-orders-query";
 import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import { getSiteBySlug } from "@/lib/sites";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
+import { UnpaidOrdersEmailCampaign } from "@/components/admin/UnpaidOrdersEmailCampaign";
 
 export const metadata: Metadata = { title: "Admin · Заказы" };
 
@@ -59,7 +60,7 @@ export default async function AdminOrdersPage({
     if (!subs) {
       return (
         <div className="p-6">
-          <h1 className="font-heading text-2xl font-bold text-gray-900">Заказы · Subs Store</h1>
+          <h1 className="font-heading text-2xl font-bold text-gray-900">Заказы · {site.brandName}</h1>
           <p className="mt-2 max-w-xl text-sm text-gray-600">
             Подключите <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
             <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code> в проекте GPT STORE.
@@ -120,6 +121,10 @@ export default async function AdminOrdersPage({
             ))}
           </div>
         </div>
+
+        {filterStatus === "awaiting_payment" && (
+          <UnpaidOrdersEmailCampaign siteSlug="subs-store" />
+        )}
 
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full">
@@ -204,7 +209,9 @@ export default async function AdminOrdersPage({
 
   query = query.not("product", "ilike", "spotify%");
 
-  if (filterStatus) {
+  if (filterStatus === "awaiting_payment") {
+    query = query.eq("status", "pending");
+  } else if (filterStatus) {
     query = query.eq("status", filterStatus as OrderStatus);
   }
 
@@ -222,7 +229,7 @@ export default async function AdminOrdersPage({
           </span>
         </h1>
         <div className="flex gap-2">
-          {["", "pending", "activating", "waiting_client", "active", "failed"].map((s) => (
+          {["", "awaiting_payment", "activating", "waiting_client", "active", "failed"].map((s) => (
             <a
               key={s || "all"}
               href={s ? `/admin/orders?status=${s}&site=${siteSlug}` : `/admin/orders?site=${siteSlug}`}
@@ -232,11 +239,15 @@ export default async function AdminOrdersPage({
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {s ? GPT_STATUS_LABELS[s] : "Все"}
+              {s ? (s === "awaiting_payment" ? "Ожидает оплаты" : GPT_STATUS_LABELS[s]) : "Все"}
             </a>
           ))}
         </div>
       </div>
+
+      {filterStatus === "awaiting_payment" && (
+        <UnpaidOrdersEmailCampaign siteSlug="gpt-store" />
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="w-full">

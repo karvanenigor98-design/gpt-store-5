@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createPallyPayment } from "@/lib/payments/pally";
 import { CHATGPT_PLANS } from "@/lib/chatgpt-data";
+import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
 import {
   notifyCustomerOrderCreated,
   notifyNewOrder,
@@ -79,7 +80,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ошибка создания заказа" }, { status: 500 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const { getPublicSiteOrigin } = await import("@/lib/app-url");
+    const appUrl = getPublicSiteOrigin();
 
     let payment: { paymentId: string; paymentUrl: string };
     try {
@@ -117,6 +119,13 @@ export async function POST(request: NextRequest) {
         price: finalPrice,
         accountEmail,
         siteSlug: "gpt-store",
+      }).catch(() => {});
+      await scheduleUnpaidOrderReminder({
+        siteSlug: "gpt-store",
+        orderId: order.id,
+        recipientEmail: user.email,
+        planName: plan.name,
+        price: finalPrice,
       }).catch(() => {});
     }
 

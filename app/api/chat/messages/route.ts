@@ -106,7 +106,8 @@ export async function GET(req: NextRequest) {
       .from("chat_messages")
       .update({ is_read: true })
       .eq("session_id", sessionId)
-      .eq("sender_type", "client");
+      .eq("sender_type", "client")
+      .eq("is_read", false);
     const subsChat =
       session.site_id != null ? await isChatSessionForSubsStore(session.site_id) : false;
     await markStaffChatNotificationsRead(sessionId, subsChat ? "subs-store" : "gpt-store");

@@ -430,6 +430,60 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["role_audit"]["Insert"]>;
       };
+      scheduled_email_jobs: {
+        Relationships: [];
+        Row: {
+          id: string;
+          site_slug: string;
+          order_id: string;
+          event_type: string;
+          recipient_email: string;
+          scheduled_at: string;
+          status: string;
+          dedupe_key: string | null;
+          metadata: Json | null;
+          created_at: string;
+          sent_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          site_slug: string;
+          order_id: string;
+          event_type?: string;
+          recipient_email: string;
+          scheduled_at: string;
+          status?: string;
+          dedupe_key?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+          sent_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["scheduled_email_jobs"]["Insert"]>;
+      };
+      email_campaign_logs: {
+        Relationships: [];
+        Row: {
+          id: string;
+          campaign_id: string;
+          site_slug: string;
+          recipient_email: string;
+          order_id: string | null;
+          status: string;
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          site_slug: string;
+          recipient_email: string;
+          order_id?: string | null;
+          status: string;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["email_campaign_logs"]["Insert"]>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
