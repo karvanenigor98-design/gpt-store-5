@@ -8,7 +8,9 @@ export function applySubsOrdersStatusFilter<T extends { or: (f: string) => T; eq
 ): T {
   if (!filterStatus) return query;
   if (filterStatus === "awaiting_payment") {
-    return query.eq("payment_status", "pending");
+    return query.or(
+      "payment_status.eq.pending,status.in.(awaiting_payment,new,pending_payment_setup)",
+    );
   }
   return query.eq("status", filterStatus);
 }

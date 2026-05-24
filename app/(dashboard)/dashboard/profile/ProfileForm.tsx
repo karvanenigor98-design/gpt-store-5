@@ -65,15 +65,15 @@ export function ProfileForm({ siteSlug = "gpt-store", initialData }: Props) {
   const isSubs = siteSlug === "subs-store";
   const labelClass = cn(
     "mb-1.5 block text-sm font-medium",
-    isSubs ? "text-gray-400" : "text-gray-400",
+    isSubs ? "text-gray-400" : "text-gray-700",
   );
   const inputClass = (hasError?: boolean) =>
     cn(
       "w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-shadow",
       isSubs
-        ? "border-white/15 bg-[#161616] text-gray-100 placeholder:text-gray-600"
-        : "border-white/20 bg-white text-gray-900 placeholder:text-gray-400",
-      hasError ? "border-red-500" : isSubs ? "border-white/15" : "border-white/20",
+        ? "border-white/15 bg-[#161616] text-gray-100 placeholder:text-gray-500"
+        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-[#10a37f]",
+      hasError ? "border-red-500" : isSubs ? "border-white/15" : "border-gray-300",
     );
 
   return (
@@ -89,7 +89,7 @@ export function ProfileForm({ siteSlug = "gpt-store", initialData }: Props) {
               "w-full cursor-not-allowed rounded-xl border px-3.5 py-2.5 text-sm",
               isSubs
                 ? "border-white/10 bg-[#1a1a1a] text-gray-500"
-                : "border-white/15 bg-white/90 text-gray-600",
+                : "border-gray-200 bg-gray-50 text-gray-600",
             )}
           />
         </div>
@@ -111,7 +111,11 @@ export function ProfileForm({ siteSlug = "gpt-store", initialData }: Props) {
             }}
             onBlur={(e) => {
               e.currentTarget.style.boxShadow = "";
-              e.currentTarget.style.borderColor = errors.username ? "#ef4444" : "rgba(255,255,255,0.2)";
+              e.currentTarget.style.borderColor = errors.username
+                ? "#ef4444"
+                : isSubs
+                  ? "rgba(255,255,255,0.15)"
+                  : "#d1d5db";
             }}
             placeholder="Ваше имя"
           />
@@ -130,7 +134,7 @@ export function ProfileForm({ siteSlug = "gpt-store", initialData }: Props) {
             }}
             onBlur={(e) => {
               e.currentTarget.style.boxShadow = "";
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+              e.currentTarget.style.borderColor = isSubs ? "rgba(255,255,255,0.15)" : "#d1d5db";
             }}
             placeholder="@username"
           />

@@ -5,7 +5,7 @@ import { OrderStatusSelect } from "@/components/admin/OrderStatusSelect";
 import { SubsOrderStatusSelect } from "@/components/admin/SubsOrderStatusSelect";
 import type { OrderStatus } from "@/types/database";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
-import { applySubsOrdersStatusFilter } from "@/lib/admin/subs-orders-query";
+import { fetchSubsOrdersForAdmin } from "@/lib/admin/subs-orders-fetch";
 import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import { getSiteBySlug } from "@/lib/sites";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
@@ -69,31 +69,11 @@ export default async function AdminOrdersPage({
       );
     }
 
-    let q = subs
-      .from("orders")
-      .select(
-        "id,status,payment_status,final_price,customer_email,created_at,user_id,tariffs(title),profiles(email,full_name)"
-      )
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    q = applySubsOrdersStatusFilter(q, filterStatus);
-
-    const { data: rawOrders } = await q;
-
-    type SubsOrderRow = {
-      id: string;
-      status: string;
-      payment_status: string;
-      final_price: number;
-      customer_email: string;
-      created_at: string;
-      user_id: string | null;
-      tariffs: { title: string } | { title: string }[] | null;
-      profiles: { email: string | null; full_name: string | null } | null;
-    };
-
-    const orders = (rawOrders ?? []) as unknown as SubsOrderRow[];
+    const { orders, error: ordersError } = await fetchSubsOrdersForAdmin(subs, {
+      filterStatus,
+      offset,
+      limit,
+    });
 
     return (
       <div className="p-6">
@@ -126,6 +106,16 @@ export default async function AdminOrdersPage({
           <UnpaidOrdersEmailCampaign siteSlug="subs-store" />
         )}
 
+        {ordersError && (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {ordersError}
+          </p>
+        )}
+
+        {!ordersError && orders.length === 0 && (
+          <p className="mb-4 text-sm text-gray-500">Заказов по выбранному фильтру нет.</p>
+        )}
+
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full">
             <thead className="border-b border-gray-200 bg-gray-50">
@@ -142,13 +132,7 @@ export default async function AdminOrdersPage({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((order) => {
-                const tr = order.tariffs;
-                const tariffTitle =
-                  Array.isArray(tr) && tr[0]?.title ? tr[0].title
-                  : tr && typeof tr === "object" && "title" in tr ? String((tr as { title: string }).title)
-                  : "—";
-                const prof = order.profiles;
-                const email = prof?.email ?? order.customer_email ?? "—";
+                const email = order.profileEmail ?? order.customer_email ?? "—";
                 return (
                   <tr
                     key={order.id}
@@ -160,9 +144,11 @@ export default async function AdminOrdersPage({
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {email}
-                      {prof?.full_name && <span className="block text-gray-500">{prof.full_name}</span>}
+                      {order.profileName && (
+                        <span className="block text-gray-500">{order.profileName}</span>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-xs">{tariffTitle}</td>
+                    <td className="px-4 py-3 text-xs">{order.tariffTitle}</td>
                     <td className="px-4 py-3 text-xs font-semibold">{Number(order.final_price ?? 0).toLocaleString("ru")} ₽</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
@@ -198,12 +184,12 @@ export default async function AdminOrdersPage({
     status: OrderStatus;
     account_email: string | null;
     created_at: string;
-    profiles: { email: string | null; telegram_username: string | null } | null;
+    user_id: string | null;
   };
 
   let query = supabase
     .from("orders")
-    .select("id, product, plan_id, price, status, account_email, created_at, profiles(email, telegram_username)")
+    .select("id, product, plan_id, price, status, account_email, created_at, user_id")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -215,8 +201,25 @@ export default async function AdminOrdersPage({
     query = query.eq("status", filterStatus as OrderStatus);
   }
 
-  const { data: rawOrders } = await query;
-  const orders = (rawOrders ?? []) as unknown as OrderRow[];
+  const { data: rawOrders, error: gptOrdersError } = await query;
+  const orders = (rawOrders ?? []) as OrderRow[];
+
+  const userIds = [...new Set(orders.map((o) => o.user_id).filter((id): id is string => Boolean(id)))];
+  const profileByUserId = new Map<string, { email: string | null; telegram_username: string | null }>();
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, email, telegram_username")
+      .in("id", userIds);
+    for (const p of profiles ?? []) {
+      if (p.id) {
+        profileByUserId.set(p.id, {
+          email: p.email,
+          telegram_username: p.telegram_username,
+        });
+      }
+    }
+  }
 
   return (
     <div className="p-6">
@@ -249,6 +252,16 @@ export default async function AdminOrdersPage({
         <UnpaidOrdersEmailCampaign siteSlug="gpt-store" />
       )}
 
+      {gptOrdersError && (
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {gptOrdersError.message}
+        </p>
+      )}
+
+      {!gptOrdersError && orders.length === 0 && (
+        <p className="mb-4 text-sm text-gray-500">Заказов по выбранному фильтру нет.</p>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="w-full">
           <thead className="border-b border-gray-200 bg-gray-50">
@@ -264,7 +277,8 @@ export default async function AdminOrdersPage({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {orders.map((order) => {
-              const profile = order.profiles;
+              const profile = order.user_id ? profileByUserId.get(order.user_id) : undefined;
+              const clientEmail = profile?.email ?? order.account_email ?? "—";
               return (
                 <tr key={order.id} id={`row-${order.id}`} className="scroll-mt-4 text-sm text-gray-700 hover:bg-gray-50">
                   <td className="px-4 py-3">
@@ -272,7 +286,7 @@ export default async function AdminOrdersPage({
                     <p className="text-xs text-gray-400">{order.account_email}</p>
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {profile?.email ?? "—"}
+                    {clientEmail}
                     {profile?.telegram_username && (
                       <span className="block text-gray-500">@{profile.telegram_username}</span>
                     )}

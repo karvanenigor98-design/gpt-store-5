@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { humanizeSubsSupabaseError } from "@/lib/admin/subs-network-error";
+import { fetchSubsTariffsForAdmin } from "@/lib/admin/subs-tariffs-query";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 
 /** Список тарифов Subs Store (slug, title, price) для промокодов и страницы /admin/tariffs — чтение доступно операторам. */
@@ -8,17 +9,12 @@ export async function GET() {
   const ctx = await requireSubsStaffContext();
   if (ctx instanceof NextResponse) return ctx;
 
-  const { data, error } = await ctx.subs
-    .from("tariffs")
-    .select(
-      "id,slug,title,price,old_price,category,badge,description,short_description,duration_months,monthly_price,savings_text,is_popular,is_best_value,is_active,sort_order,cta_text,allow_promocodes,allow_discounts,updated_at",
-    )
-    .order("sort_order", { ascending: true });
+  const { items, error } = await fetchSubsTariffsForAdmin(ctx.subs);
 
   if (error) {
-    return NextResponse.json({ error: humanizeSubsSupabaseError(error.message) }, { status: 500 });
+    return NextResponse.json({ error: humanizeSubsSupabaseError(error) }, { status: 500 });
   }
-  return NextResponse.json({ items: data ?? [] });
+  return NextResponse.json({ items });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -78,9 +74,30 @@ export async function PATCH(req: NextRequest) {
   if (body.allow_promocodes !== undefined) patch.allow_promocodes = body.allow_promocodes;
   if (body.allow_discounts !== undefined) patch.allow_discounts = body.allow_discounts;
 
-  const { data, error } = await ctx.subs.from("tariffs").update(patch).eq("id", id).select("*").single();
+  const extendedKeys = new Set([
+    "short_description",
+    "duration_months",
+    "monthly_price",
+    "savings_text",
+    "is_popular",
+    "is_best_value",
+    "cta_text",
+  ]);
+
+  let { data, error } = await ctx.subs.from("tariffs").update(patch).eq("id", id).select("*").single();
+
+  if (error && /does not exist/i.test(error.message)) {
+    const basePatch = Object.fromEntries(
+      Object.entries(patch).filter(([key]) => !extendedKeys.has(key)),
+    );
+    ({ data, error } = await ctx.subs.from("tariffs").update(basePatch).eq("id", id).select("*").single());
+  }
+
   if (error || !data) {
-    return NextResponse.json({ error: "Не удалось обновить тариф" }, { status: 400 });
+    return NextResponse.json(
+      { error: humanizeSubsSupabaseError(error?.message ?? "Не удалось обновить тариф") },
+      { status: 400 },
+    );
   }
   return NextResponse.json({ item: data });
 }

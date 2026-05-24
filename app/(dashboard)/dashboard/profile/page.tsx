@@ -57,7 +57,13 @@ export default async function ProfilePage({
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <h1 className="font-heading mb-6 text-2xl font-bold text-white">Профиль</h1>
+      <h1
+        className={`font-heading mb-6 text-2xl font-bold ${
+          siteSlug === "subs-store" ? "text-white" : "text-gray-900"
+        }`}
+      >
+        Профиль
+      </h1>
       <ProfileForm
         siteSlug={siteSlug}
         initialData={{

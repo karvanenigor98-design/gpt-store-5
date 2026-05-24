@@ -71,9 +71,7 @@ export default async function DashboardLayout({
   const site = getSiteBySlug(siteSlug);
   const isSubsShell = siteSlug === "subs-store";
   const isGptShell = siteSlug === "gpt-store";
-  const isProfileRoute =
-    invokePath === "/dashboard/profile" || invokePath.startsWith("/dashboard/profile/");
-  const useDarkCabinetShell = isSubsShell || isProfileRoute;
+  const useDarkCabinetShell = isSubsShell;
   const avatarColor = site.primaryColor;
   const fallbackLetter = site.logoLetter;
   const fallbackBrand = site.brandName;
