@@ -129,8 +129,8 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
       trustLines: ["Без иностранной карты", "Активация 10–15 минут", "Гарантия на срок"],
     },
     nav: {
-      brand: "Subs",
-      brandAccent: "Store",
+      brand: "SPOTIFY",
+      brandAccent: "STORE",
       links: [
         { href: "#how-it-works", label: "Как работает" },
         { href: "#pricing", label: "Тарифы" },
@@ -140,8 +140,8 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
       ],
     },
     footer: {
-      brand: "Subs",
-      brandAccent: "Store",
+      brand: "SPOTIFY",
+      brandAccent: "STORE",
       tagline: "Spotify Premium в России с оплатой в рублях, поддержкой и гарантией на весь срок.",
       telegramLabel: "Telegram: @subs_support",
       telegramUrl: supportTelegramUrl,
@@ -154,7 +154,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
         { href: "/spotify/privacy", label: "Конфиденциальность" },
         { href: "/spotify/terms", label: "Условия" },
       ],
-      copyrightLine: "Subs Store · Spotify Premium в России",
+      copyrightLine: "SPOTIFY STORE · Spotify Premium в России",
       crossLinkLabel: "",
       crossLinkHref: "",
     },

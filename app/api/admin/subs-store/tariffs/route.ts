@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest) {
     is_active?: boolean;
     sort_order?: number;
     badge?: string | null;
+    category?: string;
     cta_text?: string | null;
     allow_promocodes?: boolean;
     allow_discounts?: boolean;
@@ -58,6 +59,10 @@ export async function PATCH(req: NextRequest) {
   if (body.is_active !== undefined) patch.is_active = body.is_active;
   if (body.sort_order != null && Number.isFinite(body.sort_order)) patch.sort_order = Math.round(Number(body.sort_order));
   if (body.badge !== undefined) patch.badge = body.badge;
+  if (body.category !== undefined) {
+    const cat = body.category.trim();
+    if (["individual", "duo", "family"].includes(cat)) patch.category = cat;
+  }
   if (body.description !== undefined) patch.description = body.description;
   if (body.short_description !== undefined) patch.short_description = body.short_description;
   if (body.duration_months !== undefined) {

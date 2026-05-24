@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getOrdersLastSeenAt } from "@/lib/admin/orders-last-seen";
 import { STAFF_NAV_BADGES_REFRESH } from "@/lib/admin/staff-nav-badges-client";
 
 export type StaffNavBadges = {
@@ -20,7 +21,10 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
 
   const reload = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/staff-nav-badges?site=${siteSlug}`, {
+      const since = getOrdersLastSeenAt(siteSlug);
+      const qs = new URLSearchParams({ site: siteSlug });
+      if (since) qs.set("ordersSince", since);
+      const res = await fetch(`/api/admin/staff-nav-badges?${qs.toString()}`, {
         credentials: "include",
       });
       if (!res.ok) return;

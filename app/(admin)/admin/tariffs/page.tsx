@@ -28,7 +28,7 @@ export default async function AdminTariffsPage({
           </span>
         </h1>
         <p className="mb-6 text-sm text-gray-600">
-          Управление витриной Spotify Store: цены, бейджи, популярность, порядок.
+          Individual, Duo, Family — тарифы Spotify Store (как в GPT: продукт, цена, период, популярность).
         </p>
         <SubsTariffsManager />
       </div>

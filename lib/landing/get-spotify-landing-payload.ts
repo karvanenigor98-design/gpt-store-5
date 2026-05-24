@@ -174,7 +174,7 @@ function buildPageDataFromSnapshot(
     "подписка Spotify в России",
   ];
 
-  let seoTitle = "Subs Store — Spotify Premium в России";
+  let seoTitle = "SPOTIFY STORE — Spotify Premium в России";
   let seoDescription =
     "Подключение Spotify Premium в России с оплатой в рублях, поддержкой и гарантией. Индивидуальные тарифы, Premium для двоих и Семейная подписка. Активация 10–15 минут.";
   const keywords = [...defaultKeywords];
@@ -210,6 +210,11 @@ function buildPageDataFromSnapshot(
       payload = mergeLandingPayload(payload, rawOverrides as SpotifyLandingOverrides);
     }
   }
+
+  payload.nav.brand = "SPOTIFY";
+  payload.nav.brandAccent = "STORE";
+  payload.footer.brand = "SPOTIFY";
+  payload.footer.brandAccent = "STORE";
 
   return {
     payload,

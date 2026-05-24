@@ -10,6 +10,7 @@ import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import { getSiteBySlug } from "@/lib/sites";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { UnpaidOrdersEmailCampaign } from "@/components/admin/UnpaidOrdersEmailCampaign";
+import { MarkOrdersSeenOnVisit } from "@/components/admin/MarkOrdersSeenOnVisit";
 
 export const metadata: Metadata = { title: "Admin · Заказы" };
 
@@ -77,6 +78,7 @@ export default async function AdminOrdersPage({
 
     return (
       <div className="p-6">
+        <MarkOrdersSeenOnVisit site="subs-store" />
         <HighlightScroll accent="subs" />
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-heading text-2xl font-bold text-gray-900">
@@ -223,6 +225,7 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="p-6">
+      <MarkOrdersSeenOnVisit site="gpt-store" />
       <HighlightScroll accent="gpt" />
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-heading text-2xl font-bold text-gray-900">

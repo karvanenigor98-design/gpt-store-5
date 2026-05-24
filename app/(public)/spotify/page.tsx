@@ -35,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: seo.title,
       description: seo.description,
       url: SPOTIFY_URL,
-      siteName: "Subs Store",
+      siteName: "SPOTIFY STORE",
       locale: "ru_RU",
       type: "website",
     },

@@ -25,18 +25,25 @@ async function requireStaff() {
   return { admin: createAdminClient() };
 }
 
+function parseOrdersSince(raw: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const t = Date.parse(raw.trim());
+  if (Number.isNaN(t)) return null;
+  return new Date(t).toISOString();
+}
+
 export async function GET(req: NextRequest) {
   const siteSlug = req.nextUrl.searchParams.get("site") === "subs-store" ? "subs-store" : "gpt-store";
+  const ordersSince = parseOrdersSince(req.nextUrl.searchParams.get("ordersSince"));
 
   if (siteSlug === "subs-store") {
     const ctx = await requireSubsStaffContext();
     if (ctx instanceof NextResponse) return ctx;
     const { subs } = ctx;
 
-    const ordersRes = await subs
-      .from("orders")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["new", "awaiting_payment", "awaiting_operator", "problem"]);
+    let ordersQ = subs.from("orders").select("id", { count: "exact", head: true });
+    if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
+    const ordersRes = await ordersQ;
 
     const [chatUnread, notifUnread] = await Promise.all([
       countSubsStoreUnreadClientMessages(subs),
@@ -54,11 +61,8 @@ export async function GET(req: NextRequest) {
   if (ctx instanceof NextResponse) return ctx;
   const { admin } = ctx;
 
-  const ordersQ = admin
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending")
-    .not("product", "ilike", "spotify%");
+  let ordersQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
+  if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
 
   const [ordersRes, chatUnread, notifUnread] = await Promise.all([
     ordersQ,

@@ -1,8 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Check } from "lucide-react";
 import Link from "next/link";
+
+type TariffAvailability = {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  is_active: boolean;
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  individual: "Spotify Individual",
+  duo: "Spotify Duo",
+  family: "Spotify Family",
+};
 
 interface Props {
   initialMap: Record<string, unknown>;
@@ -49,9 +63,34 @@ export function SubsSiteSettingsForm({ initialMap }: Props) {
   );
   const initialSections = useMemo(() => parseLandingSections(initialMap.landing_sections), [initialMap.landing_sections]);
   const [sections, setSections] = useState(initialSections);
+  const [tariffs, setTariffs] = useState<TariffAvailability[]>([]);
+  const [tariffsLoading, setTariffsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadTariffs = useCallback(async () => {
+    setTariffsLoading(true);
+    try {
+      const res = await fetch("/api/admin/subs-store/tariffs", { credentials: "include" });
+      const json = (await res.json()) as { items?: TariffAvailability[] };
+      const items = (json.items ?? []).map((t) => ({
+        id: t.id,
+        slug: t.slug,
+        title: t.title,
+        category: t.category,
+        is_active: t.is_active !== false,
+      }));
+      setTariffs(items);
+    } catch {
+      setTariffs([]);
+    }
+    setTariffsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadTariffs();
+  }, [loadTariffs]);
 
   async function onSave() {
     setSaving(true);
@@ -76,8 +115,31 @@ export function SubsSiteSettingsForm({ initialMap }: Props) {
       const j = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(j.error ?? "Не удалось сохранить настройки Spotify Store");
+        setSaving(false);
         return;
       }
+
+      if (tariffs.length) {
+        const tariffResults = await Promise.all(
+          tariffs.map(async (t) => {
+            const r = await fetch("/api/admin/subs-store/tariffs", {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: t.id, is_active: t.is_active }),
+            });
+            const body = (await r.json()) as { error?: string };
+            return { ok: r.ok, error: body.error };
+          }),
+        );
+        const failed = tariffResults.find((r) => !r.ok);
+        if (failed) {
+          setError(failed.error ?? "Не удалось сохранить наличие тарифов");
+          setSaving(false);
+          return;
+        }
+      }
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
@@ -89,52 +151,6 @@ export function SubsSiteSettingsForm({ initialMap }: Props) {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-600">
-        Тарифы Spotify редактируются в{" "}
-        <Link href="/admin/tariffs?site=subs-store" className="text-[#1DB954] hover:underline">
-          разделе «Тарифы»
-        </Link>
-        , FAQ и отзывы — в соответствующих разделах админки.
-      </p>
-
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">SEO — заголовок</label>
-        <input
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          value={seoTitle}
-          onChange={(e) => setSeoTitle(e.target.value)}
-        />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">SEO — описание</label>
-        <textarea
-          className="min-h-[80px] w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          value={seoDescription}
-          onChange={(e) => setSeoDescription(e.target.value)}
-        />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">Telegram поддержки</label>
-        <input
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          value={supportUsername}
-          onChange={(e) => setSupportUsername(e.target.value)}
-          placeholder="@subs_support"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">Ссылка на оператора в Telegram</label>
-        <input
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-          value={operatorTelegramUrl}
-          onChange={(e) => setOperatorTelegramUrl(e.target.value)}
-          placeholder="https://t.me/subs_support"
-        />
-      </div>
-
       <div className="grid gap-4 md:grid-cols-3">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">Задержка авто-ответа</label>
@@ -178,6 +194,92 @@ export function SubsSiteSettingsForm({ initialMap }: Props) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">Ссылка на оператора в Telegram</label>
+        <input
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          value={operatorTelegramUrl}
+          onChange={(e) => setOperatorTelegramUrl(e.target.value)}
+          placeholder="https://t.me/subs_support"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">Наличие подписок</label>
+        <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+          {tariffsLoading ? (
+            <p className="text-xs text-gray-500">Загрузка тарифов…</p>
+          ) : tariffs.length ? (
+            tariffs.map((t) => (
+              <label
+                key={t.id}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2"
+              >
+                <span className="text-sm text-gray-700">
+                  {t.title}
+                  <span className="ml-2 text-xs text-gray-400">
+                    ({CATEGORY_LABEL[t.category] ?? t.category} · {t.slug})
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
+                  <input
+                    type="checkbox"
+                    checked={t.is_active}
+                    onChange={(e) =>
+                      setTariffs((prev) =>
+                        prev.map((row) =>
+                          row.id === t.id ? { ...row, is_active: e.target.checked } : row,
+                        ),
+                      )
+                    }
+                    className="h-4 w-4 rounded border-gray-300 accent-[#1DB954]"
+                  />
+                  В наличии
+                </span>
+              </label>
+            ))
+          ) : (
+            <p className="text-xs text-gray-500">Тарифы не найдены в Supabase.</p>
+          )}
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-600">
+        Цены и состав тарифов редактируются в{" "}
+        <Link href="/admin/tariffs?site=subs-store" className="text-[#1DB954] hover:underline">
+          разделе «Тарифы»
+        </Link>
+        .
+      </p>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">SEO — заголовок</label>
+        <input
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          value={seoTitle}
+          onChange={(e) => setSeoTitle(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">SEO — описание</label>
+        <textarea
+          className="min-h-[80px] w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          value={seoDescription}
+          onChange={(e) => setSeoDescription(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">Telegram поддержки</label>
+        <input
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          value={supportUsername}
+          onChange={(e) => setSupportUsername(e.target.value)}
+          placeholder="@subs_support"
+        />
       </div>
 
       <div>
@@ -229,7 +331,7 @@ export function SubsSiteSettingsForm({ initialMap }: Props) {
         className="inline-flex items-center gap-2 rounded-xl bg-[#1DB954] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
       >
         {saving ? <Loader2 size={16} className="animate-spin" /> : saved ? <Check size={16} /> : null}
-        Сохранить настройки Spotify Store
+        {saved ? "Сохранено!" : "Сохранить"}
       </button>
     </div>
   );

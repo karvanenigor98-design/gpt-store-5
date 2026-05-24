@@ -40,7 +40,7 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
             href="/spotify"
             className="font-heading text-sm font-semibold text-white transition-opacity hover:opacity-80"
           >
-            Subs <span style={{ color: SPOTIFY_GREEN }}>Store</span>
+            SPOTIFY <span style={{ color: SPOTIFY_GREEN }}>STORE</span>
           </Link>
         </header>
 
