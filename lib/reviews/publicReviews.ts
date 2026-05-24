@@ -1,5 +1,9 @@
 import { REVIEWS } from "@/lib/chatgpt-data";
 import { createAdminClient } from "@/lib/supabase/server";
+import {
+  isServiceAuthorName,
+  resolveReviewAuthorDisplay,
+} from "@/lib/reviews/review-author-display";
 
 export type PublicReview = {
   id: string;
@@ -18,7 +22,6 @@ const FALLBACK_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", 
 const CHATGPT_REVIEW_PATTERN = /(chat\s*gpt|чат\s*gpt|gpt[-\s]?4|gpt[-\s]?4o|gpt\b)/i;
 const SPOTIFY_REVIEW_PATTERN =
   /(spotify|спотифай|spotify\s*premium|premium\s*spotify|премиум\s*spotify|subs\s*store|подписк[аи]\s*spotify|spotify\s*plus)/i;
-const SERVICE_AUTHOR_PATTERN = /(наши отзывы|gpt store|subs store|spotify premium)/i;
 const SERVICE_CONTENT_PATTERN = /(номер заказа|заказ[:#]|клиент[:#]|отзыв[:#])/i;
 
 function initialsFromName(name: string): string {
@@ -73,15 +76,6 @@ function extractRating(value: string): number | null {
   return Math.min(5, matches.length);
 }
 
-function titleCaseUsername(username: string): string {
-  return username.charAt(0).toUpperCase() + username.slice(1).toLowerCase();
-}
-
-function extractClientUsername(content: string): string | null {
-  const match = content.match(/клиент[:#]?\s*@([\w_]+)/i);
-  return match?.[1] ?? null;
-}
-
 function shuffle<T>(items: T[]): T[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i -= 1) {
@@ -130,19 +124,12 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
     if (error || !data || data.length === 0) return fallbackReviews().slice(0, limit ?? 200);
 
     let mapped = data.map((item, idx) => {
-      const originalAuthor = item.author_name?.trim() || "Клиент";
-      const extractedFromContent = extractClientUsername(item.content || "");
-      let username = item.author_username?.trim() || null;
-      let authorName = originalAuthor;
-
-      if (SERVICE_AUTHOR_PATTERN.test(originalAuthor) && extractedFromContent) {
-        username = extractedFromContent;
-        authorName = titleCaseUsername(extractedFromContent);
-      }
-
-      if (SERVICE_AUTHOR_PATTERN.test(authorName) && username) {
-        authorName = titleCaseUsername(username.replace(/^@+/, ""));
-      }
+      const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
+        authorName: item.author_name?.trim() || "Клиент",
+        authorUsername: item.author_username,
+        content: item.content || "",
+      });
+      const username = resolvedUsername;
 
       const cleanedContent = cleanReviewText(item.content);
       const rating = extractRating(item.content);
@@ -165,7 +152,7 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
     });
 
     mapped = mapped.filter((item) => {
-      const serviceAuthor = SERVICE_AUTHOR_PATTERN.test(item.authorName);
+      const serviceAuthor = isServiceAuthorName(item.authorName);
       const serviceContent = SERVICE_CONTENT_PATTERN.test(item.content);
       const tooShort = item.content.length < 6;
       return !serviceAuthor && !serviceContent && !tooShort;

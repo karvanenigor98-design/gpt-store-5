@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
@@ -8,9 +8,31 @@ import { SPOTIFY_ACCENT, SPOTIFY_GLOW } from "@/lib/content/spotify";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 import { SpotifyReviewsRotator } from "@/components/spotify/SpotifyReviewsRotator";
 import { isSpotifySuitableReview } from "@/lib/reviews/is-spotify-suitable-review";
+import { resolveReviewAuthorDisplay } from "@/lib/reviews/review-author-display";
+
+function reviewHeadline(review: {
+  authorUsername?: string | null;
+  authorName: string;
+  content?: string;
+}): string {
+  const { displayName, username } = resolveReviewAuthorDisplay({
+    authorName: review.authorName,
+    authorUsername: review.authorUsername,
+    content: review.content,
+  });
+  if (username) return `@${username}`;
+  return displayName;
+}
 
 export function SpotifyReviews() {
   const { reviews, reviewsSection: sec } = useSpotifyLanding();
+  const [featuredTitle, setFeaturedTitle] = useState<string | null>(null);
+  const onFeaturedReview = useCallback(
+    (review: { authorUsername?: string | null; authorName: string } | null) => {
+      setFeaturedTitle(review ? reviewHeadline(review) : null);
+    },
+    [],
+  );
 
   const published = useMemo(
     () => reviews.filter((r) => isSpotifySuitableReview(r.content)),
@@ -45,7 +67,7 @@ export function SpotifyReviews() {
             {sec.eyebrow}
           </span>
           <h2 className="font-heading text-3xl font-bold text-white md:text-4xl">
-            {sec.title}
+            {featuredTitle ?? sec.title}
           </h2>
           <p className="max-w-2xl text-lg" style={{ color: "rgba(255,255,255,0.5)" }}>
             {sec.subtitle}
@@ -58,7 +80,7 @@ export function SpotifyReviews() {
         </motion.div>
 
         <div className="mx-auto max-w-3xl">
-          <SpotifyReviewsRotator reviews={published} />
+          <SpotifyReviewsRotator reviews={published} onFeaturedReview={onFeaturedReview} />
         </div>
 
         <div className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-3">

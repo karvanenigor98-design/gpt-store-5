@@ -234,7 +234,9 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
     return { sent: false, skipped: true, reason: "smtp_not_configured" };
   }
 
-  const result = await sendTransactionalEmail(email, subject, branded.text, branded.html);
+  const result = await sendTransactionalEmail(email, subject, branded.text, branded.html, {
+    siteSlug: params.siteSlug,
+  });
 
   if (result.ok) {
     await updateLogStatus(logId, "sent");

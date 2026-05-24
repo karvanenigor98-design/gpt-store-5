@@ -13,6 +13,8 @@ import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { isSiteUiLoggedOut, type SiteSlug } from "@/lib/auth/siteUiSession";
 import { getSiteBySlug } from "@/lib/sites";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
+import { ReferralCapture } from "@/components/referrals/ReferralCapture";
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -167,6 +169,9 @@ export default async function DashboardLayout({
             useDarkCabinetShell && "bg-[#0a0a0a]",
           )}
         >
+          <Suspense fallback={null}>
+            <ReferralCapture siteSlug={siteSlug} />
+          </Suspense>
           {children}
         </main>
       </div>

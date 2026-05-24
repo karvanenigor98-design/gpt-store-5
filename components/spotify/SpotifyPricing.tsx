@@ -225,33 +225,8 @@ export function SpotifyPricing() {
             transition={{ duration: 0.35 }}
             className="mb-10"
           >
-            <div className="mx-auto mb-4 grid max-w-xl grid-cols-1 gap-2 md:hidden">
-              {compareCols.map((col) => {
-                const v = compareColumnVisuals(col.tier, SPOTIFY_ACCENT);
-                const tierShadow = compareTierBoxShadow(col.tier);
-                return (
-                  <div
-                    key={col.tier}
-                    className={`rounded-xl px-3 py-2.5 text-xs ${v.shell}`}
-                    style={{
-                      background: v.chipBg,
-                      color: "rgba(255,255,255,0.75)",
-                      ...(tierShadow ?? { boxShadow: `0 4px 14px -6px ${v.accent}44` }),
-                    }}
-                  >
-                    <span
-                      className="mb-1.5 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold uppercase text-white"
-                      style={{ background: v.accent }}
-                    >
-                      {col.badge ?? col.eyebrow}
-                    </span>
-                    <p className="font-medium text-white/90">{col.title}</p>
-                  </div>
-                );
-              })}
-            </div>
             <p
-              className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.2em]"
+              className="mb-4 hidden text-center text-xs font-semibold uppercase tracking-[0.2em] md:block"
               style={{ color: "rgba(255,255,255,0.35)" }}
             >
               {tabMeta.compareSubtitle}
@@ -325,7 +300,10 @@ export function SpotifyPricing() {
             transition={{ duration: 0.35 }}
             className={`${gridClass} [&>article]:h-full`}
           >
-            {displayedPlans.map((plan, index) => (
+            {displayedPlans.map((plan, index) => {
+              const tier = getSpotifyPlanTier(plan);
+              const compareCol = compareCols.find((c) => c.tier === tier) ?? null;
+              return (
               <PlanCard
                 key={plan.id}
                 plan={plan}
@@ -333,10 +311,12 @@ export function SpotifyPricing() {
                 index={index}
                 isHovered={hoveredPlanId === plan.id}
                 isMobile={isMobile}
+                mobileCompare={compareCol}
                 onHoverStart={() => setHoveredPlanId(plan.id)}
                 onHoverEnd={() => setHoveredPlanId((p) => (p === plan.id ? null : p))}
               />
-            ))}
+            );
+            })}
           </motion.div>
         </AnimatePresence>
 
@@ -413,6 +393,7 @@ function PlanCard({
   index,
   isHovered,
   isMobile,
+  mobileCompare,
   onHoverStart,
   onHoverEnd,
 }: {
@@ -421,6 +402,7 @@ function PlanCard({
   index: number;
   isHovered: boolean;
   isMobile: boolean;
+  mobileCompare?: (typeof SPOTIFY_TAB_COMPARE)["individual"][number] | null;
   onHoverStart: () => void;
   onHoverEnd: () => void;
 }) {
@@ -491,7 +473,52 @@ function PlanCard({
 
   const visibleFeatures = plan.features.slice(0, 3);
 
+  const mobileCompareBlock =
+    isMobile && mobileCompare ? (
+      (() => {
+        const v = compareColumnVisuals(mobileCompare.tier, SPOTIFY_ACCENT);
+        const tierShadow = compareTierBoxShadow(mobileCompare.tier);
+        return (
+          <div
+            className={`relative mb-4 overflow-hidden rounded-2xl border-2 px-4 py-3.5 md:hidden ${v.shell}`}
+            style={{
+              background:
+                mobileCompare.tier === "popular"
+                  ? "rgba(29,185,84,0.12)"
+                  : mobileCompare.tier === "premium"
+                    ? "rgba(245,158,11,0.1)"
+                    : mobileCompare.tier === "quick"
+                      ? "rgba(56,189,248,0.1)"
+                      : "rgba(255,255,255,0.05)",
+              ...(tierShadow ?? { boxShadow: `0 8px 24px -8px ${v.accent}55` }),
+            }}
+          >
+            <span
+              className="mb-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white"
+              style={{ background: v.accent }}
+            >
+              {mobileCompare.badge ?? mobileCompare.eyebrow}
+            </span>
+            <p className="text-sm font-bold text-white">{mobileCompare.title}</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-white/70">{mobileCompare.body}</p>
+            <div
+              className="relative mt-3 flex h-2 overflow-hidden rounded-full"
+              style={{ background: "rgba(255,255,255,0.1)" }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${mobileCompare.barPercent}%`, background: v.accent }}
+              />
+            </div>
+            <p className="mt-1 text-[10px] font-medium text-white/45">{mobileCompare.barLabel}</p>
+          </div>
+        );
+      })()
+    ) : null;
+
   return (
+    <div className="flex flex-col">
+      {mobileCompareBlock}
     <motion.article
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -697,5 +724,6 @@ function PlanCard({
         )}
       </AnimatePresence>
     </motion.article>
+    </div>
   );
 }

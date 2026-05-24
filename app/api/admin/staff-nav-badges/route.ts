@@ -8,6 +8,7 @@ import {
   countGptStoreUnreadNotifications,
   countSubsStoreUnreadNotifications,
 } from "@/lib/admin/staff-notification-unread-count";
+import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -61,7 +62,9 @@ export async function GET(req: NextRequest) {
   if (ctx instanceof NextResponse) return ctx;
   const { admin } = ctx;
 
-  let ordersQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
+  const gptSiteId = await getSiteUUID("gpt-store");
+  let ordersQ = admin.from("orders").select("id", { count: "exact", head: true });
+  if (gptSiteId) ordersQ = ordersQ.eq("site_id", gptSiteId);
   if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
 
   const [ordersRes, chatUnread, notifUnread] = await Promise.all([

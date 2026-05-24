@@ -108,6 +108,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     const becamePaidSubs = isTransitionToPaidLike(prev, nextSubs, "subs-store");
+    if (becamePaidSubs && userId) {
+      const { processReferralRewardOnFirstPaidOrder } = await import("@/lib/referrals/db");
+      void processReferralRewardOnFirstPaidOrder({
+        siteSlug: "subs-store",
+        referredUserId: userId,
+        orderId,
+      }).catch(() => undefined);
+    }
+
     if (becamePaidSubs) {
       void handleOrderPaidNotification({
         orderId,
@@ -180,6 +189,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (order.user_id) {
     const { data: profile } = await admin.from("profiles").select("email").eq("id", order.user_id).maybeSingle();
     customerEmail = profile?.email?.trim().toLowerCase() ?? null;
+  }
+
+  if (becamePaidGpt && order.user_id) {
+    const { processReferralRewardOnFirstPaidOrder } = await import("@/lib/referrals/db");
+    void processReferralRewardOnFirstPaidOrder({
+      siteSlug,
+      referredUserId: order.user_id,
+      orderId: order.id,
+    }).catch(() => undefined);
   }
 
   if (becamePaidGpt) {

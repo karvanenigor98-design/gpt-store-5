@@ -31,9 +31,8 @@ export default async function RegisterPage({
       <div className="w-full max-w-sm">
         <h1 className="font-heading text-2xl font-bold text-white mb-2">Регистрация</h1>
         <p className="text-sm text-gray-400 mb-3">
-          Аккаунт создаётся только в проекте Supabase для{" "}
-          <span style={{ color: "#1DB954" }}>Subs Store</span> — это отдельная база, не общая с
-          основным сайтом.
+          Создайте аккаунт <span style={{ color: "#1DB954" }}>SPOTIFY STORE</span> — один email и
+          пароль для кабинета, заказов Spotify Premium и чата с поддержкой.
         </p>
         <RegisterForm />
       </div>

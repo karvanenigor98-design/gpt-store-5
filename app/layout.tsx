@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getMetadataBase } from "@/lib/app-url";
 import { AnimatedBackground } from "@/components/ui/AnimatedBackground";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
+import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 import "./globals.css";
 
 const unbounded = Unbounded({
@@ -45,6 +47,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         <AnimatedBackground />
         <div className="relative" style={{ zIndex: 1 }}>
+          <Suspense fallback={null}>
+            <ReferralCapture />
+          </Suspense>
           {children}
         </div>
         <CookieBanner />

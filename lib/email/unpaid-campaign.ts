@@ -1,3 +1,12 @@
+import {
+  filterGptOrderRowsByStatus,
+  loadGptStoreOrderRows,
+} from "@/lib/admin/gpt-orders-query";
+import { resolveGptOrderPlanLabel } from "@/lib/admin/gpt-order-plan-label";
+import {
+  pickCustomerEmail,
+  resolveGptOrderCustomerEmails,
+} from "@/lib/admin/resolve-order-customer-emails";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { SiteSlug } from "@/lib/sites";
@@ -38,6 +47,7 @@ export async function previewUnpaidOrderCampaign(params: {
 }): Promise<UnpaidCampaignPreview> {
   const since = periodStart(params.period);
   const recipients: UnpaidOrderRecipient[] = [];
+  let skippedNoEmail = 0;
 
   if (params.siteSlug === "subs-store") {
     const subs = createSubsStoreAdminClient();
@@ -65,7 +75,10 @@ export async function previewUnpaidOrderCampaign(params: {
     const { data } = await q;
     for (const row of data ?? []) {
       const email = (row.customer_email as string | null)?.trim().toLowerCase() ?? "";
-      if (!email) continue;
+      if (!email) {
+        skippedNoEmail += 1;
+        continue;
+      }
       const tr = row.tariffs as { title?: string } | { title?: string }[] | null;
       const planName =
         Array.isArray(tr) ? tr[0]?.title
@@ -81,24 +94,41 @@ export async function previewUnpaidOrderCampaign(params: {
     }
   } else {
     const admin = createAdminClient();
-    let q = admin
-      .from("orders")
-      .select("id,status,price,account_email,created_at,plan_id")
-      .eq("status", "pending")
-      .not("product", "ilike", "spotify%")
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const { rows: loaded, error: loadErr } = await loadGptStoreOrderRows(admin, { maxRows: 500 });
+    if (loadErr) {
+      return {
+        totalOrders: 0,
+        uniqueEmails: 0,
+        skippedNoEmail: 0,
+        skippedPaid: 0,
+        duplicateEmails: 0,
+        recipients: [],
+      };
+    }
 
-    if (since) q = q.gte("created_at", since.toISOString());
+    let rows = filterGptOrderRowsByStatus(loaded, "awaiting_payment");
+    if (since) {
+      const sinceMs = since.getTime();
+      rows = rows.filter((r) => new Date(r.created_at).getTime() >= sinceMs);
+    }
 
-    const { data } = await q;
-    for (const row of data ?? []) {
-      const email = (row.account_email ?? "").trim().toLowerCase();
-      if (!email) continue;
+    const emailByUserId = await resolveGptOrderCustomerEmails(admin, rows);
+
+    for (const row of rows) {
+      const email =
+        pickCustomerEmail(row.user_id, emailByUserId) ||
+        (row.account_email ?? "").trim().toLowerCase();
+      if (!email) {
+        skippedNoEmail += 1;
+        continue;
+      }
       recipients.push({
         orderId: row.id as string,
         email,
-        planName: String(row.plan_id ?? "ChatGPT"),
+        planName: resolveGptOrderPlanLabel({
+          plan_id: String(row.plan_id ?? ""),
+          product: (row.product as string | null) ?? null,
+        }),
         price: Number(row.price ?? 0),
         createdAt: row.created_at as string,
       });
@@ -121,7 +151,7 @@ export async function previewUnpaidOrderCampaign(params: {
   return {
     totalOrders: recipients.length,
     uniqueEmails: deduped.length,
-    skippedNoEmail: 0,
+    skippedNoEmail,
     skippedPaid: 0,
     duplicateEmails,
     recipients: deduped,

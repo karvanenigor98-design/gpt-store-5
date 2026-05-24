@@ -11,6 +11,9 @@ type UserItem = {
   ordersCount: number;
   paidTotal: number;
   lastOrderAt: string | null;
+  referralCode?: string | null;
+  referredByEmail?: string | null;
+  referralsCount?: number;
 };
 
 export function UsersRoleManager({
@@ -124,7 +127,7 @@ export function UsersRoleManager({
         <p className="text-sm font-semibold text-gray-900">Передача роли и данных</p>
         <p className="mt-1 text-xs text-gray-600">
           Выберите уже зарегистрированный аккаунт в{" "}
-          {adminSite === "subs-store" ? "Subs Store" : "GPT Store"}. Ваша роль в системе не
+          {adminSite === "subs-store" ? "SPOTIFY STORE" : "GPT STORE"}. Ваша роль в системе не
           снимается; получателю выдаётся админ или оператор. При переносе данных заказы и чаты
           {adminSite === "subs-store" ?
             " поддержки с вашего Subs-профиля (тот же email, что у входа в админку)"
@@ -226,6 +229,9 @@ export function UsersRoleManager({
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Telegram</th>
               <th className="px-4 py-3">Роль</th>
+              <th className="px-4 py-3">Реф. код</th>
+              <th className="px-4 py-3">Кто привёл</th>
+              <th className="px-4 py-3">Пригласил</th>
               <th className="px-4 py-3">Заказов</th>
               <th className="px-4 py-3">Оплачено</th>
               <th className="px-4 py-3">Последний заказ</th>
@@ -256,6 +262,9 @@ export function UsersRoleManager({
                     <option value="admin">admin</option>
                   </select>
                 </td>
+                <td className="px-4 py-3 text-xs font-mono text-gray-500">{u.referralCode ?? "—"}</td>
+                <td className="px-4 py-3 text-xs text-gray-500">{u.referredByEmail ?? "—"}</td>
+                <td className="px-4 py-3 text-xs">{u.referralsCount ?? 0}</td>
                 <td className="px-4 py-3 text-xs">{u.ordersCount}</td>
                 <td className="px-4 py-3 text-xs font-semibold text-emerald-600">
                   {u.paidTotal.toLocaleString("ru-RU")} ₽

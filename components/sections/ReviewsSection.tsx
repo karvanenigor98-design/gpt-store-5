@@ -67,6 +67,18 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
   const rightCol = visibleReviews.filter((_, i) => i % 2 !== 0);
   const hasMore = pool.length > VISIBLE_COUNT;
 
+  const featured = visibleReviews[0];
+  const featuredNick = featured
+    ? featured.authorUsername?.replace(/^@+/, "") ||
+      featured.authorName.trim() ||
+      "Клиент"
+    : null;
+  const sectionTitle = featuredNick
+    ? featured.authorUsername
+      ? `@${featuredNick}`
+      : featuredNick
+    : "Отзывы клиентов";
+
   return (
     <section id="reviews" className="px-4 py-20 md:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
@@ -81,7 +93,7 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
             Отзывы клиентов
           </span>
           <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            Что говорят пользователи
+            {sectionTitle}
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
             Публикуем реальные отзывы из Telegram и профилей клиентов на сайте.

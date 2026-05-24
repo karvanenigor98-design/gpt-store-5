@@ -1,6 +1,7 @@
 import curatedRaw from "@/data/spotify-telegram-reviews.json";
 import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
 
+import { resolveReviewAuthorDisplay } from "./review-author-display";
 import { isSpotifySuitableReview } from "./is-spotify-suitable-review";
 
 const REVIEW_AVATAR_COLORS = ["#1DB954", "#2d6a4f", "#1a7a4a", "#0d7377", "#155724", "#ef4444", "#f59e0b"];
@@ -15,8 +16,6 @@ type CuratedRow = {
   dateLabel?: string;
   sourceUrl?: string;
 };
-
-const SERVICE_AUTHOR_PATTERN = /(subs store|spotify premium|наши отзывы|digital\s*sub)/i;
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -39,15 +38,6 @@ function profileUrl(authorKey: string): string {
   return `/spotify/reviews?author=${encodeURIComponent(authorKey)}`;
 }
 
-function titleCaseUsername(username: string): string {
-  return username.charAt(0).toUpperCase() + username.slice(1).toLowerCase();
-}
-
-function extractClientUsername(content: string): string | null {
-  const match = content.match(/клиент[:#]?\s*@([\w_]+)/i);
-  return match?.[1] ?? null;
-}
-
 function cleanReviewText(value: string): string {
   return value
     .replace(/номер\s+заказа[:#]?\s*\d+\s*/gi, "")
@@ -60,15 +50,12 @@ function cleanReviewText(value: string): string {
 }
 
 function mapRow(row: CuratedRow): SpotifyLandingReview | null {
-  let authorName = row.authorName.trim() || "Клиент";
-  let username = row.authorUsername?.replace(/^@+/, "") ?? null;
   const content = cleanReviewText(row.content);
-
-  const extracted = extractClientUsername(row.content);
-  if (SERVICE_AUTHOR_PATTERN.test(authorName) && extracted) {
-    username = extracted;
-    authorName = titleCaseUsername(extracted);
-  }
+  const { displayName: authorName, username } = resolveReviewAuthorDisplay({
+    authorName: row.authorName,
+    authorUsername: row.authorUsername,
+    content: row.content,
+  });
 
   if (!isSpotifySuitableReview(content)) return null;
 

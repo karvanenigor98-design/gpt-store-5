@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
 
+import type { SiteSlug } from "@/lib/sites";
+
 import {
   getEmailConfigStatus,
   isEmailNotificationsEnabled,
@@ -25,6 +27,7 @@ async function sendViaSmtp(
   subject: string,
   text: string,
   html?: string,
+  from?: string,
 ): Promise<SendEmailResult> {
   const host = process.env.SMTP_HOST?.trim();
   const portRaw = process.env.SMTP_PORT?.trim() ?? "587";
@@ -51,7 +54,7 @@ async function sendViaSmtp(
     });
 
     await transporter.sendMail({
-      from: resolveFromAddress(),
+      from: from ?? resolveFromAddress(),
       to,
       subject,
       text,
@@ -72,6 +75,7 @@ async function sendViaResend(
   subject: string,
   text: string,
   html?: string,
+  from?: string,
 ): Promise<SendEmailResult> {
   const resendKey = process.env.RESEND_API_KEY?.trim();
   if (!resendKey) {
@@ -86,7 +90,7 @@ async function sendViaResend(
         Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: resolveFromAddress(),
+        from: from ?? resolveFromAddress(),
         to: [to],
         subject,
         text,
@@ -115,7 +119,9 @@ export async function sendTransactionalEmail(
   subject: string,
   text: string,
   html?: string,
+  options?: { siteSlug?: SiteSlug },
 ): Promise<SendEmailResult> {
+  const from = options?.siteSlug ? resolveFromAddress(options.siteSlug) : resolveFromAddress();
   if (!to?.trim()) {
     return { ok: false, skipped: true, provider: "none", error: "Пустой получатель" };
   }
@@ -134,12 +140,26 @@ export async function sendTransactionalEmail(
   }
 
   const provider = resolveEmailProvider();
+  const hasSmtp =
+    Boolean(process.env.SMTP_HOST?.trim()) &&
+    Boolean(process.env.SMTP_USER?.trim()) &&
+    Boolean(process.env.SMTP_PASSWORD?.trim());
+  const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
+
   let result: SendEmailResult;
 
   if (provider === "smtp") {
-    result = await sendViaSmtp(to.trim(), subject, text, html);
+    result = await sendViaSmtp(to.trim(), subject, text, html, from);
+    if (!result.ok && !result.skipped && hasResend) {
+      const fallback = await sendViaResend(to.trim(), subject, text, html, from);
+      if (fallback.ok) return fallback;
+    }
   } else if (provider === "resend") {
-    result = await sendViaResend(to.trim(), subject, text, html);
+    result = await sendViaResend(to.trim(), subject, text, html, from);
+    if (!result.ok && !result.skipped && hasSmtp) {
+      const fallback = await sendViaSmtp(to.trim(), subject, text, html, from);
+      if (fallback.ok) return fallback;
+    }
   } else {
     const msg = "Email-провайдер не настроен (SMTP_HOST или RESEND_API_KEY)";
     console.warn(`[Email] Пропущено: ${msg}`);

@@ -24,6 +24,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runtimePlans, setRuntimePlans] = useState<ExtendedPlan[]>(
     initialPlans && initialPlans.length ? initialPlans : ALL_PLANS
@@ -87,9 +88,33 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     resolver: zodResolver(checkoutStep2Schema),
   });
 
-  function onStep2Submit(data: CheckoutStep2Input) {
+  async function saveDraftOrder(email: string) {
+    if (!selectedPlan) return;
+    try {
+      const res = await fetch("/api/checkout/gpt/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          planId: selectedPlan.id,
+          accountEmail: email,
+          promoCode: promoCode.trim().toUpperCase() || null,
+          orderId: draftOrderId,
+        }),
+      });
+      const json = (await res.json()) as { orderId?: string; error?: string };
+      if (res.ok && json.orderId) {
+        setDraftOrderId(json.orderId);
+      }
+    } catch {
+      // заказ в админке не критичен для UX шага email
+    }
+  }
+
+  async function onStep2Submit(data: CheckoutStep2Input) {
     setAccountEmail(data.accountEmail);
     setStep(3);
+    void saveDraftOrder(data.accountEmail);
   }
 
   async function onPaymentSubmit() {
@@ -101,13 +126,34 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
       const res = await fetch("/api/payments/pally/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: selectedPlan.id, accountEmail, promoCode: promoCode.trim().toUpperCase() || null }),
+        credentials: "include",
+        body: JSON.stringify({
+          planId: selectedPlan.id,
+          accountEmail,
+          promoCode: promoCode.trim().toUpperCase() || null,
+          orderId: draftOrderId,
+        }),
       });
 
-      const json = await res.json() as { paymentUrl?: string; error?: string };
+      const json = (await res.json()) as {
+        paymentUrl?: string;
+        error?: string;
+        orderId?: string;
+        orderSaved?: boolean;
+      };
+
+      if (json.orderId) {
+        setDraftOrderId(json.orderId);
+      }
 
       if (!res.ok || !json.paymentUrl) {
-        setError(json.error ?? "Ошибка создания платежа. Попробуйте ещё раз.");
+        if (json.orderSaved) {
+          setError(
+            `${json.error ?? "Платёжная ссылка недоступна"}. Заказ сохранён в админке — настройте PALLY_SHOP_ID и PALLY_SECRET_KEY в .env.local.`,
+          );
+        } else {
+          setError(json.error ?? "Ошибка создания платежа. Попробуйте ещё раз.");
+        }
         return;
       }
 

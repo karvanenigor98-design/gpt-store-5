@@ -5,6 +5,9 @@ import { OrderStatusSelect } from "@/components/admin/OrderStatusSelect";
 import { SubsOrderStatusSelect } from "@/components/admin/SubsOrderStatusSelect";
 import type { OrderStatus } from "@/types/database";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
+import { staffOrdersStatusHref } from "@/lib/admin/staffNavHref";
+import { fetchGptOrdersForAdmin } from "@/lib/admin/gpt-orders-fetch";
+import { resolveGptOrderPlanLabel } from "@/lib/admin/gpt-order-plan-label";
 import { fetchSubsOrdersForAdmin } from "@/lib/admin/subs-orders-fetch";
 import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import { getSiteBySlug } from "@/lib/sites";
@@ -53,7 +56,7 @@ export default async function AdminOrdersPage({
   const siteSlug = resolveAdminSiteSlug({ site: siteParam });
   const site = getSiteBySlug(siteSlug);
   const page = Number(pageParam ?? 1);
-  const limit = 25;
+  const limit = 100;
   const offset = (page - 1) * limit;
 
   if (siteSlug === "subs-store") {
@@ -91,7 +94,7 @@ export default async function AdminOrdersPage({
             {["", "new", "awaiting_payment", "paid", "processing", "activated", "problem"].map((s) => (
               <a
                 key={s || "all"}
-                href={s ? `/admin/orders?status=${s}&site=${siteSlug}` : `/admin/orders?site=${siteSlug}`}
+                href={staffOrdersStatusHref(siteSlug, s || undefined)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                   filterStatus === s || (!filterStatus && !s)
                     ? "bg-[#1DB954]/15 text-[#0d8f4a]"
@@ -178,33 +181,11 @@ export default async function AdminOrdersPage({
 
   const supabase = createAdminClient();
 
-  type OrderRow = {
-    id: string;
-    product: string;
-    plan_id: string;
-    price: number;
-    status: OrderStatus;
-    account_email: string | null;
-    created_at: string;
-    user_id: string | null;
-  };
-
-  let query = supabase
-    .from("orders")
-    .select("id, product, plan_id, price, status, account_email, created_at, user_id")
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  query = query.not("product", "ilike", "spotify%");
-
-  if (filterStatus === "awaiting_payment") {
-    query = query.eq("status", "pending");
-  } else if (filterStatus) {
-    query = query.eq("status", filterStatus as OrderStatus);
-  }
-
-  const { data: rawOrders, error: gptOrdersError } = await query;
-  const orders = (rawOrders ?? []) as OrderRow[];
+  const { orders, error: gptOrdersError } = await fetchGptOrdersForAdmin(supabase, {
+    filterStatus,
+    offset,
+    limit,
+  });
 
   const userIds = [...new Set(orders.map((o) => o.user_id).filter((id): id is string => Boolean(id)))];
   const profileByUserId = new Map<string, { email: string | null; telegram_username: string | null }>();
@@ -238,7 +219,7 @@ export default async function AdminOrdersPage({
           {["", "awaiting_payment", "activating", "waiting_client", "active", "failed"].map((s) => (
             <a
               key={s || "all"}
-              href={s ? `/admin/orders?status=${s}&site=${siteSlug}` : `/admin/orders?site=${siteSlug}`}
+              href={staffOrdersStatusHref(siteSlug, s || undefined)}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 filterStatus === s || (!filterStatus && !s)
                   ? "bg-[#10a37f]/10 text-[#0f7d62]"
@@ -257,7 +238,7 @@ export default async function AdminOrdersPage({
 
       {gptOrdersError && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {gptOrdersError.message}
+          {gptOrdersError}
         </p>
       )}
 
@@ -281,7 +262,10 @@ export default async function AdminOrdersPage({
           <tbody className="divide-y divide-gray-100">
             {orders.map((order) => {
               const profile = order.user_id ? profileByUserId.get(order.user_id) : undefined;
-              const clientEmail = profile?.email ?? order.account_email ?? "—";
+              const clientEmail =
+                profile?.email?.trim() ||
+                order.account_email?.trim() ||
+                "—";
               return (
                 <tr key={order.id} id={`row-${order.id}`} className="scroll-mt-4 text-sm text-gray-700 hover:bg-gray-50">
                   <td className="px-4 py-3">
@@ -295,9 +279,7 @@ export default async function AdminOrdersPage({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs">
-                      {order.product === "chatgpt-plus" ? "Plus" : "Pro"} / {order.plan_id}
-                    </span>
+                    <span className="text-xs">{resolveGptOrderPlanLabel(order)}</span>
                   </td>
                   <td className="px-4 py-3 text-xs font-semibold">{order.price.toLocaleString("ru")} ₽</td>
                   <td className="px-4 py-3">

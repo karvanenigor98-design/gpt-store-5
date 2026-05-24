@@ -220,7 +220,7 @@ export function SpotifyCheckoutFlow() {
                 Выберите тариф
               </h1>
               <p className="mt-2 max-w-2xl text-sm md:text-base" style={{ color: "rgba(255,255,255,0.5)" }}>
-                Тарифы синхронизированы с лендингом Subs Store. Оплата в рублях, активация 10–15 минут.
+                Тарифы синхронизированы с лендингом SPOTIFY STORE. Оплата в рублях, активация 10–15 минут.
               </p>
             </div>
 

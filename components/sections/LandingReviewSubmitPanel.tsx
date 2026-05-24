@@ -26,7 +26,7 @@ const SITE_META: Record<
     accent: "#1DB954",
     loginHref: "/login?site=subs-store",
     returnPath: "/spotify",
-    brand: "Subs Store",
+    brand: "SPOTIFY STORE",
   },
 };
 

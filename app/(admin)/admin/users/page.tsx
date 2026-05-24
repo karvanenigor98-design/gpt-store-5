@@ -2,6 +2,7 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/auth/requireAdminPage";
+import { ReferralAdminPanel } from "@/components/admin/ReferralAdminPanel";
 import { UsersRoleManager } from "./UsersRoleManager";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getSiteBySlug } from "@/lib/sites";
@@ -35,6 +36,8 @@ export default async function AdminUsersPage({
     telegram_username: string | null;
     role: UserRole | null;
     created_at: string;
+    referral_code: string | null;
+    referred_by_user_id: string | null;
   };
 
   let loadError: string | null = null;
@@ -53,7 +56,7 @@ export default async function AdminUsersPage({
   if (!db) {
     return (
       <div className="p-6">
-        <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Пользователи · Subs Store</h1>
+        <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Пользователи · SPOTIFY STORE</h1>
         <p className="max-w-xl text-sm text-gray-600">
           Укажите <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
           <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code>.
@@ -68,6 +71,8 @@ export default async function AdminUsersPage({
     "telegram_username",
     "role",
     "created_at",
+    "referral_code",
+    "referred_by_user_id",
   ]);
 
   if (profileSelect.error) {
@@ -80,6 +85,9 @@ export default async function AdminUsersPage({
     telegram_username: (p.telegram_username as string | null) ?? null,
     role: (p.role as UserRole | null) ?? null,
     created_at: String(p.created_at ?? new Date(0).toISOString()),
+    referral_code: ("referral_code" in p ? (p.referral_code as string | null) : null) ?? null,
+    referred_by_user_id:
+      ("referred_by_user_id" in p ? (p.referred_by_user_id as string | null) : null) ?? null,
   })) as SlimProfile[];
 
   const profileById = new Map(profileRows.map((p) => [p.id, p]));
@@ -146,13 +154,34 @@ export default async function AdminUsersPage({
     ordersByUser.set(key, prev);
   }
 
-  const preparedUsers = merged.map((u) => ({
-    ...u,
-    role: (u.role ?? "client") as "client" | "operator" | "admin",
-    ordersCount: ordersByUser.get(u.id)?.count ?? 0,
-    paidTotal: ordersByUser.get(u.id)?.paidTotal ?? 0,
-    lastOrderAt: ordersByUser.get(u.id)?.lastOrderAt ?? null,
-  }));
+  const referralsByReferrer = new Map<string, number>();
+  try {
+    const { data: refRows } = await db.from("referral_events").select("referrer_user_id");
+    for (const r of refRows ?? []) {
+      const id = String(r.referrer_user_id ?? "");
+      if (!id) continue;
+      referralsByReferrer.set(id, (referralsByReferrer.get(id) ?? 0) + 1);
+    }
+  } catch {
+    /* миграция 012/005 ещё не применена */
+  }
+
+  const emailById = new Map(profileRows.map((p) => [p.id, p.email]));
+
+  const preparedUsers = merged.map((u) => {
+    const prof = profileById.get(u.id);
+    const referredById = prof?.referred_by_user_id ?? null;
+    return {
+      ...u,
+      role: (u.role ?? "client") as "client" | "operator" | "admin",
+      ordersCount: ordersByUser.get(u.id)?.count ?? 0,
+      paidTotal: ordersByUser.get(u.id)?.paidTotal ?? 0,
+      lastOrderAt: ordersByUser.get(u.id)?.lastOrderAt ?? null,
+      referralCode: prof?.referral_code ?? null,
+      referredByEmail: referredById ? (emailById.get(referredById) ?? referredById.slice(0, 8)) : null,
+      referralsCount: referralsByReferrer.get(u.id) ?? 0,
+    };
+  });
 
   let currentUserIdForTransfer = user?.id ?? "";
   if (siteSlug === "subs-store" && db && user?.email) {
@@ -168,7 +197,7 @@ export default async function AdminUsersPage({
       </h1>
       <p className="mb-5 max-w-2xl text-sm text-gray-600">
         Все зарегистрированные пользователи{" "}
-        {siteSlug === "subs-store" ? "Subs Store (отдельный Supabase-проект)" : "GPT Store"} — из{" "}
+        {site.brandName} — из{" "}
         <code className="rounded bg-gray-100 px-1">auth.users</code>, строки профиля подтягиваются когда есть в{" "}
         <code className="rounded bg-gray-100 px-1">profiles</code>.
       </p>
@@ -177,6 +206,7 @@ export default async function AdminUsersPage({
           Предупреждение загрузки: {loadError}
         </p>
       )}
+      <ReferralAdminPanel adminSite={siteSlug} />
       <UsersRoleManager
         users={preparedUsers}
         currentUserId={currentUserIdForTransfer}

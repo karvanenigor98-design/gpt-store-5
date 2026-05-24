@@ -58,7 +58,7 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
         </main>
 
         <footer className="py-4 text-center text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-          © {new Date().getFullYear()} Subs Store
+          © {new Date().getFullYear()} SPOTIFY STORE
         </footer>
       </div>
     );

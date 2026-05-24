@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, User } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
+import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 
 export function SpotifyNav() {
@@ -13,9 +14,18 @@ export function SpotifyNav() {
 
   const handleAnchorClick = (href: string) => {
     setOpen(false);
+    if (href === "#pricing") {
+      scrollToSpotifyPricing();
+      return;
+    }
     if (!href.startsWith("#")) return;
     const el = typeof document !== "undefined" ? document.getElementById(href.slice(1)) : null;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handlePremiumCta = () => {
+    setOpen(false);
+    scrollToSpotifyPricing();
   };
 
   return (
@@ -79,13 +89,14 @@ export function SpotifyNav() {
             <User size={14} />
             Кабинет
           </Link>
-          <Link
-            href="/checkout/spotify"
+          <button
+            type="button"
+            onClick={handlePremiumCta}
             className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-opacity duration-100 hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
             style={{ background: SPOTIFY_ACCENT, boxShadow: "0 4px 16px rgba(29,185,84,0.3)" }}
           >
             {hero.primaryCta}
-          </Link>
+          </button>
           <button
             className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-100 md:hidden"
             style={{ color: "rgba(255,255,255,0.7)" }}
@@ -142,14 +153,14 @@ export function SpotifyNav() {
               >
                 Личный кабинет
               </Link>
-              <Link
-                href="/checkout/spotify"
-                onClick={() => setOpen(false)}
-                className="mt-1 rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-white"
+              <button
+                type="button"
+                onClick={handlePremiumCta}
+                className="mt-1 w-full rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-white"
                 style={{ background: SPOTIFY_ACCENT }}
               >
                 {hero.primaryCta}
-              </Link>
+              </button>
             </nav>
           </motion.div>
         )}

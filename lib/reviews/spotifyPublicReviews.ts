@@ -5,6 +5,7 @@ import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { isSpotifySuitableReview } from "./is-spotify-suitable-review";
 import { loadSpotifyTelegramCuratedReviews } from "./load-spotify-telegram-curated";
 import { getPublicReviews } from "./publicReviews";
+import { resolveReviewAuthorDisplay } from "./review-author-display";
 
 const REVIEW_AVATAR_COLORS = ["#1DB954", "#2d6a4f", "#1a7a4a", "#0d7377", "#155724", "#ef4444", "#f59e0b"];
 
@@ -54,16 +55,22 @@ function mapSubsRow(row: {
   text?: string | null;
   rating?: number | null;
   created_at?: string | null;
+  author_username?: string | null;
 }): SpotifyLandingReview {
-  const authorName = (row.name && String(row.name).trim()) || "Клиент";
+  const text = String(row.text || "").trim();
+  const { displayName: authorName, username } = resolveReviewAuthorDisplay({
+    authorName: (row.name && String(row.name).trim()) || "Клиент",
+    authorUsername: row.author_username ?? null,
+    content: text,
+  });
   const id = String(row.id);
   const h = hashString(id);
-  const authorKey = normalizeAuthorKey(authorName);
+  const authorKey = normalizeAuthorKey(username || authorName);
 
   return {
     id,
     authorName,
-    authorUsername: null,
+    authorUsername: username,
     initials: initialsFromName(authorName),
     avatarColor: REVIEW_AVATAR_COLORS[h % REVIEW_AVATAR_COLORS.length],
     tariff: "Premium",
@@ -72,7 +79,7 @@ function mapSubsRow(row: {
       row.rating != null && Number.isFinite(row.rating)
         ? Math.min(5, Math.max(1, Math.round(Number(row.rating))))
         : 5,
-    content: String(row.text || "").trim() || "—",
+    content: text || "—",
     sourceUrl: null,
     inSiteProfileUrl: profileUrl(authorKey),
   };

@@ -10,6 +10,50 @@ type RuntimePlan = (typeof PLUS_PLANS)[number] & {
   landing_discount_name?: string | null;
 };
 
+const PLUS_MOBILE_COMPARE: Record<string, { text: string; shell: string }> = {
+  "plus-new": {
+    text: "Новый аккаунт: минимальная цена, стандартная очередь.",
+    shell:
+      "border-slate-300/90 bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-800 shadow-slate-500/10",
+  },
+  "plus-std": {
+    text: "Популярный: лучший баланс цены и скорости.",
+    shell:
+      "border-[#10a37f]/50 bg-gradient-to-br from-emerald-50/95 via-white to-white text-gray-800 shadow-emerald-600/15 ring-emerald-200/60",
+  },
+  "plus-fast": {
+    text: "Быстрая активация: приоритетное подключение.",
+    shell:
+      "border-amber-400/80 bg-gradient-to-br from-amber-50 via-white to-orange-50/40 text-amber-950 shadow-amber-500/15 ring-amber-300/50",
+  },
+};
+
+const PRO_MOBILE_COMPARE: Record<string, { text: string; shell: string }> = {
+  "pro-5x": {
+    text: "Pro 5x: для активной ежедневной работы.",
+    shell:
+      "border-sky-400/75 bg-gradient-to-br from-sky-50 via-white to-white text-sky-950 shadow-sky-500/12 ring-sky-200/50",
+  },
+  "pro-20x": {
+    text: "Pro 20x: для высокой нагрузки и бизнеса.",
+    shell:
+      "border-emerald-500/75 bg-gradient-to-br from-emerald-50 via-white to-amber-50/30 text-emerald-950 shadow-emerald-600/12 ring-emerald-300/40",
+  },
+};
+
+function MobileTariffCompareHint({ text, shell }: { text: string; shell: string }) {
+  return (
+    <div
+      className={`relative mb-4 overflow-hidden rounded-2xl border-2 px-4 py-3.5 text-sm font-semibold leading-snug shadow-md ring-1 ring-black/[0.04] md:hidden ${shell}`}
+    >
+      <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] opacity-75">
+        Сравнение тарифов
+      </span>
+      {text}
+    </div>
+  );
+}
+
 const PLAN_HOVER_DETAILS: Record<string, string[]> = {
   "plus-new": [
     "Только для новых аккаунтов ChatGPT без прошлой Plus-подписки.",
@@ -212,18 +256,7 @@ export function PricingSection({
             transition={{ duration: 0.35 }}
             className="mb-10"
           >
-            <div className="mx-auto mb-4 grid max-w-xl grid-cols-1 gap-2 md:hidden">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                <span className="font-semibold">Новый аккаунт:</span> минимальная цена, стандартная очередь.
-              </div>
-              <div className="rounded-xl border border-[#10a37f]/35 bg-[#10a37f]/5 px-3 py-2 text-xs text-gray-700">
-                <span className="font-semibold">Популярный:</span> лучший баланс цены и скорости.
-              </div>
-              <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                <span className="font-semibold">Быстрая активация:</span> приоритетное подключение.
-              </div>
-            </div>
-            <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
+            <p className="mb-4 hidden text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 md:block">
               Три тарифа — отличаются цена и скорость подключения
             </p>
             <div className="mx-auto hidden max-w-6xl gap-4 md:grid md:grid-cols-3 md:gap-4">
@@ -285,15 +318,7 @@ export function PricingSection({
             transition={{ duration: 0.35 }}
             className="mb-10"
           >
-            <div className="mx-auto mb-4 grid max-w-xl grid-cols-1 gap-2 md:hidden">
-              <div className="rounded-xl border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-                <span className="font-semibold">Pro 5x:</span> для активной ежедневной работы.
-              </div>
-              <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                <span className="font-semibold">Pro 20x:</span> для высокой нагрузки и бизнеса.
-              </div>
-            </div>
-            <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
+            <p className="mb-4 hidden text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 md:block">
               Одинаковые функции — разные лимиты
             </p>
             <div className="mx-auto hidden w-full max-w-5xl auto-rows-fr grid-cols-1 gap-6 md:grid md:grid-cols-2 md:items-stretch">
@@ -462,9 +487,19 @@ export function PricingSection({
                 return { border: "1px solid rgba(0,0,0,0.08)" };
               })();
 
+              const mobileHint =
+                isPlusTripleCompare && PLUS_MOBILE_COMPARE[plan.id]
+                  ? PLUS_MOBILE_COMPARE[plan.id]
+                  : isProDualCompare && PRO_MOBILE_COMPARE[plan.id]
+                    ? PRO_MOBILE_COMPARE[plan.id]
+                    : null;
+
               return (
+              <div key={plan.id} className="flex flex-col">
+              {mobileHint ? (
+                <MobileTariffCompareHint text={mobileHint.text} shell={mobileHint.shell} />
+              ) : null}
               <motion.article
-                key={plan.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.08, duration: 0.4 }}
@@ -664,6 +699,7 @@ export function PricingSection({
                   )}
                 </AnimatePresence>
               </motion.article>
+              </div>
             );
             })}
           </motion.div>

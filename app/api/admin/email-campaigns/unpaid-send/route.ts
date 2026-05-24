@@ -11,14 +11,14 @@ import { resolveServerRole } from "@/lib/auth/server-role";
 import type { SiteSlug } from "@/lib/sites";
 import { buildCustomerOrderUrl } from "@/lib/email/site-urls";
 
-async function requireAdmin() {
+async function requireStaff() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = await resolveServerRole(user);
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return null;
@@ -42,7 +42,7 @@ async function isOrderStillUnpaid(siteSlug: SiteSlug, orderId: string): Promise<
 }
 
 export async function POST(req: NextRequest) {
-  const denied = await requireAdmin();
+  const denied = await requireStaff();
   if (denied) return denied;
 
   let body: {
@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     subject?: string;
     bodyText?: string;
     confirm?: boolean;
+    excludeEmails?: string[];
   };
   try {
     body = (await req.json()) as typeof body;
@@ -65,20 +66,38 @@ export async function POST(req: NextRequest) {
   const siteSlug = (body.site === "subs-store" ? "subs-store" : "gpt-store") as SiteSlug;
   const period = body.period ?? "7d";
   const campaignId = randomUUID();
+  const excludeSet = new Set(
+    (body.excludeEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean),
+  );
 
   const preview = await previewUnpaidOrderCampaign({ siteSlug, period });
   const subjectTemplate = body.subject?.trim();
   const bodyTemplate = body.bodyText?.trim();
+  const brand = siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
 
   let sent = 0;
   let failed = 0;
   let skipped = 0;
   let duplicate = 0;
+  let excluded = 0;
 
   const admin = createAdminClient();
   const seenInRun = new Set<string>();
 
   for (const recipient of preview.recipients) {
+    if (excludeSet.has(recipient.email)) {
+      excluded += 1;
+      await admin.from("email_campaign_logs").insert({
+        campaign_id: campaignId,
+        site_slug: siteSlug,
+        recipient_email: recipient.email,
+        order_id: recipient.orderId,
+        status: "skipped",
+        error_message: "excluded_by_admin",
+      });
+      continue;
+    }
+
     if (seenInRun.has(recipient.email)) {
       duplicate += 1;
       await admin.from("email_campaign_logs").insert({
@@ -133,7 +152,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (subjectTemplate) {
-      subject = `${subjectTemplate} — ${siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE"}`;
+      subject = `${subjectTemplate} — ${brand}`;
     }
 
     const result = await dispatchSiteEmail({
@@ -174,6 +193,7 @@ export async function POST(req: NextRequest) {
     failed,
     skipped,
     duplicate,
+    excluded,
     total: preview.uniqueEmails,
   });
 }

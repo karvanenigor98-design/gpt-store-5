@@ -12,3 +12,14 @@ export function staffNotificationsHref(
 ): string {
   return staffNavHref(base, siteSlug);
 }
+
+/** Фильтр статусов на странице заказов — относительный URL, чтобы оператор оставался на /operator/orders. */
+export function staffOrdersStatusHref(
+  siteSlug: "gpt-store" | "subs-store",
+  status?: string,
+): string {
+  const params = new URLSearchParams();
+  params.set("site", siteSlug);
+  if (status) params.set("status", status);
+  return `?${params.toString()}`;
+}

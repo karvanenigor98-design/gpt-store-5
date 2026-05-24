@@ -8,9 +8,9 @@ export function SubsCheckoutBrandLink() {
     <a
       href="/spotify"
       className="relative z-30 font-heading text-base font-bold text-white transition-opacity hover:opacity-90"
-      aria-label="На главную Subs Store"
+      aria-label="На главную SPOTIFY STORE"
     >
-      Subs <span style={{ color: ACCENT }}>Store</span>
+      SPOTIFY <span style={{ color: ACCENT }}>STORE</span>
     </a>
   );
 }

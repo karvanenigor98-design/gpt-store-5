@@ -1,3 +1,6 @@
+import type { SiteSlug } from "@/lib/sites";
+import { getSiteBySlug } from "@/lib/sites";
+
 export type EmailProvider = "smtp" | "resend" | "none";
 
 export type EmailConfigStatus = {
@@ -49,10 +52,10 @@ export function getEmailConfigStatus(): EmailConfigStatus {
 
   if (provider === "smtp") {
     if (!env("SMTP_HOST")) missingEnv.push("SMTP_HOST");
-    if (!env("SMTP_PORT")) missingEnv.push("SMTP_PORT");
     if (!env("SMTP_USER")) missingEnv.push("SMTP_USER");
     if (!env("SMTP_PASSWORD")) missingEnv.push("SMTP_PASSWORD");
     if (!fromEmail) missingEnv.push("SMTP_FROM_EMAIL");
+    // SMTP_PORT опционален — по умолчанию 587 в send-email.ts
   } else if (provider === "resend") {
     if (!env("RESEND_API_KEY")) missingEnv.push("RESEND_API_KEY");
     if (!fromEmail) missingEnv.push("RESEND_FROM_EMAIL");
@@ -63,12 +66,20 @@ export function getEmailConfigStatus(): EmailConfigStatus {
   return { provider, enabled, fromEmail, fromName, missingEnv, diagnostics };
 }
 
-export function resolveFromAddress(): string {
-  const fromEmail = env("SMTP_FROM_EMAIL") ?? env("RESEND_FROM_EMAIL");
-  const fromName = env("SMTP_FROM_NAME");
-  if (fromEmail && fromName) return `${fromName} <${fromEmail}>`;
-  if (fromEmail) return fromEmail;
-  return "GPT STORE <onboarding@resend.dev>";
+function extractEmailAddress(raw: string): string {
+  const m = raw.match(/<([^>]+)>/);
+  return (m?.[1] ?? raw).trim();
+}
+
+/** From-имя по сайту (SPOTIFY STORE / GPT STORE), адрес из SMTP/Resend env. */
+export function resolveFromAddress(siteSlug?: SiteSlug): string {
+  const rawFrom = env("SMTP_FROM_EMAIL") ?? env("RESEND_FROM_EMAIL") ?? "";
+  const emailOnly = rawFrom ? extractEmailAddress(rawFrom) : null;
+
+  const brandName = siteSlug ? getSiteBySlug(siteSlug).brandName : (env("SMTP_FROM_NAME") ?? "GPT STORE");
+
+  if (emailOnly) return `${brandName} <${emailOnly}>`;
+  return `${brandName} <onboarding@resend.dev>`;
 }
 
 export function resolveOperatorEmails(): string[] {

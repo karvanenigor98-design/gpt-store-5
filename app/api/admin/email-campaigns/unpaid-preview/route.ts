@@ -5,7 +5,7 @@ import { resolveServerRole } from "@/lib/auth/server-role";
 import { createClient } from "@/lib/supabase/server";
 import type { SiteSlug } from "@/lib/sites";
 
-async function requireAdmin() {
+async function requireStaff() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -19,7 +19,7 @@ async function requireAdmin() {
 }
 
 export async function GET(req: NextRequest) {
-  const denied = await requireAdmin();
+  const denied = await requireStaff();
   if (denied) return denied;
 
   const siteSlug = (req.nextUrl.searchParams.get("site") === "subs-store"

@@ -6,6 +6,7 @@ import { Package, CheckCircle, MessageCircle, Plus, ArrowRight } from "lucide-re
 import { cn } from "@/lib/utils";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { ClientLoyaltyBlock } from "@/components/ui/ClientLoyaltyBlock";
+import { ReferralBlock } from "@/components/dashboard/ReferralBlock";
 import { ReviewSubmitForm } from "@/components/dashboard/ReviewSubmitForm";
 import type { OrderStatus } from "@/types/database";
 
@@ -219,13 +220,16 @@ export function DashboardClient({
       {/* Bottom grid: loyalty + orders table */}
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Loyalty block */}
-        <motion.div {...FU} transition={{ ...FU.transition, delay: 0.21 }} className="lg:col-span-1">
+        <motion.div {...FU} transition={{ ...FU.transition, delay: 0.21 }} className="lg:col-span-1 space-y-5">
           <ClientLoyaltyBlock
             createdAt={profileCreatedAt}
             completedOrders={completedOrders}
             totalOrders={ordersCount}
             variant={isSpotify ? "subs" : "default"}
           />
+          {siteSlug && (
+            <ReferralBlock siteSlug={siteSlug as "gpt-store" | "subs-store"} primaryColor={primaryColor} />
+          )}
         </motion.div>
 
         {/* Recent orders */}

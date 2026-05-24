@@ -11,9 +11,10 @@ const ROTATE_MS = 10_000;
 
 type Props = {
   reviews: SpotifyLandingReview[];
+  onFeaturedReview?: (review: SpotifyLandingReview | null) => void;
 };
 
-export function SpotifyReviewsRotator({ reviews }: Props) {
+export function SpotifyReviewsRotator({ reviews, onFeaturedReview }: Props) {
   const pool = useMemo(
     () =>
       reviews.filter(
@@ -44,6 +45,10 @@ export function SpotifyReviewsRotator({ reviews }: Props) {
     }
     return items;
   }, [pool, offset]);
+
+  useEffect(() => {
+    onFeaturedReview?.(visible[0] ?? null);
+  }, [visible, onFeaturedReview]);
 
   if (!visible.length) {
     return (

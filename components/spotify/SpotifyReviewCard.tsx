@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
+import { resolveReviewAuthorDisplay } from "@/lib/reviews/review-author-display";
 
 type Props = {
   review: SpotifyLandingReview;
@@ -8,7 +9,11 @@ type Props = {
 };
 
 export function SpotifyReviewCard({ review, showFooter = true }: Props) {
-  const username = review.authorUsername?.replace(/^@+/, "");
+  const { displayName, username } = resolveReviewAuthorDisplay({
+    authorName: review.authorName,
+    authorUsername: review.authorUsername,
+    content: review.content,
+  });
   const profileHref = review.inSiteProfileUrl ?? "/spotify/reviews";
 
   return (
@@ -28,7 +33,7 @@ export function SpotifyReviewCard({ review, showFooter = true }: Props) {
         </div>
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-white">{review.authorName}</p>
+            <p className="text-sm font-semibold text-white">{displayName}</p>
             {review.rating > 0 && (
               <span className="inline-flex text-base leading-none tracking-[0.24em] text-amber-400">
                 {"★".repeat(review.rating)}

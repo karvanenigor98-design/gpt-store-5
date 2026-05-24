@@ -3,6 +3,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
+import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { SpotifyPromoPlayerCard } from "@/components/spotify/SpotifyPromoPlayerCard";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 
@@ -136,8 +137,9 @@ export function SpotifyHero() {
               transition={{ delay: 0.5, duration: 0.6 }}
               className="mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4"
             >
-              <motion.a
-                href="/checkout/spotify"
+              <motion.button
+                type="button"
+                onClick={scrollToSpotifyPricing}
                 whileHover={{ scale: 1.03, boxShadow: "0 6px 30px rgba(29,185,84,0.45)" }}
                 whileTap={{ scale: 0.98 }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white sm:w-auto sm:px-8 sm:py-4 sm:text-base"
@@ -148,12 +150,12 @@ export function SpotifyHero() {
               >
                 {hero.primaryCta}
                 <ArrowRight size={17} />
-              </motion.a>
+              </motion.button>
               <a
                 href="#pricing"
                 onClick={(e) => {
                   e.preventDefault();
-                  document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+                  scrollToSpotifyPricing();
                 }}
                 className="text-sm transition-colors"
                 style={{ color: "rgba(255,255,255,0.4)" }}

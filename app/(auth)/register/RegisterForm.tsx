@@ -270,7 +270,7 @@ export function RegisterForm() {
 
       {isSubsStore ? (
         <p className="text-center text-xs text-gray-500">
-          Нажимая «Зарегистрироваться», вы принимаете условия сервиса Subs Store.
+          Нажимая «Зарегистрироваться», вы принимаете условия сервиса SPOTIFY STORE.
         </p>
       ) : (
         <p className="text-center text-xs text-gray-400">
