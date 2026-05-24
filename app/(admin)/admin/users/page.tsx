@@ -156,8 +156,13 @@ export default async function AdminUsersPage({
 
   const referralsByReferrer = new Map<string, number>();
   try {
-    const { data: refRows } = await db.from("referral_events").select("referrer_user_id");
-    for (const r of refRows ?? []) {
+    type RefEventRow = { referrer_user_id: string | null };
+    const { data: refRows } = await (
+      db as import("@supabase/supabase-js").SupabaseClient
+    )
+      .from("referral_events")
+      .select("referrer_user_id");
+    for (const r of (refRows ?? []) as RefEventRow[]) {
       const id = String(r.referrer_user_id ?? "");
       if (!id) continue;
       referralsByReferrer.set(id, (referralsByReferrer.get(id) ?? 0) + 1);
