@@ -2,15 +2,13 @@ import { randomUUID } from "crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { dispatchSiteEmail } from "@/lib/email/dispatch";
 import { previewUnpaidOrderCampaign } from "@/lib/email/unpaid-campaign";
 import { unpaidOrderReminderEmail } from "@/lib/email/unpaid-order-reminder";
 import { resolveServerRole } from "@/lib/auth/server-role";
-import { createClient } from "@/lib/supabase/server";
 import type { SiteSlug } from "@/lib/sites";
-import { buildBrandedEmail } from "@/lib/email/templates/layout";
 import { buildCustomerOrderUrl } from "@/lib/email/site-urls";
 
 async function requireAdmin() {

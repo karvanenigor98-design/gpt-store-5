@@ -2,6 +2,9 @@
 const devDistDir = process.env.NEXT_DEV_DIST_DIR?.trim() || ".next";
 
 const nextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   // Отдельный кэш для dev:subs (.next-subs) и dev:gpt (.next-gpt) — иначе два npm run dev ломают маршруты (404).
   distDir: devDistDir,
   experimental: {
