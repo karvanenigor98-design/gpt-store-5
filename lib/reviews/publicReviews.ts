@@ -7,6 +7,7 @@ import {
   sanitizeReviewContent,
 } from "@/lib/reviews/review-author-display";
 import {
+  filterReviewsByMinDate,
   sanitizeReviewAuthorName,
   sortPublicReviewsNewestFirst,
 } from "@/lib/reviews/review-sanitize";
@@ -22,6 +23,8 @@ export type PublicReview = {
   inSiteProfileUrl: string;
   avatarColor: string;
   initials: string;
+  /** ISO или ms — надёжная сортировка (из Telegram title). */
+  sortTs?: string | number | null;
 };
 
 const FALLBACK_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
@@ -90,8 +93,25 @@ function finalizeReview(item: PublicReview, idx: number): PublicReview {
   };
 }
 
-function finalizeAndSort(items: PublicReview[]): PublicReview[] {
-  return sortPublicReviewsNewestFirst(items.map((item, idx) => finalizeReview(item, idx)));
+function applyUniqueAuthors(items: PublicReview[]): PublicReview[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = normalizeAuthorKey(item.authorUsername || item.authorName);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function finalizeAndSort(items: PublicReview[], options?: GetPublicReviewsOptions): PublicReview[] {
+  let out = sortPublicReviewsNewestFirst(items.map((item, idx) => finalizeReview(item, idx)));
+  if (options?.minDate !== false) {
+    out = filterReviewsByMinDate(out);
+  }
+  if (options?.uniqueAuthors) {
+    out = applyUniqueAuthors(out);
+  }
+  return out;
 }
 
 function extractRating(value: string): number | null {
@@ -114,6 +134,10 @@ type GetPublicReviewsOptions = {
   spotifyOnly?: boolean;
   randomize?: boolean;
   uniqueAuthors?: boolean;
+  /** Сначала JSON из Telegram-экспорта; БД только если curated пустой. */
+  preferCurated?: boolean;
+  /** false — показать все даты; по умолчанию с 1 мая 2025. */
+  minDate?: boolean;
 };
 
 function fallbackReviews(): PublicReview[] {
@@ -149,7 +173,12 @@ function mergeCuratedWithLive(curated: PublicReview[], live: PublicReview[], cap
 
 export async function getPublicReviews(limit?: number, options?: GetPublicReviewsOptions): Promise<PublicReview[]> {
   const cap = limit ?? 200;
-  const curated = loadGptTelegramCuratedReviews(options?.randomize ? 500 : cap);
+  const curatedLimit = options?.preferCurated ? 500 : options?.randomize ? 500 : cap;
+  const curated = loadGptTelegramCuratedReviews(curatedLimit);
+
+  if (options?.preferCurated && curated.length >= Math.min(cap, 12)) {
+    return finalizeAndSort(curated, options).slice(0, cap);
+  }
 
   try {
     const supabase = createAdminClient();
@@ -162,8 +191,8 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
       .limit(fetchLimit);
 
     if (error || !data || data.length === 0) {
-      if (curated.length) return finalizeAndSort(curated).slice(0, cap);
-      return finalizeAndSort(fallbackReviews()).slice(0, cap);
+      if (curated.length) return finalizeAndSort(curated, options).slice(0, cap);
+      return finalizeAndSort(fallbackReviews(), options).slice(0, cap);
     }
 
     let mapped = data.map((item, idx) => {
@@ -186,6 +215,7 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
         content: cleanedContent,
         rating,
         dateLabel: formatDateLabel(item.telegram_date),
+        sortTs: item.telegram_date,
         sourceUrl,
         inSiteProfileUrl: `/reviews?author=${encodeURIComponent(authorKey)}`,
         avatarColor: FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
@@ -211,16 +241,6 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
       );
     }
 
-    if (options?.uniqueAuthors) {
-      const seen = new Set<string>();
-      mapped = mapped.filter((item) => {
-        const key = normalizeAuthorKey(item.authorUsername || item.authorName);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    }
-
     if (options?.randomize) {
       mapped = shuffle(mapped);
     } else {
@@ -228,16 +248,16 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
     }
 
     if (!mapped.length) {
-      if (curated.length) return finalizeAndSort(curated).slice(0, cap);
-      return finalizeAndSort(fallbackReviews()).slice(0, cap);
+      if (curated.length) return finalizeAndSort(curated, options).slice(0, cap);
+      return finalizeAndSort(fallbackReviews(), options).slice(0, cap);
     }
 
     const merged = curated.length
-      ? mergeCuratedWithLive(curated, mapped, cap)
-      : finalizeAndSort(mapped).slice(0, cap);
-    return finalizeAndSort(merged).slice(0, cap);
+      ? mergeCuratedWithLive(curated, mapped, cap * 2)
+      : finalizeAndSort(mapped, options);
+    return finalizeAndSort(merged, options).slice(0, cap);
   } catch {
-    if (curated.length) return finalizeAndSort(curated).slice(0, cap);
-    return finalizeAndSort(fallbackReviews()).slice(0, cap);
+    if (curated.length) return finalizeAndSort(curated, options).slice(0, cap);
+    return finalizeAndSort(fallbackReviews(), options).slice(0, cap);
   }
 }

@@ -109,8 +109,23 @@ def parse_message(message, source_file: str) -> dict | None:
         username = author_raw
 
     telegram_date = None
+    sort_ts = None
     if date_el and date_el.has_attr("title"):
         telegram_date = str(date_el["title"]).split(" UTC")[0].strip()
+        try:
+            sort_ts = int(
+                datetime.strptime(telegram_date, "%d.%m.%Y %H:%M:%S").timestamp() * 1000
+            )
+        except ValueError:
+            sort_ts = None
+
+    author_name = re.sub(
+        r"\s*\d{1,2}[./]\d{1,2}[./]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\s*$",
+        "",
+        author_name,
+    ).strip()
+    if re.search(r"deleted\s*account", author_name, re.I) or re.fullmatch(r"\d+", author_name):
+        author_name = "Клиент"
 
     stars = len(re.findall(r"[⭐★]", content_raw))
 
@@ -121,6 +136,7 @@ def parse_message(message, source_file: str) -> dict | None:
         "content": content[:600],
         "rating": min(5, stars) if stars else 5,
         "dateLabel": format_ru_date(telegram_date),
+        "sortTs": sort_ts,
         "sourceUrl": f"{GROUP_LINK_PREFIX}{message_id}",
     }
 
@@ -157,6 +173,13 @@ def main():
     for src in SOURCES:
         all_rows.extend(parse_file(src))
     rows = dedupe(all_rows)
+    rows.sort(key=lambda r: r.get("sortTs") or 0)
+    if not rows:
+        if OUT.exists():
+            print(f"No HTML sources found; kept existing {OUT}")
+            return
+        print("No HTML sources and no existing JSON — nothing to write")
+        return
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote {len(rows)} GPT reviews to {OUT}")

@@ -2,7 +2,11 @@
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { resolveReviewAuthorDisplay, sanitizeReviewContent } from "@/lib/reviews/review-author-display";
 import { isGptSuitableReview } from "@/lib/reviews/is-gpt-suitable-review";
-import { sortPublicReviewsNewestFirst } from "@/lib/reviews/review-sanitize";
+import {
+  reviewSortTimestamp,
+  sortPublicReviewsNewestFirst,
+  stripAuthorDateSuffix,
+} from "@/lib/reviews/review-sanitize";
 
 const REVIEW_AVATAR_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
@@ -13,6 +17,7 @@ type CuratedRow = {
   content: string;
   rating?: number;
   dateLabel?: string;
+  sortTs?: string | number | null;
   sourceUrl?: string;
 };
 
@@ -33,7 +38,7 @@ function profileUrl(authorKey: string): string {
 
 function mapRow(row: CuratedRow): PublicReview | null {
   const { displayName: authorName, username } = resolveReviewAuthorDisplay({
-    authorName: row.authorName,
+    authorName: stripAuthorDateSuffix(row.authorName),
     authorUsername: row.authorUsername,
     content: row.content,
   });
@@ -51,6 +56,7 @@ function mapRow(row: CuratedRow): PublicReview | null {
     content,
     rating: row.rating != null ? Math.min(5, Math.max(1, Math.round(row.rating))) : 5,
     dateLabel: row.dateLabel ?? "Недавно",
+    sortTs: row.sortTs ?? reviewSortTimestamp(row.dateLabel ?? ""),
     sourceUrl: row.sourceUrl ?? (usernameClean ? `https://t.me/${usernameClean}` : null),
     inSiteProfileUrl: profileUrl(authorKey),
     avatarColor: REVIEW_AVATAR_COLORS[Math.abs(hashString(row.id)) % REVIEW_AVATAR_COLORS.length],

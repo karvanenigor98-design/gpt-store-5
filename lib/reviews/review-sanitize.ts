@@ -37,10 +37,25 @@ const DISPLAY_FIRST_NAMES = [
 const DISPLAY_LAST_INITIALS = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ";
 
 const BAD_AUTHOR_PATTERN =
-  /^(deleted\s*account|удалённ|удаленн|unknown|неизвестн|account\s*deleted|anonymous)$/i;
+  /^(deleted\s*account|удалённ|удаленн|unknown|неизвестн|account\s*deleted|anonymous|клиент)$/i;
+
+const SERVICE_NAME_PATTERN =
+  /(subs\s*store|gpt\s*store|spotify\s*premium|digital\s*sub|premium|подписк|канал|reviews?)/i;
 
 const EMBEDDED_DATETIME_PATTERN =
   /\d{1,2}[./]\d{1,2}[./]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/;
+
+/** Минимум для показа: с 1 мая 2025 (отзывы «с мая» и новее). */
+export const REVIEW_MIN_TIMESTAMP = Date.UTC(2025, 4, 1);
+
+/** Убирает хвост «12.02.2026 09:26:41» из имени из Telegram. */
+export function stripAuthorDateSuffix(name: string): string {
+  return name
+    .replace(EMBEDDED_DATETIME_PATTERN, "")
+    .replace(/\s+\d{1,2}:\d{2}(?::\d{2})?\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /** Убирает emoji, variation selectors, ZWJ. */
 export function stripEmojis(value: string): string {
@@ -64,16 +79,25 @@ export function displayNameFromSeed(seed: string): string {
   return `${first} ${last}.`;
 }
 
+function hasTooManyDigits(name: string): boolean {
+  const digits = (name.match(/\d/g) ?? []).length;
+  return digits >= 3 || (name.length > 0 && digits / name.length > 0.2);
+}
+
 function looksLikeRealPersonName(name: string): boolean {
-  const cleaned = stripEmojis(name).replace(EMBEDDED_DATETIME_PATTERN, "").replace(/\)\s*ru\s*$/i, "").trim();
-  if (cleaned.length < 2 || cleaned.length > 48) return false;
+  const cleaned = stripAuthorDateSuffix(stripEmojis(name)).replace(/\)\s*ru\s*$/i, "").trim();
+  if (cleaned.length < 2 || cleaned.length > 40) return false;
   if (BAD_AUTHOR_PATTERN.test(cleaned)) return false;
+  if (/deleted/i.test(cleaned) && /account/i.test(cleaned)) return false;
   if (/^\d+$/.test(cleaned)) return false;
+  if (hasTooManyDigits(cleaned)) return false;
   if (EMBEDDED_DATETIME_PATTERN.test(cleaned)) return false;
-  if (/[@#]/.test(cleaned)) return false;
+  if (/[@#•|]/.test(cleaned)) return false;
+  if (SERVICE_NAME_PATTERN.test(cleaned)) return false;
   const letterCount = (cleaned.match(/\p{L}/gu) ?? []).length;
   if (letterCount < 2) return false;
-  if (/^(gpt|subs|spotify|digital)/i.test(cleaned)) return false;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length > 4) return false;
   return true;
 }
 
@@ -109,11 +133,14 @@ function usernameLooksDisplayable(username: string): boolean {
 const CHANNEL_LIKE_USERNAME = /digital_sub|subs_store|spotify|reviews|gpt_store/i;
 
 export function isBadAuthorLabel(name: string): boolean {
-  const n = stripEmojis(name).trim();
+  const n = stripAuthorDateSuffix(stripEmojis(name)).trim();
   if (!n) return true;
   if (BAD_AUTHOR_PATTERN.test(n)) return true;
+  if (/deleted/i.test(n) && /account/i.test(n)) return true;
   if (/^\d+$/.test(n)) return true;
+  if (hasTooManyDigits(n)) return true;
   if (EMBEDDED_DATETIME_PATTERN.test(n)) return true;
+  if (SERVICE_NAME_PATTERN.test(n)) return true;
   return false;
 }
 
@@ -122,7 +149,7 @@ export function sanitizeReviewAuthorName(input: {
   authorUsername?: string | null;
   seed: string;
 }): string {
-  const raw = stripEmojis(input.authorName).trim();
+  const raw = stripAuthorDateSuffix(stripEmojis(input.authorName)).trim();
   const username = input.authorUsername?.replace(/^@+/, "").trim() || null;
 
   if (looksLikeRealPersonName(raw)) {
@@ -168,20 +195,29 @@ export function reviewSortTimestamp(dateLabel: string, isoDate?: string | null):
 }
 
 export function sortPublicReviewsNewestFirst(items: PublicReview[]): PublicReview[] {
-  return [...items].sort(
-    (a, b) => reviewSortTimestamp(b.dateLabel) - reviewSortTimestamp(a.dateLabel),
+  return [...items].sort((a, b) => {
+    const tb = reviewSortTimestamp(b.dateLabel, b.sortTs);
+    const ta = reviewSortTimestamp(a.dateLabel, a.sortTs);
+    return tb - ta;
+  });
+}
+
+export function filterReviewsByMinDate(
+  items: PublicReview[],
+  minTs: number = REVIEW_MIN_TIMESTAMP,
+): PublicReview[] {
+  return items.filter(
+    (item) => reviewSortTimestamp(item.dateLabel, item.sortTs) >= minTs,
   );
 }
 
 /** Убирает emoji и «))»-смайлы из текста отзыва. */
 export function sanitizeReviewContent(text: string): string {
-  let out = stripEmojis(text)
-    .replace(/[⭐★☆]/g, "")
+  return stripEmojis(text)
+    .replace(/[⭐★☆🔥🙏🥰😋😱❤️💕🤝👍]/g, "")
     .replace(/\){2,}/g, "")
     .replace(/\s+/g, " ")
     .trim();
-
-  return out;
 }
 
 export function shouldHideUsername(username: string | null | undefined): boolean {
