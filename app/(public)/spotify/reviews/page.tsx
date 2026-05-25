@@ -13,8 +13,8 @@ import { getSpotifyPublicReviews } from "@/lib/reviews/spotifyPublicReviews";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Отзывы клиентов — Subs Store · Spotify Premium",
-  description: "Реальные отзывы клиентов Subs Store о подключении Spotify Premium.",
+  title: "Отзывы клиентов — SPOTIFY STORE",
+  description: "Реальные отзывы клиентов SPOTIFY STORE о подключении Spotify Premium.",
 };
 
 export default async function SpotifyPublicReviewsPage({

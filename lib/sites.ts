@@ -82,7 +82,7 @@ export function getPublicBrandName(slug: SiteSlug | string | null | undefined): 
 /** Короткое имя для обычного текста (Title Case). */
 export function getPublicBrandNameShort(slug: SiteSlug | string | null | undefined): string {
   const name = getPublicBrandName(slug);
-  if (slug === "subs-store") return "Spotify Store";
+  if (slug === "subs-store") return "SPOTIFY STORE";
   if (slug === "gpt-store") return "GPT Store";
   return name;
 }

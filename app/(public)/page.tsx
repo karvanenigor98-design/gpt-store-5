@@ -43,7 +43,7 @@ export default async function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
   let reviews = getStaticGptLandingReviews(40);
   try {
-    const live = await getPublicReviews(40);
+    const live = await getPublicReviews(80, { uniqueAuthors: true });
     if (live.length) reviews = live;
   } catch {
     /* fallback static */

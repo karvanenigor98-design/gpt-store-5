@@ -5,6 +5,7 @@ import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
 import { getStaticSpotifyLandingPayload, minIndividualPrice } from "./spotify-landing-static-payload";
 
+import { defaultSpotifySeoTitle, normalizeSpotifyStoreLabel } from "@/lib/brand/spotify-store-brand";
 import { getSpotifyPublicReviews } from "@/lib/reviews/spotifyPublicReviews";
 
 import type {
@@ -169,12 +170,12 @@ function buildPageDataFromSnapshot(
     "Spotify Family",
     "семейная подписка Spotify",
     "Spotify Premium на год",
-    "Subs Store",
+    "SPOTIFY STORE",
     "Spotify Premium без VPN",
     "подписка Spotify в России",
   ];
 
-  let seoTitle = "SPOTIFY STORE — Spotify Premium в России";
+  let seoTitle = defaultSpotifySeoTitle();
   let seoDescription =
     "Подключение Spotify Premium в России с оплатой в рублях, поддержкой и гарантией. Индивидуальные тарифы, Premium для двоих и Семейная подписка. Активация 10–15 минут.";
   const keywords = [...defaultKeywords];
@@ -182,7 +183,7 @@ function buildPageDataFromSnapshot(
   if (snapshot) {
     const t = pickStr(snapshot.settings, "seoTitle");
     const d = pickStr(snapshot.settings, "seoDescription");
-    if (t) seoTitle = t;
+    if (t) seoTitle = normalizeSpotifyStoreLabel(t);
     if (d) seoDescription = d;
 
     const support = pickStr(snapshot.settings, "supportUsername");

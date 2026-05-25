@@ -434,7 +434,7 @@ export function SpotifyCheckoutFlow() {
               />
               {promoCodes.length > 0 && (
                 <p className="mt-1.5 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  Промокоды из админки Subs Store применяются при оплате
+                  Промокоды из админки SPOTIFY STORE применяются при оплате
                 </p>
               )}
             </div>

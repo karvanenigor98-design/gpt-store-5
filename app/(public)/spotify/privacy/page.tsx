@@ -3,8 +3,8 @@ import Link from "next/link";
 import { SpotifyFooter } from "@/components/spotify/SpotifyFooter";
 
 export const metadata: Metadata = {
-  title: "Политика конфиденциальности — Subs Store",
-  description: "Политика конфиденциальности Subs Store — обработка персональных данных",
+  title: "Политика конфиденциальности — SPOTIFY STORE",
+  description: "Политика конфиденциальности SPOTIFY STORE — обработка персональных данных",
 };
 
 const SUPPORT_TELEGRAM = "https://t.me/subs_support";

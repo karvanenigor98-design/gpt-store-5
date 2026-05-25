@@ -1,5 +1,6 @@
 import { REVIEWS } from "@/lib/chatgpt-data";
 import { createAdminClient } from "@/lib/supabase/server";
+import { loadGptTelegramCuratedReviews } from "@/lib/reviews/load-gpt-telegram-curated";
 import {
   isServiceAuthorName,
   resolveReviewAuthorDisplay,
@@ -110,7 +111,23 @@ function fallbackReviews(): PublicReview[] {
   });
 }
 
+function mergeCuratedWithLive(curated: PublicReview[], live: PublicReview[], cap?: number): PublicReview[] {
+  const seen = new Set<string>();
+  const out: PublicReview[] = [];
+  for (const item of [...curated, ...live]) {
+    const key = `${item.authorUsername || item.authorName}::${item.content.slice(0, 100)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (cap && out.length >= cap) break;
+  }
+  return out;
+}
+
 export async function getPublicReviews(limit?: number, options?: GetPublicReviewsOptions): Promise<PublicReview[]> {
+  const cap = limit ?? 200;
+  const curated = loadGptTelegramCuratedReviews(options?.randomize ? 500 : cap);
+
   try {
     const supabase = createAdminClient();
     const query = supabase
@@ -121,7 +138,10 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
 
     const fetchLimit = options?.randomize ? 500 : (limit ?? 200);
     const { data, error } = await query.limit(fetchLimit);
-    if (error || !data || data.length === 0) return fallbackReviews().slice(0, limit ?? 200);
+    if (error || !data || data.length === 0) {
+      if (curated.length) return curated.slice(0, cap);
+      return fallbackReviews().slice(0, cap);
+    }
 
     let mapped = data.map((item, idx) => {
       const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
@@ -183,9 +203,15 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
       mapped = shuffle(mapped);
     }
 
-    if (!mapped.length) return fallbackReviews().slice(0, limit ?? 200);
-    return mapped.slice(0, limit ?? 200);
+    if (!mapped.length) {
+      if (curated.length) return curated.slice(0, cap);
+      return fallbackReviews().slice(0, cap);
+    }
+
+    const merged = curated.length ? mergeCuratedWithLive(curated, mapped, cap) : mapped.slice(0, cap);
+    return merged;
   } catch {
-    return fallbackReviews().slice(0, limit ?? 200);
+    if (curated.length) return curated.slice(0, cap);
+    return fallbackReviews().slice(0, cap);
   }
 }

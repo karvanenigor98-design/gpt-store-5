@@ -67,6 +67,20 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
   const rightCol = visibleReviews.filter((_, i) => i % 2 !== 0);
   const hasMore = pool.length > VISIBLE_COUNT;
 
+  if (pool.length === 0) {
+    return (
+      <section id="reviews" className="px-4 py-20 md:px-6 md:py-28">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
+          <h2 className="font-heading text-xl font-bold text-gray-900">Отзывы временно не отображаются</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Не удалось загрузить отзывы из Telegram-экспорта. Проверьте файл{" "}
+            <code className="rounded bg-white px-1">data/gpt-telegram-reviews.json</code> и пересоберите сайт.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   const featured = visibleReviews[0];
   const featuredNick = featured
     ? featured.authorUsername?.replace(/^@+/, "") ||
