@@ -149,7 +149,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
       if (!res.ok || !json.paymentUrl) {
         if (json.orderSaved) {
           setError(
-            `${json.error ?? "Платёжная ссылка недоступна"}. Заказ сохранён в админке — настройте PALLY_SHOP_ID и PALLY_SECRET_KEY в .env.local.`,
+            `${json.error ?? "Платёжная ссылка недоступна"}. Заказ сохранён в админке — повторите оплату или свяжитесь с поддержкой.`,
           );
         } else {
           setError(json.error ?? "Ошибка создания платежа. Попробуйте ещё раз.");

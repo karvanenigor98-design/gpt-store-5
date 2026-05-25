@@ -11,13 +11,16 @@ export const metadata: Metadata = {
   description: "Реальные отзывы клиентов из Telegram и профилей на сайте.",
 };
 
+const REVIEWS_PAGE_SIZE = 80;
+
 export default async function PublicReviewsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ author?: string }>;
+  searchParams: Promise<{ author?: string; page?: string }>;
 }) {
-  const { author } = await searchParams;
-  const reviews = await getPublicReviews();
+  const { author, page: pageRaw } = await searchParams;
+  const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
+  const reviews = await getPublicReviews(500, { preferCurated: true });
   const authorFilter = author?.trim().toLowerCase();
 
   const filteredReviews = authorFilter
@@ -27,6 +30,13 @@ export default async function PublicReviewsPage({
         return username === authorFilter || name === authorFilter;
       })
     : reviews;
+
+  const totalPages = Math.max(1, Math.ceil(filteredReviews.length / REVIEWS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageReviews = filteredReviews.slice(
+    (safePage - 1) * REVIEWS_PAGE_SIZE,
+    safePage * REVIEWS_PAGE_SIZE,
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -51,8 +61,15 @@ export default async function PublicReviewsPage({
           )}
         </div>
 
+        {!authorFilter && filteredReviews.length > REVIEWS_PAGE_SIZE && (
+          <p className="mb-4 text-sm text-gray-500">
+            Показано {(safePage - 1) * REVIEWS_PAGE_SIZE + 1}–
+            {Math.min(safePage * REVIEWS_PAGE_SIZE, filteredReviews.length)} из {filteredReviews.length}
+          </p>
+        )}
+
         <div className="space-y-4">
-          {filteredReviews.map((review) => (
+          {pageReviews.map((review) => (
             <article key={review.id} className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -106,6 +123,30 @@ export default async function PublicReviewsPage({
           <div className="rounded-2xl border border-black/[0.07] bg-white p-6 text-center text-sm text-gray-500">
             По этому профилю пока нет опубликованных отзывов.
           </div>
+        )}
+
+        {!authorFilter && totalPages > 1 && (
+          <nav className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            {safePage > 1 && (
+              <Link
+                href={`/reviews?page=${safePage - 1}`}
+                className="rounded-lg border border-black/[0.08] px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                ← Назад
+              </Link>
+            )}
+            <span className="text-sm text-gray-500">
+              Страница {safePage} из {totalPages}
+            </span>
+            {safePage < totalPages && (
+              <Link
+                href={`/reviews?page=${safePage + 1}`}
+                className="rounded-lg border border-black/[0.08] px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Далее →
+              </Link>
+            )}
+          </nav>
         )}
       </main>
 
