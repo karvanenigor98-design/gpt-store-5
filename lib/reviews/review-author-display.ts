@@ -1,3 +1,9 @@
+import {
+  isBadAuthorLabel,
+  sanitizeReviewAuthorName,
+  sanitizeReviewContent,
+} from "@/lib/reviews/review-sanitize";
+
 const SERVICE_AUTHOR_PATTERN =
   /(наши отзывы|gpt store|subs store|spotify premium|digital\s*sub)/i;
 
@@ -38,22 +44,28 @@ export function resolveReviewAuthorDisplay(input: {
   const fromMention = extractMentionUsername(content);
   const resolvedUsername = fromClientTag ?? username ?? fromMention;
 
-  if (SERVICE_AUTHOR_PATTERN.test(displayName)) {
-    if (resolvedUsername) {
+  if (SERVICE_AUTHOR_PATTERN.test(displayName) || isBadAuthorLabel(displayName)) {
+    if (resolvedUsername && !isBadAuthorLabel(resolvedUsername)) {
       username = resolvedUsername;
       displayName = titleCaseUsername(resolvedUsername);
     } else {
       displayName = "Клиент";
     }
-  } else if (username && !SERVICE_AUTHOR_PATTERN.test(displayName)) {
-    // keep displayName
   } else if (username && SERVICE_AUTHOR_PATTERN.test(displayName)) {
     displayName = titleCaseUsername(username);
   }
+
+  displayName = sanitizeReviewAuthorName({
+    authorName: displayName,
+    authorUsername: username,
+    seed: username || displayName,
+  });
 
   return { displayName, username };
 }
 
 export function isServiceAuthorName(name: string): boolean {
-  return SERVICE_AUTHOR_PATTERN.test(name.trim());
+  return SERVICE_AUTHOR_PATTERN.test(name.trim()) || isBadAuthorLabel(name);
 }
+
+export { sanitizeReviewContent };

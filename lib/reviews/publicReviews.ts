@@ -1,10 +1,15 @@
-import { REVIEWS } from "@/lib/chatgpt-data";
+﻿import { REVIEWS } from "@/lib/chatgpt-data";
 import { createAdminClient } from "@/lib/supabase/server";
 import { loadGptTelegramCuratedReviews } from "@/lib/reviews/load-gpt-telegram-curated";
 import {
   isServiceAuthorName,
   resolveReviewAuthorDisplay,
+  sanitizeReviewContent,
 } from "@/lib/reviews/review-author-display";
+import {
+  sanitizeReviewAuthorName,
+  sortPublicReviewsNewestFirst,
+} from "@/lib/reviews/review-sanitize";
 
 export type PublicReview = {
   id: string;
@@ -40,10 +45,7 @@ function formatDateLabel(value: string | null): string {
   if (!value) return "Недавно";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "Недавно";
-  return d.toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-  });
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
 function sanitizeBotMentions(text: string): string {
@@ -55,20 +57,41 @@ function sanitizeBotMentions(text: string): string {
 }
 
 function cleanReviewText(value: string): string {
-  return sanitizeBotMentions(
-    value
-    .replace(/номер\s+заказа[:#]?\s*\d+\s*/gi, "")
-    .replace(/клиент[:#]?\s*@[\w_]+\s*/gi, "")
-    .replace(/отзыв[:#]?\s*/gi, "")
-    .replace(/🆔/g, "")
-    .replace(/[⭐★☆]/g, "")
-    .replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, "")
-    .replace(/^[\s\-:|]+/g, "")
-    .replace(/^[^\p{L}\p{N}@]+/u, "")
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,.:;!?])/g, "$1")
-    .trim(),
+  return sanitizeReviewContent(
+    sanitizeBotMentions(
+      value
+        .replace(/номер\s+заказа[:#]?\s*\d+\s*/gi, "")
+        .replace(/клиент[:#]?\s*@[\w_]+\s*/gi, "")
+        .replace(/отзыв[:#]?\s*/gi, "")
+        .replace(/^[\s\-:|]+/g, "")
+        .replace(/^[^\p{L}\p{N}@]+/u, "")
+        .replace(/\s+/g, " ")
+        .replace(/\s+([,.:;!?])/g, "$1")
+        .trim(),
+    ),
   );
+}
+
+function finalizeReview(item: PublicReview, idx: number): PublicReview {
+  const authorName = sanitizeReviewAuthorName({
+    authorName: item.authorName,
+    authorUsername: item.authorUsername,
+    seed: item.id,
+  });
+  const content = cleanReviewText(item.content);
+  const authorKey = normalizeAuthorKey(item.authorUsername || authorName);
+  return {
+    ...item,
+    authorName,
+    content,
+    initials: initialsFromName(authorName),
+    avatarColor: item.avatarColor || FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
+    inSiteProfileUrl: `/reviews?author=${encodeURIComponent(authorKey)}`,
+  };
+}
+
+function finalizeAndSort(items: PublicReview[]): PublicReview[] {
+  return sortPublicReviewsNewestFirst(items.map((item, idx) => finalizeReview(item, idx)));
 }
 
 function extractRating(value: string): number | null {
@@ -101,7 +124,7 @@ function fallbackReviews(): PublicReview[] {
       authorName: review.name,
       authorUsername: null,
       content: review.text,
-        rating: null,
+      rating: null,
       dateLabel: review.date,
       sourceUrl: null,
       inSiteProfileUrl: `/reviews?author=${encodeURIComponent(authorKey)}`,
@@ -114,7 +137,7 @@ function fallbackReviews(): PublicReview[] {
 function mergeCuratedWithLive(curated: PublicReview[], live: PublicReview[], cap?: number): PublicReview[] {
   const seen = new Set<string>();
   const out: PublicReview[] = [];
-  for (const item of [...curated, ...live]) {
+  for (const item of sortPublicReviewsNewestFirst([...curated, ...live])) {
     const key = `${item.authorUsername || item.authorName}::${item.content.slice(0, 100)}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -130,17 +153,17 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
 
   try {
     const supabase = createAdminClient();
-    const query = supabase
+    const fetchLimit = options?.randomize ? 500 : limit ?? 200;
+    const { data, error } = await supabase
       .from("reviews")
       .select("id, author_name, author_username, content, telegram_date, original_url")
       .eq("status", "approved")
-      .order("telegram_date", { ascending: false });
+      .order("telegram_date", { ascending: false })
+      .limit(fetchLimit);
 
-    const fetchLimit = options?.randomize ? 500 : (limit ?? 200);
-    const { data, error } = await query.limit(fetchLimit);
     if (error || !data || data.length === 0) {
-      if (curated.length) return curated.slice(0, cap);
-      return fallbackReviews().slice(0, cap);
+      if (curated.length) return finalizeAndSort(curated).slice(0, cap);
+      return finalizeAndSort(fallbackReviews()).slice(0, cap);
     }
 
     let mapped = data.map((item, idx) => {
@@ -150,7 +173,6 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
         content: item.content || "",
       });
       const username = resolvedUsername;
-
       const cleanedContent = cleanReviewText(item.content);
       const rating = extractRating(item.content);
       const authorKey = normalizeAuthorKey(username || authorName);
@@ -201,17 +223,21 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
 
     if (options?.randomize) {
       mapped = shuffle(mapped);
+    } else {
+      mapped = sortPublicReviewsNewestFirst(mapped);
     }
 
     if (!mapped.length) {
-      if (curated.length) return curated.slice(0, cap);
-      return fallbackReviews().slice(0, cap);
+      if (curated.length) return finalizeAndSort(curated).slice(0, cap);
+      return finalizeAndSort(fallbackReviews()).slice(0, cap);
     }
 
-    const merged = curated.length ? mergeCuratedWithLive(curated, mapped, cap) : mapped.slice(0, cap);
-    return merged;
+    const merged = curated.length
+      ? mergeCuratedWithLive(curated, mapped, cap)
+      : finalizeAndSort(mapped).slice(0, cap);
+    return finalizeAndSort(merged).slice(0, cap);
   } catch {
-    if (curated.length) return curated.slice(0, cap);
-    return fallbackReviews().slice(0, cap);
+    if (curated.length) return finalizeAndSort(curated).slice(0, cap);
+    return finalizeAndSort(fallbackReviews()).slice(0, cap);
   }
 }

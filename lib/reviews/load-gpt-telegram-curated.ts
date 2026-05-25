@@ -1,7 +1,8 @@
-import curatedRaw from "@/data/gpt-telegram-reviews.json";
+﻿import curatedRaw from "@/data/gpt-telegram-reviews.json";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
-import { resolveReviewAuthorDisplay } from "@/lib/reviews/review-author-display";
+import { resolveReviewAuthorDisplay, sanitizeReviewContent } from "@/lib/reviews/review-author-display";
 import { isGptSuitableReview } from "@/lib/reviews/is-gpt-suitable-review";
+import { sortPublicReviewsNewestFirst } from "@/lib/reviews/review-sanitize";
 
 const REVIEW_AVATAR_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
@@ -37,7 +38,7 @@ function mapRow(row: CuratedRow): PublicReview | null {
     content: row.content,
   });
 
-  const content = row.content.trim();
+  const content = sanitizeReviewContent(row.content.trim());
   if (!isGptSuitableReview(content)) return null;
 
   const authorKey = normalizeAuthorKey(username || authorName);
@@ -76,8 +77,7 @@ export function loadGptTelegramCuratedReviews(limit?: number): PublicReview[] {
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(mapped);
-    if (limit && out.length >= limit) break;
   }
 
-  return out;
+  return sortPublicReviewsNewestFirst(out).slice(0, limit ?? out.length);
 }

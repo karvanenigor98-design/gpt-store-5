@@ -1,16 +1,19 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { fadeUp } from "@/lib/motion-config";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
+import { sortPublicReviewsNewestFirst, shouldHideUsername } from "@/lib/reviews/review-sanitize";
 
 const VISIBLE_COUNT = 4;
 const ROTATE_MS = 10_000;
 
 function ReviewCard({ review }: { review: PublicReview }) {
-  const username = review.authorUsername?.replace(/^@+/, "");
+  const username = shouldHideUsername(review.authorUsername)
+    ? null
+    : review.authorUsername?.replace(/^@+/, "");
 
   return (
     <article className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-sm">
@@ -43,7 +46,10 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
   const [expanded, setExpanded] = useState(false);
   const [startIndex, setStartIndex] = useState(0);
 
-  const pool = useMemo(() => (reviews.length ? reviews : []), [reviews]);
+  const pool = useMemo(
+    () => (reviews.length ? sortPublicReviewsNewestFirst(reviews) : []),
+    [reviews],
+  );
 
   useEffect(() => {
     if (expanded || pool.length <= VISIBLE_COUNT) return;
@@ -81,18 +87,6 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
     );
   }
 
-  const featured = visibleReviews[0];
-  const featuredNick = featured
-    ? featured.authorUsername?.replace(/^@+/, "") ||
-      featured.authorName.trim() ||
-      "Клиент"
-    : null;
-  const sectionTitle = featuredNick
-    ? featured.authorUsername
-      ? `@${featuredNick}`
-      : featuredNick
-    : "Отзывы клиентов";
-
   return (
     <section id="reviews" className="px-4 py-20 md:px-6 md:py-28">
       <div className="mx-auto max-w-6xl">
@@ -107,7 +101,7 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
             Отзывы клиентов
           </span>
           <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            {sectionTitle}
+            Что говорят клиенты
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
             Публикуем реальные отзывы из Telegram и профилей клиентов на сайте.
