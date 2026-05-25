@@ -195,7 +195,7 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
       return finalizeAndSort(fallbackReviews(), options).slice(0, cap);
     }
 
-    let mapped = data.map((item, idx) => {
+    let mapped: PublicReview[] = data.map((item, idx) => {
       const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
         authorName: item.author_name?.trim() || "Клиент",
         authorUsername: item.author_username,

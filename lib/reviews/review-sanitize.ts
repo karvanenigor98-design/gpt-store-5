@@ -166,9 +166,13 @@ export function sanitizeReviewAuthorName(input: {
   return displayNameFromSeed(username || input.seed);
 }
 
-/** Парсит «17 декабря 2025» или ISO для сортировки. */
-export function reviewSortTimestamp(dateLabel: string, isoDate?: string | null): number {
-  if (isoDate) {
+/** Парсит «17 декабря 2025», ISO или ms для сортировки. */
+export function reviewSortTimestamp(
+  dateLabel: string,
+  isoDate?: string | number | null,
+): number {
+  if (isoDate != null && isoDate !== "") {
+    if (typeof isoDate === "number") return isoDate;
     const t = new Date(isoDate).getTime();
     if (!Number.isNaN(t)) return t;
   }
