@@ -1,0 +1,34 @@
+name: Deploy Pally Relay (Fly.io)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tools/pally-relay/**"
+      - ".github/workflows/deploy-pally-relay.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.FLY_API_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy relay
+        working-directory: tools/pally-relay
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl apps list | grep -q gpt-store-pally-relay || \
+            flyctl apps create gpt-store-pally-relay --org personal || \
+            flyctl apps create gpt-store-pally-relay
+          flyctl secrets set \
+            PALLY_RELAY_SECRET="${{ secrets.PALLY_RELAY_SECRET }}" \
+            --app gpt-store-pally-relay
+          flyctl ips allocate-v4 --app gpt-store-pally-relay || true
+          flyctl deploy --app gpt-store-pally-relay --ha=false
+          echo "=== Fly IPs (add to Pally whitelist) ==="
+          flyctl ips list --app gpt-store-pally-relay
