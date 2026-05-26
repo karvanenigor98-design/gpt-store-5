@@ -6,6 +6,7 @@ import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { resolveSearchParams } from "@/lib/next-search-params";
 import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
+import { telegramProfileUrl } from "@/lib/reviews/telegram-profile-url";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -69,7 +70,7 @@ export default async function PublicReviewsPage({
           <div>
             <h1 className="font-heading text-3xl font-bold text-gray-900">Отзывы клиентов</h1>
             <p className="mt-2 text-sm text-gray-500">
-              Публикуем только реальные отзывы. Можно проверить источник и перейти в профиль.
+              Все отзывы из Telegram. У каждого — ссылка на профиль в Telegram.
             </p>
           </div>
           {authorFilter && (
@@ -87,7 +88,9 @@ export default async function PublicReviewsPage({
         )}
 
         <div className="space-y-4">
-          {pageReviews.map((review) => (
+          {pageReviews.map((review) => {
+            const tgUrl = telegramProfileUrl(review.authorUsername, review.sourceUrl);
+            return (
             <article key={review.id} className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -113,28 +116,26 @@ export default async function PublicReviewsPage({
 
               <p className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">{review.content}</p>
 
-              <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
                 {review.authorUsername && (
                   <span className="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600">
                     @{review.authorUsername.replace(/^@+/, "")}
                   </span>
                 )}
-                {review.sourceUrl && (
+                {tgUrl && (
                   <a
-                    href={review.sourceUrl}
+                    href={tgUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#10a37f] hover:underline"
+                    className="font-medium text-[#10a37f] hover:underline"
                   >
-                    Открыть источник в Telegram
+                    Профиль в Telegram
                   </a>
                 )}
-                <Link href={review.inSiteProfileUrl} className="text-gray-500 hover:text-gray-700 hover:underline">
-                  Профиль на сайте
-                </Link>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
 
         {filteredReviews.length === 0 && (

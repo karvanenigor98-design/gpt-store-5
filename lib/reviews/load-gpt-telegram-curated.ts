@@ -9,6 +9,7 @@ import {
   sortPublicReviewsNewestFirst,
   stripAuthorDateSuffix,
 } from "@/lib/reviews/review-sanitize";
+import { telegramProfileUrl } from "@/lib/reviews/telegram-profile-url";
 
 const REVIEW_AVATAR_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
@@ -66,7 +67,6 @@ function mapRow(row: CuratedRow): PublicReview | null {
   if (content.length < 8) return null;
 
   const authorKey = normalizeAuthorKey(username || authorName);
-  const usernameClean = username ? username.replace(/^@+/, "") : null;
 
   return {
     id: row.id,
@@ -76,7 +76,7 @@ function mapRow(row: CuratedRow): PublicReview | null {
     rating: row.rating != null ? Math.min(5, Math.max(1, Math.round(row.rating))) : 5,
     dateLabel: row.dateLabel ?? "Недавно",
     sortTs: row.sortTs ?? reviewSortTimestamp(row.dateLabel ?? ""),
-    sourceUrl: row.sourceUrl ?? (usernameClean ? `https://t.me/${usernameClean}` : null),
+    sourceUrl: telegramProfileUrl(username, row.sourceUrl),
     inSiteProfileUrl: profileUrl(authorKey),
     avatarColor: REVIEW_AVATAR_COLORS[Math.abs(hashString(row.id)) % REVIEW_AVATAR_COLORS.length],
     initials: initialsFromName(authorName),

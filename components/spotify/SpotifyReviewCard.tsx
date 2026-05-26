@@ -1,7 +1,6 @@
-import Link from "next/link";
-
 import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
 import { resolveReviewAuthorDisplay } from "@/lib/reviews/review-author-display";
+import { telegramProfileUrl } from "@/lib/reviews/telegram-profile-url";
 
 type Props = {
   review: SpotifyLandingReview;
@@ -14,7 +13,7 @@ export function SpotifyReviewCard({ review, showFooter = true }: Props) {
     authorUsername: review.authorUsername,
     content: review.content,
   });
-  const profileHref = review.inSiteProfileUrl ?? "/spotify/reviews";
+  const tgUrl = telegramProfileUrl(review.authorUsername, review.sourceUrl);
 
   return (
     <article
@@ -62,26 +61,18 @@ export function SpotifyReviewCard({ review, showFooter = true }: Props) {
         {review.content}
       </p>
 
-      {showFooter && (
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
-          <Link
-            href={profileHref}
-            className="transition-colors hover:text-white"
-            style={{ color: "rgba(255,255,255,0.45)" }}
+      {showFooter && tgUrl && (
+        <div className="mt-3">
+          <a
+            href={tgUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium transition-opacity hover:opacity-80"
+            style={{ color: "#1DB954" }}
           >
-            Профиль на сайте
-          </Link>
-          {review.sourceUrl && (
-            <a
-              href={review.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-opacity hover:opacity-80"
-              style={{ color: "rgba(255,255,255,0.35)" }}
-            >
-              Источник в Telegram
-            </a>
-          )}
+            Профиль в Telegram
+            {username ? ` · @${username}` : ""}
+          </a>
         </div>
       )}
     </article>

@@ -3,6 +3,7 @@ import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
 
 import { resolveReviewAuthorDisplay } from "./review-author-display";
 import { isSpotifySuitableReview } from "./is-spotify-suitable-review";
+import { telegramProfileUrl } from "./telegram-profile-url";
 
 const REVIEW_AVATAR_COLORS = ["#1DB954", "#2d6a4f", "#1a7a4a", "#0d7377", "#155724", "#ef4444", "#f59e0b"];
 
@@ -72,7 +73,7 @@ function mapRow(row: CuratedRow): SpotifyLandingReview | null {
     dateLabel: row.dateLabel ?? "Недавно",
     rating: row.rating != null ? Math.min(5, Math.max(1, Math.round(row.rating))) : 5,
     content,
-    sourceUrl: row.sourceUrl ?? null,
+    sourceUrl: telegramProfileUrl(username, row.sourceUrl),
     inSiteProfileUrl: profileUrl(authorKey),
   };
 }
