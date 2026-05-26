@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LandingFooter } from "@/components/layout/LandingFooter";
+import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
+import { loadGptTelegramCuratedReviews } from "@/lib/reviews/load-gpt-telegram-curated";
 import { getPublicReviews } from "@/lib/reviews/publicReviews";
 
 export const dynamic = "force-dynamic";
@@ -23,13 +25,26 @@ export default async function PublicReviewsPage({
   const { author, page: pageRaw } = await searchParams;
   const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
 
-  let reviews: Awaited<ReturnType<typeof getPublicReviews>> = [];
+  let reviews: Awaited<ReturnType<typeof getPublicReviews>> = loadGptTelegramCuratedReviews(
+    REVIEWS_FETCH_LIMIT,
+  );
   let reviewsLoadFailed = false;
+
+  if (reviews.length < 8) {
+    reviews = getStaticGptLandingReviews(REVIEWS_FETCH_LIMIT);
+  }
+
   try {
-    reviews = await getPublicReviews(REVIEWS_FETCH_LIMIT, { preferCurated: true });
+    const live = await getPublicReviews(REVIEWS_FETCH_LIMIT, {
+      preferCurated: false,
+      minDate: false,
+    });
+    if (live.length > reviews.length) {
+      reviews = live;
+    }
   } catch (err) {
     console.error("[reviews] getPublicReviews failed:", err);
-    reviewsLoadFailed = true;
+    if (reviews.length === 0) reviewsLoadFailed = true;
   }
 
   const authorFilter = author?.trim().toLowerCase();
@@ -138,7 +153,9 @@ export default async function PublicReviewsPage({
 
         {filteredReviews.length === 0 && (
           <div className="rounded-2xl border border-black/[0.07] bg-white p-6 text-center text-sm text-gray-500">
-            По этому профилю пока нет опубликованных отзывов.
+            {authorFilter
+              ? "По этому профилю пока нет опубликованных отзывов."
+              : "Отзывы временно недоступны. Обновите страницу через минуту."}
           </div>
         )}
 

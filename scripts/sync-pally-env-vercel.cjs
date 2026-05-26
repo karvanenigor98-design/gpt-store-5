@@ -79,10 +79,16 @@ function upsertEnv(name, value, environment) {
   return { ok: false };
 }
 
-const env = parseEnvFile(ENV_FILE);
-if (!env.PALLY_API_URL?.trim()) {
-  env.PALLY_API_URL = "https://pally.info/api/v1";
+function normalizePallyApiUrl(raw) {
+  const trimmed = String(raw || "https://pally.info/api/v1")
+    .trim()
+    .replace(/\/$/, "");
+  if (/api\.pally\.info/i.test(trimmed)) return "https://pally.info/api/v1";
+  return trimmed || "https://pally.info/api/v1";
 }
+
+const env = parseEnvFile(ENV_FILE);
+env.PALLY_API_URL = normalizePallyApiUrl(env.PALLY_API_URL);
 
 const missing = KEYS.filter((k) => k !== "PALLY_API_URL" && !env[k]?.trim());
 if (missing.length) {
