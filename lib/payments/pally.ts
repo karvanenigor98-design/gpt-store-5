@@ -1,5 +1,7 @@
 ﻿import crypto from "crypto";
 
+import { detectEgressIp, pallyHttpPost } from "@/lib/payments/pally-http";
+
 const PALLY_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_PALLY_API_URL = "https://pally.info/api/v1";
 
@@ -85,12 +87,21 @@ function resolvePaymentUrl(data: Record<string, unknown>): string {
   return "";
 }
 
-function formatPallyError(data: Record<string, unknown>, status: number): string {
+async function formatPallyError(
+  data: Record<string, unknown>,
+  status: number,
+): Promise<string> {
   const message = String(data.message ?? data.error ?? "").trim();
   if (message.includes("ip_access_denied")) {
+    const egress = await detectEgressIp();
+    const relayHint = process.env.PALLY_RELAY_URL
+      ? ""
+      : " Настройте PALLY_RELAY_URL (см. tools/pally-relay/README.md) — один фиксированный IP для Pally.";
+    const ipHint = egress ? ` Текущий egress Vercel: ${egress}.` : "";
     return (
-      "Pally отклонил запрос: IP сервера Vercel не в белом списке. " +
-      "В кабинете Pally → настройки магазина отключите фильтр по IP или добавьте Static IPs Vercel (регион fra1)."
+      "Pally отклонил запрос: IP сервера не в белом списке." +
+      ipHint +
+      relayHint
     );
   }
   if (message) return `Pally: ${message}`;
@@ -104,8 +115,7 @@ async function postBillCreate(
   body: Record<string, unknown>,
 ): Promise<{ response: Response; data: Record<string, unknown>; endpoint: string }> {
   const endpoint = `${apiUrl.replace(/\/$/, "")}/bill/create`;
-  const response = await fetch(endpoint, {
-    method: "POST",
+  const response = await pallyHttpPost(apiUrl, "/bill/create", {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -113,7 +123,6 @@ async function postBillCreate(
       "User-Agent": "GPT-STORE/1.0",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(PALLY_REQUEST_TIMEOUT_MS),
   });
 
   const text = await response.text();
@@ -167,7 +176,7 @@ export async function createPallyPayment(
       const success = data.success === true || Boolean(paymentUrl);
 
       if (!response.ok || !success || !paymentUrl) {
-        lastApiError = formatPallyError(data, response.status);
+        lastApiError = await formatPallyError(data, response.status);
         continue;
       }
 

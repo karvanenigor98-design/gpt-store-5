@@ -17,7 +17,8 @@ export async function GET() {
     return NextResponse.json({
       egressIp: ip ?? null,
       region: process.env.VERCEL_REGION ?? "fra1",
-      note: "IP одного инвока. Без Static IPs адрес может отличаться между запросами.",
+      note:
+        "IP одного инвока Vercel. Для стабильной оплаты: PALLY_RELAY_URL (tools/pally-relay).",
     });
   } catch (err) {
     return NextResponse.json(
