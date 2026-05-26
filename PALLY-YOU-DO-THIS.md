@@ -1,33 +1,45 @@
-# Только тебе (3 шага) — после того как relay задеплоен
+# Pally оплата — что сделать (2 минуты)
 
-Код на Vercel уже умеет ходить в Pally через relay (`PALLY_RELAY_URL`).
+## Сейчас (быстрый фикс)
 
-## 1. Pally — один IP
+1. **Pally** → магазин → **IP Whitelist** → добавь IP (все, что видишь):
+   - `3.125.159.150` (из ошибки на checkout)
+   - `63.179.91.11` (текущий prod egress)
+   - Локально: `node scripts/print-vercel-pally-egress.cjs` — список актуальных IP
+2. **Сохранить** в Pally
+3. Подожди redeploy Vercel (уже запушен) → тест checkout
 
-1. Кабинет Pally → магазин → **IP Whitelist** → Редактировать  
-2. Удали **все** старые IP (Vercel и т.д.)  
-3. Добавь **один** IP relay:
-   - **Fly:** после `fly ips list` — IPv4 приложения  
-   - **VPS:** вывод `curl .../egress-ip` (часто = IP сервера, напр. `195.200.16.222`)  
-4. **Обновить**
-
-## 2. Vercel — две переменные (если скрипт не смог)
-
-Project **gpt-store-5** → Settings → Environment Variables → **Production**:
-
-| Name | Value |
-|------|--------|
-| `PALLY_RELAY_URL` | `https://gpt-store-pally-relay.fly.dev` (или твой HTTPS URL) |
-| `PALLY_RELAY_SECRET` | из файла `.pally-relay-setup.local.json` |
-
-Уже должны быть: `PALLY_SHOP_ID`, `PALLY_SECRET_KEY`, `PALLY_API_URL=https://pally.info/api/v1`, `NEXT_PUBLIC_APP_URL=https://gpt-store-5.vercel.app`
-
-→ **Redeploy** production.
-
-## 3. Тест
-
-https://gpt-store-5.vercel.app/checkout → Оплатить → редирект на **pally.info**.
+> IP Vercel меняются — через день снова может упасть. Ниже постоянное решение.
 
 ---
 
-Секрет и URL смотри в `.pally-relay-setup.local.json` (создаётся `node scripts/setup-pally-relay-complete.cjs`).
+## Постоянно (relay на VPS `195.200.16.222`)
+
+На VPS (SSH):
+
+```bash
+export PALLY_RELAY_SECRET='из .pally-relay-setup.local.json'
+curl -fsSL https://raw.githubusercontent.com/buzanovnikita30-hash/gpt-store-5/main/tools/pally-relay/setup-vps-cloudflared.sh | bash
+```
+
+Скрипт выведет `PALLY_RELAY_URL` (https://….trycloudflare.com).
+
+**Vercel** → gpt-store-5 → Production:
+
+| Name | Value |
+|------|--------|
+| `PALLY_RELAY_URL` | URL из скрипта |
+| `PALLY_RELAY_SECRET` | тот же секрет |
+
+**Pally whitelist** — только **один** IP: `195.200.16.222` (или egress из `curl …/egress-ip` на VPS).
+
+→ **Redeploy** production.
+
+---
+
+## Альтернатива: Fly.io
+
+1. Карта: https://fly.io/dashboard/buzanovnikita30-gmail-com/billing  
+2. `node scripts/deploy-pally-relay-fly.cjs`  
+3. `fly ips list` → один IP в Pally  
+4. `node scripts/set-pally-relay-vercel-env.cjs`
