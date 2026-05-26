@@ -1,0 +1,31 @@
+name: Deploy Pally Relay (VPS)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.VPS_SSH_KEY != '' && secrets.VPS_HOST != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy relay on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            export PALLY_RELAY_SECRET="${{ secrets.PALLY_RELAY_SECRET }}"
+            curl -fsSL https://raw.githubusercontent.com/buzanovnikita30-hash/gpt-store-5/main/tools/pally-relay/setup-vps-cloudflared.sh | bash
+
+      - name: Print tunnel URL
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sudo journalctl -u pally-relay-tunnel -n 80 --no-pager | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true
