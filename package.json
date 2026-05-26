@@ -36,6 +36,7 @@
     "pally:relay:deploy": "node scripts/deploy-pally-relay-fly.cjs",
     "pally:relay:vercel-env": "node scripts/set-pally-relay-vercel-env.cjs",
     "pally:relay:vps": "powershell -ExecutionPolicy Bypass -File scripts/run-vps-relay-setup.ps1",
+    "pally:complete": "powershell -ExecutionPolicy Bypass -File scripts/complete-pally-relay.ps1",
     "pally:relay:vercel": "node scripts/vercel-set-pally-relay-env.cjs",
     "vercel:static-ips": "node scripts/enable-vercel-static-ips.cjs",
     "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py && node scripts/copy-gpt-reviews-to-public.cjs",
@@ -73,6 +74,7 @@
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
+    "js-yaml": "^4.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

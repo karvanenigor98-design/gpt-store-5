@@ -30,6 +30,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .pally-relay-setup.local.json
+.pally-relay-deployed.local.json
+.vps-deploy-key
+.vps-deploy-key.pub
 
 # Telegram HTML exports (source for npm run reviews:extract — keep local only)
 /messages.html
