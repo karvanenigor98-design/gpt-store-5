@@ -8,7 +8,12 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-SOURCE = Path(r"C:/Users/User/Downloads/Telegram Desktop/ChatExport_2026-04-23/messages.html")
+ROOT = Path(__file__).resolve().parent.parent
+SOURCE_CANDIDATES = [
+    ROOT / "messages.html",
+    ROOT / "messages2.html",
+    Path(r"C:/Users/User/Downloads/Telegram Desktop/ChatExport_2026-04-23/messages.html"),
+]
 OUT = Path(__file__).resolve().parent.parent / "data" / "spotify-telegram-reviews.json"
 GROUP_LINK_PREFIX = "https://t.me/digital_sub_reviews/"
 
@@ -126,13 +131,24 @@ def parse_rows(source: str):
 
 
 def main():
-    if not SOURCE.exists():
-        raise SystemExit(f"File not found: {SOURCE}")
-    source = SOURCE.read_text(encoding="utf-8", errors="ignore")
-    rows = parse_rows(source)
+    all_rows: list[dict] = []
+    seen: set[str] = set()
+    for src in SOURCE_CANDIDATES:
+        if not src.exists():
+            continue
+        source = src.read_text(encoding="utf-8", errors="ignore")
+        for row in parse_rows(source):
+            key = re.sub(r"\s+", " ", row["content"].lower().strip())[:120]
+            if key in seen:
+                continue
+            seen.add(key)
+            all_rows.append(row)
+    if not all_rows and OUT.exists():
+        print(f"No HTML sources; kept existing {OUT}")
+        return
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Wrote {len(rows)} reviews to {OUT}")
+    OUT.write_text(json.dumps(all_rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Wrote {len(all_rows)} reviews to {OUT}")
 
 
 if __name__ == "__main__":

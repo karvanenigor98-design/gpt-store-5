@@ -1,8 +1,8 @@
 [
   {
     "id": "tg-2",
-    "authorName": "Alinasha",
-    "authorUsername": "Alinasha",
+    "authorName": "Алина",
+    "authorUsername": null,
     "content": "Заказала подписку Spotify на год, сделали быстро. Буду обращаться ещё",
     "rating": 5,
     "tariff": "Premium",
@@ -36,13 +36,13 @@
     "content": "Спасибо,подключили всё быстро.",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "18 декабря 2025",
+    "dateLabel": "17 декабря 2025",
     "sourceUrl": "https://t.me/digital_sub_reviews/23"
   },
   {
     "id": "tg-64",
-    "authorName": "Anton",
-    "authorUsername": "Anton",
+    "authorName": "Deleted Account",
+    "authorUsername": null,
     "content": "спасибо большое! подключили всё быстро, теперь снова слушаю музыку с комфортом)",
     "rating": 5,
     "tariff": "Premium",
@@ -106,7 +106,7 @@
     "content": "Спасибо большое, ребятам, за то что создали аккаунт и почту) оплата удобная, за 10 минут сделали все от начала и до конца!\nЕще раз спасибо)",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "2 января 2026",
+    "dateLabel": "1 января 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/375"
   },
   {
@@ -126,7 +126,7 @@
     "content": "Подписку оформили очень быстро, всем довольна, оперативность и компетентность на высшем уровне 💯 Обязательно порекомендую другим!",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "4 января 2026",
+    "dateLabel": "3 января 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/390"
   },
   {
@@ -196,7 +196,7 @@
     "content": "Могу смело ставить 10/10! Канал находка для тех, кто хочет быстро оформить подписку. Помогли со всеми возникшими сложностями. Очень довольна!!",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "10 января 2026",
+    "dateLabel": "9 января 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/427"
   },
   {
@@ -296,7 +296,7 @@
     "content": "🆔 Номер заказа:\n34278626\n🪪 Клиент:\n@temawebcm\nОтзыв:\nвсё прошло отлично, пока подписка оформлялась кайфовал в клеш рояле\n⭐️⭐️⭐️⭐️⭐️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "7 февраля 2026",
+    "dateLabel": "6 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/555"
   },
   {
@@ -306,7 +306,7 @@
     "content": "🆔 Номер заказа:\n34279916\n🪪 Клиент:\n@Arcado0910\nОтзыв:\nПользовался взломкой, которая постоянно крашилась, Мне ребята сделали и в тот же момент спотифай заработал. Теперь не придется постоянно боятся что программа сломается)\n⭐️⭐️⭐️⭐️⭐️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "7 февраля 2026",
+    "dateLabel": "6 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/556"
   },
   {
@@ -376,7 +376,7 @@
     "content": "Подключили быстро и четко! Буду рекомендовать знакомым",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "13 февраля 2026",
+    "dateLabel": "12 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/626"
   },
   {
@@ -396,7 +396,7 @@
     "content": "Подписка есть, спасибо!",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "15 февраля 2026",
+    "dateLabel": "14 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/659"
   },
   {
@@ -416,7 +416,7 @@
     "content": "Крууууто, все на месте, теперь как белый человек с нормальной музыкой ✨",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "16 февраля 2026",
+    "dateLabel": "15 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/665"
   },
   {
@@ -510,16 +510,6 @@
     "sourceUrl": "https://t.me/digital_sub_reviews/788"
   },
   {
-    "id": "tg-796",
-    "authorName": "Наши отзывы",
-    "authorUsername": null,
-    "content": "Огромное спасибо за скорость! За качество! За 4 минуты с момента оплаты 🫶🫠 продлили подписку! Восторг! Ещё раз спасибо!",
-    "rating": 5,
-    "tariff": "Premium",
-    "dateLabel": "27 февраля 2026",
-    "sourceUrl": "https://t.me/digital_sub_reviews/796"
-  },
-  {
     "id": "tg-802",
     "authorName": "GPT STORE",
     "authorUsername": null,
@@ -546,7 +536,7 @@
     "content": "🆔 Номер заказа:\n34702201\n🪪 Клиент:\n@Mariaaa_love\nОтзыв:\nПосле оплаты, менеджер сразу связался, все четко объяснил и подключили за считанные минуты. Благодарю 🫶\n⭐️⭐️⭐️⭐️⭐️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "28 февраля 2026",
+    "dateLabel": "27 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/805"
   },
   {
@@ -566,7 +556,7 @@
     "content": "Все супер, я оплатил мин 7 прошло все подключили❤️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "1 марта 2026",
+    "dateLabel": "28 февраля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/816"
   },
   {
@@ -646,7 +636,7 @@
     "content": "🆔 Номер заказа:\n34841247\n🪪 Клиент:\n@Dan4lk_01\nОтзыв:\nВсе супер, подписку быстро подключили, рекомендую 👍\n⭐️⭐️⭐️⭐️⭐️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "7 марта 2026",
+    "dateLabel": "6 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/894"
   },
   {
@@ -726,7 +716,7 @@
     "content": "Спасибо!\nВсе работает, очень быстрая активация.",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "11 марта 2026",
+    "dateLabel": "10 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/950"
   },
   {
@@ -756,7 +746,7 @@
     "content": "Подписку получил - сервисом доволен, рекомендую, помогли при возникших вопросах разобраться как сменить пароль для входа",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "12 марта 2026",
+    "dateLabel": "11 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/970"
   },
   {
@@ -766,7 +756,7 @@
     "content": "Спасибо ребятам за помощь в приобретении подписки на спотифай, все быстро, оперативно 🫡 оч довольна ☺️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "12 марта 2026",
+    "dateLabel": "11 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/973"
   },
   {
@@ -816,7 +806,7 @@
     "content": "Очень хороший сервис,всё сделали быстро и качественно, так же помогали с личными вопросами. Всем советую данный сервис в покупке подписки🔥\n❤️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "15 марта 2026",
+    "dateLabel": "14 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1015"
   },
   {
@@ -836,7 +826,7 @@
     "content": "Отзыв:\nМой родственник посоветовал данный сервис для оплаты подписки. Очень быстро и качественно! Советую всем новым пользователям воспользоваться именно данным сервисом, так как тут надёжность и качество предоставления услуг на высшем уровне! Спасибо Вам большое!",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "16 марта 2026",
+    "dateLabel": "15 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1024"
   },
   {
@@ -896,7 +886,7 @@
     "content": "За 4 минуты после оплаты получил подписку на аккаунт, который не получалось оплатить никак самостоятельно. Спасибо сервису!",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "19 марта 2026",
+    "dateLabel": "18 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1069"
   },
   {
@@ -1006,7 +996,7 @@
     "content": "🤭Хочу поделиться отзывом, 3 месяц оформляю подписку Плюс и я доволен, пользуюсь 24 на 7 чатом, и рекомендую всем❤️брать подписку тут",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "27 марта 2026",
+    "dateLabel": "26 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1176"
   },
   {
@@ -1036,7 +1026,7 @@
     "content": "Обожать) спасибо большое за супер оперативное подключение ♥️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "28 марта 2026",
+    "dateLabel": "27 марта 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1194"
   },
   {
@@ -1116,7 +1106,7 @@
     "content": "Спасибо огромное, да подписка активировалась🤗\nВсё быстро и выгодно👍",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "3 апреля 2026",
+    "dateLabel": "2 апреля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1275"
   },
   {
@@ -1156,7 +1146,7 @@
     "content": "🆔 Номер заказа:\n35419305\n🪪 Клиент:\n@helgauthr\nОтзыв:\nПодключили минуты за... 4? ОЧЕНЬ БЫСТРО!!!\n⭐️⭐️⭐️⭐️⭐️",
     "rating": 5,
     "tariff": "Premium",
-    "dateLabel": "7 апреля 2026",
+    "dateLabel": "6 апреля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1323"
   },
   {
@@ -1238,5 +1228,535 @@
     "tariff": "Premium",
     "dateLabel": "16 апреля 2026",
     "sourceUrl": "https://t.me/digital_sub_reviews/1447"
+  },
+  {
+    "id": "tg-1456",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "спасибо большое за подписку",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "16 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1456"
+  },
+  {
+    "id": "tg-1465",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, подписка подключилась, спасибо большое",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "17 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1465"
+  },
+  {
+    "id": "tg-1476",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35628735\n🪪 Клиент:\n@ramil369\nОтзыв:\n1 мец подписки, потрачено не больше 5 минут\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "18 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1476"
+  },
+  {
+    "id": "tg-1490",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Большое спасибо! Появился статус подписки плюс!\nОчень быстро, качественно!\nСоветую и рекомендую пользоваться Вашим сервисом всем!  Спасибо Вам большое!\nВаш сервис не только про качество, но и про доверие!",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "19 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1490"
+  },
+  {
+    "id": "tg-1494",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Я пол года маялась с тем, чтобы оплатить свою подписку, через турецкий аккаунт и пополнение его в лирах!\nА тут 5 минут и готово, так просто и удобно :)\nСпасииибо вам большое, супер рада 😀😜",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "19 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1494"
+  },
+  {
+    "id": "tg-1496",
+    "authorName": "SUBS STORE • Spotify Premium",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35658538\n🪪 Клиент:\n@kiestinx\nОтзыв:\nОчень доволен подпиской Spotify Premium! Подключили быстро, оператор был вежлив и всё чётко объяснил. Однозначно рекомендую",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "19 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1496"
+  },
+  {
+    "id": "tg-1508",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35675979\n🪪 Клиент:\n@ZLATAMARAI426\nОтзыв:\nжду активацию - отзыв напишу после активации джипитишки\n⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "20 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1508"
+  },
+  {
+    "id": "tg-1510",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35675587\n🪪 Клиент:\n@belle_ruslanovna\nОтзыв:\nПродлили подписку в течении 5-10 минут, очень быстро и удобно, спасибо 👐🏼\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "20 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1510"
+  },
+  {
+    "id": "tg-1518",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, все хорошо, спасибо, сейчас месяц попробую подписку если понравится, куплю на более долгий срок",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "21 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1518"
+  },
+  {
+    "id": "tg-1521",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо большое, подключено.",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "21 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1521"
+  },
+  {
+    "id": "tg-1522",
+    "authorName": "SUBS STORE • Spotify Premium",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35691428\n🪪 Клиент:\n@NOT_FOUND_NICKNAME\nОтзыв:\nПосле оплаты, поддержка активировала премиум на моем аккаунте. Всё было сделано менее чем 20 минут. Огромное спасибо!!!\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "21 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1522"
+  },
+  {
+    "id": "tg-1524",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "всё работает. спасибо ❤️\nя уже не в первый раз делаю активацию через вас, потому что доверяю))\nвы супер)",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "21 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1524"
+  },
+  {
+    "id": "tg-1525",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35695608\n🪪 Клиент:\n@maximvadimovich193\nОтзыв:\nБыстро активировали подписку, в течение 10 минут. Без лишней суеты\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "21 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1525"
+  },
+  {
+    "id": "tg-1538",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35705719\n🪪 Клиент:\n@mgorbunova27\nОтзыв:\nоформляю подписку плюс уже не в первый раз через данный сервис, очень быстрое подключение, всё отлично\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "22 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1538"
+  },
+  {
+    "id": "tg-1556",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо, подписка активна",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "23 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1556"
+  },
+  {
+    "id": "tg-1569",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35742008\n🪪 Клиент:\n@darya0031\nОтзыв:\nВсе отлично, помогли активировать подписку. Буду обращаться на постоянной основе ❤️\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "24 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1569"
+  },
+  {
+    "id": "tg-1573",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо за оперативное подключение и классную стоимость. Обязательно обращусь еще и буду рекомендовать 👍",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "24 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1573"
+  },
+  {
+    "id": "tg-1587",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Благодарю. Все получилось. Буду изучать вопрос. Спасибо за быстрое подключение",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "24 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1587"
+  },
+  {
+    "id": "tg-1592",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Благодарю! Купил подписку ночью, утром связался с поддержкой и оперативно активировали на аккаунт",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "26 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1592"
+  },
+  {
+    "id": "tg-1613",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Все получилось, спасибо! Пришлось немного подождать активации, но зато сам процесс прошел за пару минут, быстро и понятно 😊",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "27 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1613"
+  },
+  {
+    "id": "tg-1614",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, подписка оформлена",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "27 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1614"
+  },
+  {
+    "id": "tg-1621",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Отличный сервис✨\nВсе быстро и без каких либо задержек! Уже второй раз оплачиваю подписку без проблем!",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "27 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1621"
+  },
+  {
+    "id": "tg-1650",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Сервис понравился: всё предельно понятно, удобное меню, быстрые ответы техподдержки. Приобрел подписку спотика на год без проблем.",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "29 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1650"
+  },
+  {
+    "id": "tg-1678",
+    "authorName": "SUBS STORE • Spotify Premium",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35860979\n🪪 Клиент:\n@Avefrog\nОтзыв:\nПользуюсь уже второй месяц, всем доволен максимально!\nОчень быстрое время ответа и продления подписки, минут 5 и можно дальше наслаждаться любимой музыкой)\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "30 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1678"
+  },
+  {
+    "id": "tg-1680",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35863401\n🪪 Клиент:\n@gogarevai\nОтзыв:\nОтличный сервис! Быстро вышли на связь и все подключили! Рекомендую!\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "30 апреля 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1680"
+  },
+  {
+    "id": "tg-1686",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, подключено. Спасибо",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "1 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1686"
+  },
+  {
+    "id": "tg-1725",
+    "authorName": "SUBS STORE • Spotify Premium",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35902772\n🪪 Клиент:\n@UnsIIa\nОтзыв:\n10минут и подписка была на аккаунте, замечательно быстро и безопастно!\nБольшое спасибо🤗\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "3 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1725"
+  },
+  {
+    "id": "tg-1751",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, всё в порядке, подключилась) Спасибо большое, всё быстро, понятно и доступно)",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "4 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1751"
+  },
+  {
+    "id": "tg-1753",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да. Подписка активна, спасибо",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "4 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1753"
+  },
+  {
+    "id": "tg-1770",
+    "authorName": "SUBS STORE • Spotify Premium",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35946242\n🪪 Клиент:\n@BagoKucheridze\nОтзыв:\nВсе круто! Быстро оформили подписку🔥\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "5 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1770"
+  },
+  {
+    "id": "tg-1779",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо, подписка активна, спасибо за оперативность!",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "6 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1779"
+  },
+  {
+    "id": "tg-1792",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо большое за помощь в подключении!\nОчень понравилось что быстро среагировали и подключили . Буду обращаться к вам ✔️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "6 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1792"
+  },
+  {
+    "id": "tg-1798",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n35976529\n🪪 Клиент:\n@Cl_uuu\nОтзыв:\nВсё работает, очень быстро, простая оплата и способ активации, буду обращаться еще!\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "7 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1798"
+  },
+  {
+    "id": "tg-1824",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, подписка появилась, спасибо)",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "8 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1824"
+  },
+  {
+    "id": "tg-1826",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Вы единственный сервис , через который мне удается продлить подписку.Пробовал через ваучер озон, абсолютно безуспешно …. У Вас , все отлично и оперативно. Спасибо .",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "8 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1826"
+  },
+  {
+    "id": "tg-1832",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Очень рекомендую сервис! Так удобно было перейти на plus!!! Даже мне, абсолютному чайнику:) удобная оплата, активация!",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "9 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1832"
+  },
+  {
+    "id": "tg-1847",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо, очень быстро подключили подписку plus👍👍👍",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "9 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1847"
+  },
+  {
+    "id": "tg-1860",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да все работает, спасибо за быструю активацию!",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "10 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1860"
+  },
+  {
+    "id": "tg-1885",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Большое спасибо!\nПодписка активна)",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "12 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1885"
+  },
+  {
+    "id": "tg-1917",
+    "authorName": "SUBS STORE • Spotify Premium",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n36099543\n🪪 Клиент:\n@robbbert1\nОтзыв:\nОчень быстро оформили подписку, сразу отписались, спасибо большое\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "15 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1917"
+  },
+  {
+    "id": "tg-1930",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Все супер! Спасибо большое 👍\nПокупаю подписку с февраля 2026, всегда все быстро и качественно 🤟",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "16 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1930"
+  },
+  {
+    "id": "tg-1934",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Появилась подписка. Спасибо!)))",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "16 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1934"
+  },
+  {
+    "id": "tg-1939",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Подписка на аккаунте! Благодарю за оперативность",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "17 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1939"
+  },
+  {
+    "id": "tg-1942",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, все отлично подключили, спасибо большое!\nОперативно, дешевле чем у ваших конкурентов, надежно👍👍👍",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "17 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1942"
+  },
+  {
+    "id": "tg-1945",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Очень быстрое подключение!Ответили на все вопросы.\nБлагодарю😊",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "17 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1945"
+  },
+  {
+    "id": "tg-1956",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо, все работает!\nРада, что будет доступ к любимой музыке!)\nКруто, что так быстро и оперативно все делаете\n🥰\nБуду рекомендовать ваш сервис друзьям!",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "18 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1956"
+  },
+  {
+    "id": "tg-1957",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n36166352\n🪪 Клиент:\n@mariaR22\nОтзыв:\nВсе просто прекрасно менеджер оперативно отвечает если есть какие-то проблемы с подключением или ещё какие-то моменты все происходит очень как бы быстро я оплачиваю потом она со мной связывается и мы все подключаем правда хотелось бы бонус какие-нибудь потому что сотрудничество я уже не первый раз знаете программу лояльности такую чтоб немножко поменьше платить\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "19 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1957"
+  },
+  {
+    "id": "tg-1965",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n36174257\n🪪 Клиент:\n@ph0en1x92\nОтзыв:\nБыстро выполнили, буквально минута от ответа до активации!!\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "19 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1965"
+  },
+  {
+    "id": "tg-1979",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n36187333\n🪪 Клиент:\n@VIKTORY1409\nОтзыв:\nОчень быстро и оперативно помогли создать новый аккаунт и   подключить подписку Plus. Еще обязательно к вам обращусь для продления!  Благодарю🩵\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "20 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1979"
+  },
+  {
+    "id": "tg-1981",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Да, все подключилось, благодарю",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "20 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1981"
+  },
+  {
+    "id": "tg-1982",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n36192212\n🪪 Клиент:\n@na_golubkova\nОтзыв:\nКоманда поддержки быстро со мной связалась, аккаунт теперь Plus! спасибо!!\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "20 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1982"
+  },
+  {
+    "id": "tg-1984",
+    "authorName": "GPT STORE",
+    "authorUsername": null,
+    "content": "🆔 Номер заказа:\n36192297\n🪪 Клиент:\n@NOT_FOUND_NICKNAME\nОтзыв:\nОчень быстро и оперативно подключили Plus на мой аккаунт. Не ожидала такой оперативности. Спасибо. Буду еще обращаться.\n⭐️⭐️⭐️⭐️⭐️",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "20 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1984"
+  },
+  {
+    "id": "tg-1987",
+    "authorName": "Наши отзывы",
+    "authorUsername": null,
+    "content": "Спасибо, подписка активировалась без сбоев! 👍",
+    "rating": 5,
+    "tariff": "Premium",
+    "dateLabel": "21 мая 2026",
+    "sourceUrl": "https://t.me/digital_sub_reviews/1987"
   }
 ]

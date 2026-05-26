@@ -101,7 +101,10 @@ export async function createPallyPayment(
       signal: AbortSignal.timeout(PALLY_REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
-    const cause = err instanceof Error && "cause" in err ? String((err.cause as Error)?.code ?? "") : "";
+    const cause =
+      err instanceof Error && err.cause && typeof err.cause === "object" && "code" in err.cause
+        ? String((err.cause as { code?: string }).code ?? "")
+        : "";
     if (cause === "ENOTFOUND" || /fetch failed/i.test(String(err))) {
       throw new Error(
         `Не удалось связаться с Pally (${endpoint}). Проверьте PALLY_API_URL=https://pally.info/api/v1 на сервере.`,

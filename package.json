@@ -26,7 +26,11 @@
     "subs:db:commerce": "node scripts/apply-subs-commerce-migration.cjs",
     "verify": "node scripts/verify-project.cjs",
     "email:test": "node scripts/test-email-send.cjs",
-    "email:sync-vercel": "node scripts/sync-email-env-vercel.cjs"
+    "email:sync-vercel": "node scripts/sync-email-env-vercel.cjs",
+    "pally:env:sync": "node scripts/sync-pally-env-vercel.cjs",
+    "pally:env:sync:dry": "node scripts/sync-pally-env-vercel.cjs --dry-run",
+    "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py",
+    "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

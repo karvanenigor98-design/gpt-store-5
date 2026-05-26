@@ -10,6 +10,7 @@ import { PLUS_PLANS, PRO_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
 import { checkoutStep2Schema, type CheckoutStep2Input } from "@/lib/validations";
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { cn } from "@/lib/utils";
+import { getPallyEnvSetupHint, isPallyConfigError } from "@/lib/payments/pally-env-hint";
 
 const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
 
@@ -147,12 +148,14 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
       }
 
       if (!res.ok || !json.paymentUrl) {
+        const base = json.error ?? "Платёжная ссылка недоступна";
+        const pallyHint = isPallyConfigError(json.error) ? getPallyEnvSetupHint() : "";
         if (json.orderSaved) {
           setError(
-            `${json.error ?? "Платёжная ссылка недоступна"}. Заказ сохранён в админке — повторите оплату или свяжитесь с поддержкой.`,
+            `${base}. Заказ сохранён в админке — повторите оплату.${pallyHint}`,
           );
         } else {
-          setError(json.error ?? "Ошибка создания платежа. Попробуйте ещё раз.");
+          setError(`${base}.${pallyHint}`);
         }
         return;
       }

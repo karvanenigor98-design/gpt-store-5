@@ -12,6 +12,8 @@ export const metadata: Metadata = {
 };
 
 const REVIEWS_PAGE_SIZE = 80;
+/** Лимит загрузки на SSR (Vercel serverless); пагинация по 80 на странице. */
+const REVIEWS_FETCH_LIMIT = 240;
 
 export default async function PublicReviewsPage({
   searchParams,
@@ -20,7 +22,16 @@ export default async function PublicReviewsPage({
 }) {
   const { author, page: pageRaw } = await searchParams;
   const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
-  const reviews = await getPublicReviews(500, { preferCurated: true });
+
+  let reviews: Awaited<ReturnType<typeof getPublicReviews>> = [];
+  let reviewsLoadFailed = false;
+  try {
+    reviews = await getPublicReviews(REVIEWS_FETCH_LIMIT, { preferCurated: true });
+  } catch (err) {
+    console.error("[reviews] getPublicReviews failed:", err);
+    reviewsLoadFailed = true;
+  }
+
   const authorFilter = author?.trim().toLowerCase();
 
   const filteredReviews = authorFilter
@@ -47,6 +58,12 @@ export default async function PublicReviewsPage({
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-12 md:px-6">
+        {reviewsLoadFailed && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Не удалось полностью загрузить отзывы. Показаны доступные данные — обновите страницу позже.
+          </div>
+        )}
+
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-heading text-3xl font-bold text-gray-900">Отзывы клиентов</h1>

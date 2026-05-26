@@ -177,7 +177,20 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
   const curated = loadGptTelegramCuratedReviews(curatedLimit);
 
   if (options?.preferCurated && curated.length >= Math.min(cap, 12)) {
-    return finalizeAndSort(curated, options).slice(0, cap);
+    try {
+      const supabase = createAdminClient();
+      const { count } = await supabase
+        .from("reviews")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved");
+      if ((count ?? 0) >= Math.min(cap, 8)) {
+        /* enough in DB — load live below */
+      } else {
+        return finalizeAndSort(curated, options).slice(0, cap);
+      }
+    } catch {
+      return finalizeAndSort(curated, options).slice(0, cap);
+    }
   }
 
   try {

@@ -8,7 +8,10 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+ROOT = Path(__file__).resolve().parent.parent
 SOURCES = [
+    ROOT / "messages.html",
+    ROOT / "messages2.html",
     Path(r"C:/Users/User/Downloads/messages.html"),
     Path(r"C:/Users/User/Downloads/messages2.html"),
 ]
