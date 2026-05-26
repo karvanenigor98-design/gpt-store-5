@@ -10,6 +10,10 @@ const nextConfig = {
   experimental: {
     // Меньше «бочковых» импортов lucide — стабильнее граф модулей в dev (Windows).
     optimizePackageImports: ["lucide-react"],
+    outputFileTracingIncludes: {
+      "/reviews": ["./data/gpt-telegram-reviews.json", "./public/gpt-telegram-reviews.json"],
+      "/": ["./data/gpt-telegram-reviews.json", "./public/gpt-telegram-reviews.json"],
+    },
   },
   // Не ограничиваем dev-origin'ы вручную: в этом проекте это приводило к 404
   // по /_next/static/* после автосмены порта dev-сервера.

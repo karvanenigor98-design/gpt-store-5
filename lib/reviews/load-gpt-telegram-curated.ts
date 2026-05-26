@@ -1,7 +1,9 @@
-﻿import curatedRaw from "@/data/gpt-telegram-reviews.json";
+﻿import { readFileSync } from "fs";
+import { join } from "path";
+
+import curatedRaw from "@/data/gpt-telegram-reviews.json";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { resolveReviewAuthorDisplay, sanitizeReviewContent } from "@/lib/reviews/review-author-display";
-import { isGptSuitableReview } from "@/lib/reviews/is-gpt-suitable-review";
 import {
   reviewSortTimestamp,
   sortPublicReviewsNewestFirst,
@@ -9,6 +11,11 @@ import {
 } from "@/lib/reviews/review-sanitize";
 
 const REVIEW_AVATAR_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
+
+const JSON_PATHS = [
+  "data/gpt-telegram-reviews.json",
+  "public/gpt-telegram-reviews.json",
+];
 
 type CuratedRow = {
   id: string;
@@ -29,11 +36,23 @@ function initialsFromName(name: string): string {
 }
 
 function normalizeAuthorKey(value: string): string {
-  return value.trim().toLowerCase();
+  return value
+    .replace(/[\uD800-\uDFFF]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function safeEncodeURIComponent(value: string): string {
+  try {
+    return encodeURIComponent(value);
+  } catch {
+    return encodeURIComponent(value.replace(/[\uD800-\uDFFF]/g, ""));
+  }
 }
 
 function profileUrl(authorKey: string): string {
-  return `/reviews?author=${encodeURIComponent(authorKey)}`;
+  const key = normalizeAuthorKey(authorKey) || "client";
+  return `/reviews?author=${safeEncodeURIComponent(key)}`;
 }
 
 function mapRow(row: CuratedRow): PublicReview | null {
@@ -44,7 +63,7 @@ function mapRow(row: CuratedRow): PublicReview | null {
   });
 
   const content = sanitizeReviewContent(row.content.trim());
-  if (!isGptSuitableReview(content)) return null;
+  if (content.length < 8) return null;
 
   const authorKey = normalizeAuthorKey(username || authorName);
   const usernameClean = username ? username.replace(/^@+/, "") : null;
@@ -70,9 +89,46 @@ function hashString(s: string): number {
   return h;
 }
 
-/** Отзывы GPT STORE из Telegram-экспорта (messages.html + messages2.html). */
-export function loadGptTelegramCuratedReviews(limit?: number): PublicReview[] {
-  const rows = curatedRaw as CuratedRow[];
+function readCuratedRowsFromFs(): CuratedRow[] {
+  const root = process.cwd();
+  for (const rel of JSON_PATHS) {
+    try {
+      const text = readFileSync(join(root, rel), "utf8");
+      const parsed = JSON.parse(text) as unknown;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as CuratedRow[];
+      }
+    } catch {
+      /* try next path */
+    }
+  }
+  return [];
+}
+
+function readCuratedRowsSync(): CuratedRow[] {
+  const imported = Array.isArray(curatedRaw) ? (curatedRaw as CuratedRow[]) : [];
+  if (imported.length > 0) return imported;
+  return readCuratedRowsFromFs();
+}
+
+async function readCuratedRowsFromNetwork(): Promise<CuratedRow[]> {
+  const origin =
+    process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
+    "https://gpt-store-5.vercel.app";
+  try {
+    const res = await fetch(`${origin}/gpt-telegram-reviews.json`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const parsed = (await res.json()) as unknown;
+    return Array.isArray(parsed) ? (parsed as CuratedRow[]) : [];
+  } catch (err) {
+    console.error("[reviews] fetch gpt-telegram-reviews.json failed:", err);
+    return [];
+  }
+}
+
+function buildReviews(rows: CuratedRow[], limit?: number): PublicReview[] {
   const out: PublicReview[] = [];
   const seen = new Set<string>();
 
@@ -86,4 +142,17 @@ export function loadGptTelegramCuratedReviews(limit?: number): PublicReview[] {
   }
 
   return sortPublicReviewsNewestFirst(out).slice(0, limit ?? out.length);
+}
+
+/** Отзывы GPT STORE из Telegram-экспорта (messages.html + messages2.html). */
+export function loadGptTelegramCuratedReviews(limit?: number): PublicReview[] {
+  return buildReviews(readCuratedRowsSync(), limit);
+}
+
+export async function loadGptTelegramCuratedReviewsAsync(limit?: number): Promise<PublicReview[]> {
+  let rows = readCuratedRowsSync();
+  if (rows.length === 0) {
+    rows = await readCuratedRowsFromNetwork();
+  }
+  return buildReviews(rows, limit);
 }

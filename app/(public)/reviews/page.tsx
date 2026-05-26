@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { resolveSearchParams } from "@/lib/next-search-params";
-import { loadGptTelegramCuratedReviews } from "@/lib/reviews/load-gpt-telegram-curated";
+import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 
 export const dynamic = "force-dynamic";
@@ -16,17 +16,17 @@ export const metadata: Metadata = {
 };
 
 const REVIEWS_PAGE_SIZE = 80;
-/** Лимит загрузки на SSR (Vercel serverless); пагинация по 80 на странице. */
-const REVIEWS_FETCH_LIMIT = 240;
 
-function loadReviewsSafe(limit: number): PublicReview[] {
+export const runtime = "nodejs";
+
+async function loadReviewsSafe(): Promise<PublicReview[]> {
   try {
-    const curated = loadGptTelegramCuratedReviews(limit);
-    if (curated.length >= 8) return curated;
+    const curated = await loadGptTelegramCuratedReviewsAsync();
+    if (curated.length > 0) return curated;
   } catch (err) {
     console.error("[reviews] curated load failed:", err);
   }
-  return getStaticGptLandingReviews(limit);
+  return getStaticGptLandingReviews(12);
 }
 
 export default async function PublicReviewsPage({
@@ -37,7 +37,7 @@ export default async function PublicReviewsPage({
   const { author, page: pageRaw } = await resolveSearchParams(searchParams);
   const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
 
-  const reviews = loadReviewsSafe(REVIEWS_FETCH_LIMIT);
+  const reviews = await loadReviewsSafe();
 
   const authorFilter = author?.trim().toLowerCase();
 

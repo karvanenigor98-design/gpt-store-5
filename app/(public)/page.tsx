@@ -18,8 +18,8 @@ import { TokenSafetySection } from "@/components/sections/TokenSafetySection";
 import { WhyCheaperSection } from "@/components/sections/WhyCheaperSection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { getPublicSiteOrigin } from "@/lib/app-url";
-import { getStaticGptLandingPayload, getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
-import { getPublicReviews } from "@/lib/reviews/publicReviews";
+import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
+import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -41,13 +41,7 @@ export const dynamic = "force-dynamic";
 /** Одобренные отзывы из БД; статика — только если БД пуста. */
 export default async function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
-  let reviews = getStaticGptLandingReviews(40);
-  try {
-    const live = await getPublicReviews(80, { uniqueAuthors: true, preferCurated: false });
-    if (live.length) reviews = live;
-  } catch {
-    /* fallback static */
-  }
+  const reviews = await loadGptTelegramCuratedReviewsAsync(80);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;

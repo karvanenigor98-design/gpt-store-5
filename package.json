@@ -18,6 +18,7 @@
     "dev:clean": "node scripts/ensure-dev-root.js && node scripts/free-dev-ports.js && npm run clean && node scripts/run-next-dev-subs-port.js",
     "dev:fixed": "node scripts/ensure-dev-root.js && node scripts/run-next-dev-fixed-port.js",
     "build:clean": "npm run clean && next build",
+    "prebuild": "node scripts/copy-gpt-reviews-to-public.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -30,7 +31,7 @@
     "pally:env:sync": "node scripts/sync-pally-env-vercel.cjs",
     "pally:env:sync:dry": "node scripts/sync-pally-env-vercel.cjs --dry-run",
     "pally:test": "node scripts/test-pally-connect.cjs",
-    "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py",
+    "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py && node scripts/copy-gpt-reviews-to-public.cjs",
     "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs",
     "gpt:db:reviews-import": "node scripts/apply-gpt-reviews-payment-migration.cjs"
   },

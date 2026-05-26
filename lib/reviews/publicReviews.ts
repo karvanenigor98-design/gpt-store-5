@@ -176,7 +176,7 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
   const curatedLimit = options?.preferCurated ? 500 : options?.randomize ? 500 : cap;
   const curated = loadGptTelegramCuratedReviews(curatedLimit);
 
-  if (options?.preferCurated && curated.length >= Math.min(cap, 12)) {
+  if (options?.preferCurated !== false && curated.length > 0) {
     return finalizeAndSort(curated, options).slice(0, cap);
   }
 
