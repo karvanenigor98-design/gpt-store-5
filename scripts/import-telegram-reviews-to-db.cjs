@@ -75,6 +75,9 @@ async function main() {
   const { data: site } = await supabase.from("sites").select("id").eq("slug", "gpt-store").maybeSingle();
   const siteId = site?.id ?? null;
 
+  const { error: colProbe } = await supabase.from("reviews").select("source_file").limit(1);
+  const extendedImport = !colProbe || !/source_file/i.test(colProbe.message ?? "");
+
   const report = {
     total: rows.length,
     imported: 0,
@@ -91,7 +94,7 @@ async function main() {
     const hash = normalizeHash(content);
     const telegramDate = toIsoFromSortTs(row.sortTs);
 
-    if (telegramMessageId != null && sourceFile) {
+    if (extendedImport && telegramMessageId != null && sourceFile) {
       const { data: existing } = await supabase
         .from("reviews")
         .select("id,status")
@@ -107,6 +110,18 @@ async function main() {
         }
         continue;
       }
+    } else if (telegramMessageId != null) {
+      const { data: existing } = await supabase
+        .from("reviews")
+        .select("id,status")
+        .eq("telegram_message_id", telegramMessageId)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.status === "approved") report.skippedExistingPublished += 1;
+        else report.skippedDuplicate += 1;
+        continue;
+      }
     }
 
     const payload = {
@@ -118,14 +133,19 @@ async function main() {
       original_url: row.sourceUrl ?? null,
       telegram_date: telegramDate,
       status: "approved",
-      source: "telegram",
-      source_file: sourceFile,
-      normalized_hash: hash,
-      imported_at: new Date().toISOString(),
-      published_at: telegramDate,
-      rating: row.rating != null ? Math.min(5, Math.max(1, Math.round(row.rating))) : 5,
-      raw_payload: row,
     };
+
+    if (extendedImport) {
+      Object.assign(payload, {
+        source: "telegram",
+        source_file: sourceFile,
+        normalized_hash: hash,
+        imported_at: new Date().toISOString(),
+        published_at: telegramDate,
+        rating: row.rating != null ? Math.min(5, Math.max(1, Math.round(row.rating))) : 5,
+        raw_payload: row,
+      });
+    }
 
     const { error } = await supabase.from("reviews").insert(payload);
     if (error) {

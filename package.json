@@ -30,7 +30,8 @@
     "pally:env:sync": "node scripts/sync-pally-env-vercel.cjs",
     "pally:env:sync:dry": "node scripts/sync-pally-env-vercel.cjs --dry-run",
     "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py",
-    "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs"
+    "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs",
+    "gpt:db:reviews-import": "node scripts/apply-gpt-reviews-payment-migration.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
