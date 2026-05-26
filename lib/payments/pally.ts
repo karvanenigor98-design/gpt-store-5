@@ -87,22 +87,30 @@ function resolvePaymentUrl(data: Record<string, unknown>): string {
   return "";
 }
 
+function extractDeniedIp(data: Record<string, unknown>): string | null {
+  const errors = data.errors;
+  if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+    const ip = (errors as Record<string, unknown>).ip;
+    if (typeof ip === "string" && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return ip;
+  }
+  const msg = String(data.message ?? "");
+  const m = msg.match(/\b(\d{1,3}(?:\.\d{1,3}){3})\b/);
+  return m?.[1] ?? null;
+}
+
 async function formatPallyError(
   data: Record<string, unknown>,
   status: number,
 ): Promise<string> {
   const message = String(data.message ?? data.error ?? "").trim();
   if (message.includes("ip_access_denied")) {
-    const egress = await detectEgressIp();
-    const relayHint = process.env.PALLY_RELAY_URL
-      ? ""
-      : " Настройте PALLY_RELAY_URL (см. tools/pally-relay/README.md) — один фиксированный IP для Pally.";
-    const ipHint = egress ? ` Текущий egress Vercel: ${egress}.` : "";
-    return (
-      "Pally отклонил запрос: IP сервера не в белом списке." +
-      ipHint +
-      relayHint
-    );
+    const deniedIp = extractDeniedIp(data) ?? (await detectEgressIp());
+    const relayUrl = process.env.PALLY_RELAY_URL?.trim();
+    const relayHint = relayUrl
+      ? ` Relay (${relayUrl}) недоступен или не задеплоен — см. tools/pally-relay/setup-vps-cloudflared.sh`
+      : " Настройте PALLY_RELAY_URL (tools/pally-relay/setup-vps-cloudflared.sh) или добавьте IP в Pally whitelist.";
+    const ipHint = deniedIp ? ` IP для whitelist: ${deniedIp}.` : "";
+    return "Pally отклонил запрос: IP сервера не в белом списке." + ipHint + relayHint;
   }
   if (message) return `Pally: ${message}`;
   return `Pally API ошибка (HTTP ${status})`;

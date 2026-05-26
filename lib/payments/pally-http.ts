@@ -52,11 +52,30 @@ export async function pallyHttpPost(
   }
 
   try {
-    return await doFetch(url, headers);
+    const relayRes = await doFetch(url, headers);
+    const cloned = relayRes.clone();
+    try {
+      const body = (await cloned.json()) as { message?: string };
+      if (String(body.message ?? "").includes("ip_access_denied")) {
+        return relayRes;
+      }
+    } catch {
+      /* not json */
+    }
+    if (relayRes.ok) return relayRes;
+    if (process.env.PALLY_RELAY_STRICT === "true") return relayRes;
   } catch {
-    // Relay не задеплоен / DNS — fallback на прямой Pally (whitelist Vercel IP)
-    return doFetch(directUrl, init.headers);
+    /* relay network error */
   }
+
+  if (process.env.PALLY_RELAY_STRICT === "true") {
+    throw new Error(
+      `Pally relay недоступен (${relay.base}). Задеплойте relay или снимите PALLY_RELAY_STRICT.`,
+    );
+  }
+
+  // Relay не задеплоен — fallback на прямой Pally (нужен whitelist Vercel IP)
+  return doFetch(directUrl, init.headers);
 }
 
 /** Текущий исходящий IP (для диагностики ip_access_denied). */

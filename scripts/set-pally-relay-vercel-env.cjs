@@ -19,6 +19,22 @@ function loadJson(p) {
 
 function loadToken() {
   if (process.env.VERCEL_TOKEN?.trim()) return process.env.VERCEL_TOKEN.trim();
+
+  const authPaths = [
+    path.join(require("os").homedir(), "AppData", "Roaming", "com.vercel.cli", "Data", "auth.json"),
+    path.join(require("os").homedir(), ".local-share", "com.vercel.cli", "auth.json"),
+  ];
+  for (const authFile of authPaths) {
+    if (!fs.existsSync(authFile)) continue;
+    try {
+      const data = JSON.parse(fs.readFileSync(authFile, "utf8"));
+      const token = data.token || data.credentials?.[0]?.token;
+      if (token) return token;
+    } catch {
+      /* next */
+    }
+  }
+
   if (!fs.existsSync(ENV_FILE)) return null;
   for (const line of fs.readFileSync(ENV_FILE, "utf8").split(/\r?\n/)) {
     const t = line.trim();
