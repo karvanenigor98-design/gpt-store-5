@@ -38,13 +38,25 @@ export async function pallyHttpPost(
 
   const dispatcher = proxyDispatcher();
 
-  return undiciFetch(url, {
-    method: "POST",
-    headers,
-    body: init.body,
-    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-    dispatcher,
-  }) as unknown as Promise<Response>;
+  const doFetch = (targetUrl: string, hdrs: Record<string, string>) =>
+    undiciFetch(targetUrl, {
+      method: "POST",
+      headers: hdrs,
+      body: init.body,
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+      dispatcher,
+    }) as unknown as Promise<Response>;
+
+  if (!relay) {
+    return doFetch(directUrl, init.headers);
+  }
+
+  try {
+    return await doFetch(url, headers);
+  } catch {
+    // Relay не задеплоен / DNS — fallback на прямой Pally (whitelist Vercel IP)
+    return doFetch(directUrl, init.headers);
+  }
 }
 
 /** Текущий исходящий IP (для диагностики ip_access_denied). */
