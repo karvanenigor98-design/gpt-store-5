@@ -31,6 +31,7 @@
     "pally:env:sync": "node scripts/sync-pally-env-vercel.cjs",
     "pally:env:sync:dry": "node scripts/sync-pally-env-vercel.cjs --dry-run",
     "pally:test": "node scripts/test-pally-connect.cjs",
+    "vercel:static-ips": "node scripts/enable-vercel-static-ips.cjs",
     "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py && node scripts/copy-gpt-reviews-to-public.cjs",
     "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs",
     "gpt:db:reviews-import": "node scripts/apply-gpt-reviews-payment-migration.cjs"
@@ -67,6 +68,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^54.4.1"
   }
 }
