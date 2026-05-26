@@ -13,7 +13,17 @@ export function getPallyEnvSetupHint(): string {
 
 export function isPallyConfigError(message: string | undefined): boolean {
   if (!message) return false;
-  return /pally|fetch failed|PALLY_|не настроен|временно недоступна|связаться с pally|ENOTFOUND/i.test(
+  return /pally|fetch failed|PALLY_|не настроен|временно недоступна|связаться с pally|ENOTFOUND|ip_access|белом списке/i.test(
     message,
   );
+}
+
+export function formatPallyCheckoutError(message: string): string {
+  if (/ip_access|белом списке/i.test(message)) {
+    return `${message} Заказ сохранён — оплату можно повторить после настройки Pally.`;
+  }
+  if (isPallyConfigError(message)) {
+    return `${message}${getPallyEnvSetupHint()}`;
+  }
+  return message;
 }

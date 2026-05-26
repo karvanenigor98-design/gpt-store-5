@@ -7,7 +7,7 @@ import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { SPOTIFY_PLANS, SPOTIFY_ACCENT, SPOTIFY_GLOW, type SpotifyPlan } from "@/lib/content/spotify";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
-import { getPallyEnvSetupHint, isPallyConfigError } from "@/lib/payments/pally-env-hint";
+import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
 
 const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
 
@@ -123,12 +123,11 @@ export function SpotifyCheckoutFlow() {
         orderSaved?: boolean;
       };
       if (!res.ok || !json.paymentUrl) {
-        const base = json.error ?? "Не удалось создать ссылку на оплату";
-        const hint = isPallyConfigError(json.error) ? getPallyEnvSetupHint() : "";
+        const base = formatPallyCheckoutError(json.error ?? "Не удалось создать ссылку на оплату");
         setPayError(
-          json.orderSaved
-            ? `${base}. Заказ сохранён в админке — повторите оплату.${hint}`
-            : `${base}.${hint}`,
+          json.orderSaved && !/заказ сохранён/i.test(base)
+            ? `${base} Заказ сохранён в админке — повторите оплату.`
+            : base,
         );
         return;
       }

@@ -3,10 +3,12 @@ import Link from "next/link";
 
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
+import { resolveSearchParams } from "@/lib/next-search-params";
 import { loadGptTelegramCuratedReviews } from "@/lib/reviews/load-gpt-telegram-curated";
-import { getPublicReviews } from "@/lib/reviews/publicReviews";
+import type { PublicReview } from "@/lib/reviews/publicReviews";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Отзывы клиентов",
@@ -17,35 +19,25 @@ const REVIEWS_PAGE_SIZE = 80;
 /** Лимит загрузки на SSR (Vercel serverless); пагинация по 80 на странице. */
 const REVIEWS_FETCH_LIMIT = 240;
 
+function loadReviewsSafe(limit: number): PublicReview[] {
+  try {
+    const curated = loadGptTelegramCuratedReviews(limit);
+    if (curated.length >= 8) return curated;
+  } catch (err) {
+    console.error("[reviews] curated load failed:", err);
+  }
+  return getStaticGptLandingReviews(limit);
+}
+
 export default async function PublicReviewsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ author?: string; page?: string }>;
+  searchParams?: Promise<{ author?: string; page?: string }> | { author?: string; page?: string };
 }) {
-  const { author, page: pageRaw } = await searchParams;
+  const { author, page: pageRaw } = await resolveSearchParams(searchParams);
   const page = Math.max(1, Number.parseInt(pageRaw ?? "1", 10) || 1);
 
-  let reviews: Awaited<ReturnType<typeof getPublicReviews>> = loadGptTelegramCuratedReviews(
-    REVIEWS_FETCH_LIMIT,
-  );
-  let reviewsLoadFailed = false;
-
-  if (reviews.length < 8) {
-    reviews = getStaticGptLandingReviews(REVIEWS_FETCH_LIMIT);
-  }
-
-  try {
-    const live = await getPublicReviews(REVIEWS_FETCH_LIMIT, {
-      preferCurated: false,
-      minDate: false,
-    });
-    if (live.length > reviews.length) {
-      reviews = live;
-    }
-  } catch (err) {
-    console.error("[reviews] getPublicReviews failed:", err);
-    if (reviews.length === 0) reviewsLoadFailed = true;
-  }
+  const reviews = loadReviewsSafe(REVIEWS_FETCH_LIMIT);
 
   const authorFilter = author?.trim().toLowerCase();
 
@@ -73,12 +65,6 @@ export default async function PublicReviewsPage({
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-12 md:px-6">
-        {reviewsLoadFailed && (
-          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Не удалось полностью загрузить отзывы. Показаны доступные данные — обновите страницу позже.
-          </div>
-        )}
-
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-heading text-3xl font-bold text-gray-900">Отзывы клиентов</h1>
@@ -114,9 +100,9 @@ export default async function PublicReviewsPage({
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-gray-900">{review.authorName}</p>
-                      {review.rating && (
+                      {review.rating != null && review.rating > 0 && (
                         <span className="inline-flex text-base leading-none tracking-[0.24em] text-amber-400">
-                          {"★".repeat(review.rating)}
+                          {"★".repeat(Math.min(5, Math.round(review.rating)))}
                         </span>
                       )}
                     </div>

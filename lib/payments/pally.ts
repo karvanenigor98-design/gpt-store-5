@@ -88,7 +88,10 @@ function resolvePaymentUrl(data: Record<string, unknown>): string {
 function formatPallyError(data: Record<string, unknown>, status: number): string {
   const message = String(data.message ?? data.error ?? "").trim();
   if (message.includes("ip_access_denied")) {
-    return "Pally отклонил запрос: IP сервера не в белом списке. Добавьте IP Vercel в настройках магазина Pally.";
+    return (
+      "Pally отклонил запрос: IP сервера Vercel не в белом списке. " +
+      "В кабинете Pally → настройки магазина отключите фильтр по IP или добавьте Static IPs Vercel (регион fra1)."
+    );
   }
   if (message) return `Pally: ${message}`;
   return `Pally API ошибка (HTTP ${status})`;

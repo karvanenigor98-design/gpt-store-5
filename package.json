@@ -29,6 +29,7 @@
     "email:sync-vercel": "node scripts/sync-email-env-vercel.cjs",
     "pally:env:sync": "node scripts/sync-pally-env-vercel.cjs",
     "pally:env:sync:dry": "node scripts/sync-pally-env-vercel.cjs --dry-run",
+    "pally:test": "node scripts/test-pally-connect.cjs",
     "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py",
     "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs",
     "gpt:db:reviews-import": "node scripts/apply-gpt-reviews-payment-migration.cjs"
