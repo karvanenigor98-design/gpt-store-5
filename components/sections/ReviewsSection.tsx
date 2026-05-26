@@ -7,7 +7,8 @@ import { fadeUp } from "@/lib/motion-config";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { sortPublicReviewsNewestFirst, shouldHideUsername } from "@/lib/reviews/review-sanitize";
 
-const VISIBLE_COUNT = 4;
+const PREVIEW_COUNT = 4;
+const EXPAND_CHUNK = 60;
 const ROTATE_MS = 10_000;
 
 function ReviewCard({ review }: { review: PublicReview }) {
@@ -45,6 +46,7 @@ function ReviewCard({ review }: { review: PublicReview }) {
 export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
   const [expanded, setExpanded] = useState(false);
   const [startIndex, setStartIndex] = useState(0);
+  const [expandedVisible, setExpandedVisible] = useState(EXPAND_CHUNK);
 
   const pool = useMemo(
     () => (reviews.length ? sortPublicReviewsNewestFirst(reviews) : []),
@@ -52,26 +54,35 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
   );
 
   useEffect(() => {
-    if (expanded || pool.length <= VISIBLE_COUNT) return;
+    if (expanded || pool.length <= PREVIEW_COUNT) return;
     const id = window.setInterval(() => {
-      setStartIndex((i) => (i + VISIBLE_COUNT) % pool.length);
+      setStartIndex((i) => (i + PREVIEW_COUNT) % pool.length);
     }, ROTATE_MS);
     return () => window.clearInterval(id);
   }, [expanded, pool.length]);
 
-  const visibleReviews = useMemo(() => {
-    if (expanded) return pool;
-    if (pool.length <= VISIBLE_COUNT) return pool;
+  useEffect(() => {
+    if (expanded) setExpandedVisible(EXPAND_CHUNK);
+  }, [expanded]);
+
+  const previewReviews = useMemo(() => {
+    if (pool.length <= PREVIEW_COUNT) return pool;
     const out: PublicReview[] = [];
-    for (let i = 0; i < VISIBLE_COUNT; i++) {
+    for (let i = 0; i < PREVIEW_COUNT; i++) {
       out.push(pool[(startIndex + i) % pool.length]!);
     }
     return out;
-  }, [expanded, pool, startIndex]);
+  }, [pool, startIndex]);
 
-  const leftCol = visibleReviews.filter((_, i) => i % 2 === 0);
-  const rightCol = visibleReviews.filter((_, i) => i % 2 !== 0);
-  const hasMore = pool.length > VISIBLE_COUNT;
+  const expandedList = useMemo(
+    () => pool.slice(0, expandedVisible),
+    [pool, expandedVisible],
+  );
+
+  const leftCol = previewReviews.filter((_, i) => i % 2 === 0);
+  const rightCol = previewReviews.filter((_, i) => i % 2 !== 0);
+  const hasMore = pool.length > PREVIEW_COUNT;
+  const canLoadMore = expanded && expandedVisible < pool.length;
 
   if (pool.length === 0) {
     return (
@@ -79,8 +90,7 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
         <div className="mx-auto max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
           <h2 className="font-heading text-xl font-bold text-gray-900">Отзывы временно не отображаются</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Не удалось загрузить отзывы из Telegram-экспорта. Проверьте файл{" "}
-            <code className="rounded bg-white px-1">data/gpt-telegram-reviews.json</code> и пересоберите сайт.
+            Не удалось загрузить отзывы из Telegram-экспорта. Обновите страницу через минуту.
           </p>
         </div>
       </section>
@@ -104,58 +114,73 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
             Что говорят клиенты
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
-            Публикуем реальные отзывы из Telegram и профилей клиентов на сайте.
+            {pool.length} реальных отзывов из Telegram — сначала самые новые.
           </p>
         </motion.div>
 
-        <div className="hidden items-start gap-6 md:flex">
-          <div className="flex flex-1 flex-col gap-6">
-            <AnimatePresence mode="popLayout">
-              {leftCol.map((review) => (
-                <motion.div
-                  key={`${review.id}-${startIndex}`}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <ReviewCard review={review} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-          <div className="mt-10 flex flex-1 flex-col gap-6">
-            <AnimatePresence mode="popLayout">
-              {rightCol.map((review) => (
-                <motion.div
-                  key={`${review.id}-${startIndex}-r`}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <ReviewCard review={review} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
+        {!expanded ? (
+          <>
+            <div className="hidden items-start gap-6 md:flex">
+              <div className="flex flex-1 flex-col gap-6">
+                <AnimatePresence mode="popLayout">
+                  {leftCol.map((review) => (
+                    <motion.div
+                      key={`${review.id}-${startIndex}`}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.35 }}
+                    >
+                      <ReviewCard review={review} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+              <div className="mt-10 flex flex-1 flex-col gap-6">
+                <AnimatePresence mode="popLayout">
+                  {rightCol.map((review) => (
+                    <motion.div
+                      key={`${review.id}-${startIndex}-r`}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.35 }}
+                    >
+                      <ReviewCard review={review} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
 
-        <div className="flex flex-col gap-4 md:hidden">
-          <AnimatePresence mode="wait">
-            {visibleReviews.map((review) => (
-              <motion.div
-                key={`${review.id}-${startIndex}-m`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ReviewCard review={review} />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+            <div className="flex flex-col gap-4 md:hidden">
+              <AnimatePresence mode="wait">
+                {previewReviews.map((review) => (
+                  <motion.div
+                    key={`${review.id}-${startIndex}-m`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ReviewCard review={review} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-center text-sm text-gray-500">
+              Показано {expandedList.length} из {pool.length}
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {expandedList.map((review) => (
+                <ReviewCard key={review.id} review={review} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           {hasMore && !expanded ? (
@@ -164,14 +189,34 @@ export function ReviewsSection({ reviews }: { reviews: PublicReview[] }) {
               onClick={() => setExpanded(true)}
               className="inline-flex items-center rounded-lg border border-black/10 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
             >
-              Показать больше
+              Показать все {pool.length} отзывов
             </button>
+          ) : null}
+          {expanded ? (
+            <>
+              {canLoadMore ? (
+                <button
+                  type="button"
+                  onClick={() => setExpandedVisible((n) => Math.min(n + EXPAND_CHUNK, pool.length))}
+                  className="inline-flex items-center rounded-lg border border-black/10 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                >
+                  Ещё {Math.min(EXPAND_CHUNK, pool.length - expandedVisible)} отзывов
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="inline-flex items-center rounded-lg border border-black/10 px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100"
+              >
+                Свернуть
+              </button>
+            </>
           ) : null}
           <Link
             href="/reviews"
             className="inline-flex items-center rounded-lg border border-[#10a37f]/20 px-4 py-2 text-sm font-medium text-[#10a37f] transition-colors hover:bg-[#10a37f]/5"
           >
-            Все отзывы
+            Открыть на отдельной странице
           </Link>
         </div>
       </div>

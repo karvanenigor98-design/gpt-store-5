@@ -37,11 +37,13 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+export const runtime = "nodejs";
 
-/** Одобренные отзывы из БД; статика — только если БД пуста. */
+/** Все отзывы из Telegram-экспорта (messages.html + messages2.html), новые первыми. */
 export default async function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
-  const reviews = await loadGptTelegramCuratedReviewsAsync(80);
+  const reviews = await loadGptTelegramCuratedReviewsAsync();
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;
