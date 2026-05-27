@@ -6,6 +6,7 @@ import { isSpotifySuitableReview } from "./is-spotify-suitable-review";
 import { loadSpotifyTelegramCuratedReviews } from "./load-spotify-telegram-curated";
 import { getPublicReviews } from "./publicReviews";
 import { resolveReviewAuthorDisplay } from "./review-author-display";
+import { reviewSortTimestamp } from "./review-sanitize";
 
 const REVIEW_AVATAR_COLORS = ["#1DB954", "#2d6a4f", "#1a7a4a", "#0d7377", "#155724", "#ef4444", "#f59e0b"];
 
@@ -82,7 +83,16 @@ function mapSubsRow(row: {
     content: text || "—",
     sourceUrl: null,
     inSiteProfileUrl: profileUrl(authorKey),
+    sortTs: row.created_at ?? null,
   };
+}
+
+function sortSpotifyReviewsNewestFirst(items: SpotifyLandingReview[]): SpotifyLandingReview[] {
+  return [...items].sort((a, b) => {
+    const tb = reviewSortTimestamp(b.dateLabel, b.sortTs);
+    const ta = reviewSortTimestamp(a.dateLabel, a.sortTs);
+    return tb - ta;
+  });
 }
 
 function dedupeReviews(items: SpotifyLandingReview[]): SpotifyLandingReview[] {
@@ -158,6 +168,7 @@ function mapGptReviewToSpotify(
     content: item.content,
     sourceUrl: item.sourceUrl,
     inSiteProfileUrl: profileUrl(authorKey),
+    sortTs: item.sortTs ?? null,
   };
 }
 
@@ -181,8 +192,10 @@ export async function getSpotifyPublicReviews(limit = 200): Promise<SpotifyLandi
     ...telegramReviews.map(mapGptReviewToSpotify),
   ]);
 
-  const merged = dedupeReviews([...curated, ...fromDb]);
+  const merged = sortSpotifyReviewsNewestFirst(dedupeReviews([...curated, ...fromDb]));
 
-  if (!merged.length) return filterSuitable(fallbackReviews()).slice(0, limit);
+  if (!merged.length) {
+    return sortSpotifyReviewsNewestFirst(filterSuitable(fallbackReviews())).slice(0, limit);
+  }
   return merged.slice(0, limit);
 }

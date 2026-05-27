@@ -13,6 +13,8 @@ export type SpotifyLandingReview = {
   content: string;
   sourceUrl?: string | null;
   inSiteProfileUrl?: string;
+  /** ISO или ms — сортировка «сначала новые» (не показывается в UI). */
+  sortTs?: string | number | null;
 };
 
 export type SpotifyLandingFaqItem = { question: string; answer: string };
