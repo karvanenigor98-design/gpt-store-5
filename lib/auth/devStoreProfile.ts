@@ -96,7 +96,8 @@ export function resolveAuthSiteContext(params: {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/verify-email") ||
-    pathname.startsWith("/callback");
+    pathname.startsWith("/callback") ||
+    pathname.startsWith("/auth/callback");
 
   const isRecoveryCallback =
     pathname.startsWith("/callback") && params.recoveryFlow === true;

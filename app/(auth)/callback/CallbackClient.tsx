@@ -121,7 +121,9 @@ function detectSubsFromWindow(): boolean {
     detectAuthSiteFromStrings(
       siteHint,
       rawReturnUrl,
-      readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+      readBrowserCookie("pending_signup_site") ||
+        readBrowserCookie("auth_reset_site") ||
+        readBrowserCookie("current_site"),
       "/callback",
     ) === "subs-store"
   );
@@ -166,7 +168,9 @@ export function CallbackClient() {
         : detectAuthSiteFromStrings(
             siteHint,
             url.searchParams.get("returnUrl") ?? "",
-            readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+            readBrowserCookie("pending_signup_site") ||
+              readBrowserCookie("auth_reset_site") ||
+              readBrowserCookie("current_site"),
             "/callback",
           ) === "subs-store";
 
@@ -283,6 +287,22 @@ export function CallbackClient() {
       }
 
       if (clientRetryExhausted && isSignupFlow) {
+        if (pendingSignupEmail) {
+          try {
+            const statusRes = await fetch(
+              `/api/auth/confirmation-status?email=${encodeURIComponent(decodeURIComponent(pendingSignupEmail))}&site=${siteSlug}`,
+            );
+            if (statusRes.ok) {
+              const statusJson = (await statusRes.json()) as { emailConfirmed?: boolean };
+              if (statusJson.emailConfirmed) {
+                verifyErr("used");
+                return;
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
         verifyErr("callback");
         return;
       }

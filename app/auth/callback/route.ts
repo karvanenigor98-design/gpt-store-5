@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { clearOppositeAuthSession } from "@/lib/auth/clearOppositeAuthSession";
+import { getEmailConfirmationState } from "@/lib/auth/get-auth-user-by-email";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { syncSubsProfileRoleForUser } from "@/lib/auth/subsProfileSync";
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
   const type = requestUrl.searchParams.get("type");
   const cookieSite = request.cookies.get("current_site")?.value;
   const resetSiteCookie = request.cookies.get("auth_reset_site")?.value;
+  const pendingSignupSiteCookie = request.cookies.get("pending_signup_site")?.value;
   const pendingSignupEmail = request.cookies.get("pending_signup_email")?.value?.trim() ?? "";
   const isRecovery =
     type === "recovery" ||
@@ -91,6 +93,7 @@ export async function GET(request: NextRequest) {
       siteFromReturnParam(requestUrl, false) ??
       "gpt-store")
     : (siteFromQuery(requestUrl) ??
+      siteFromCookie(pendingSignupSiteCookie) ??
       siteFromReturnParam(requestUrl, true) ??
       siteFromCookie(resetSiteCookie) ??
       siteFromCookie(cookieSite) ??
@@ -161,7 +164,7 @@ export async function GET(request: NextRequest) {
     q.set("error", "config");
     q.set(
       "detail",
-      "Нужны NEXT_PUBLIC_SUBS_SUPABASE_URL и NEXT_PUBLIC_SUBS_SUPABASE_ANON_KEY в .env.local (без них Subs Auth не завершит вход).",
+      "Нужны NEXT_PUBLIC_SUBS_SUPABASE_URL и NEXT_PUBLIC_SUBS_SUPABASE_ANON_KEY в .env.local (без них Spotify Store Auth не завершит вход).",
     );
     return NextResponse.redirect(`${origin}/login?${q.toString()}`);
   }
@@ -179,7 +182,7 @@ export async function GET(request: NextRequest) {
     q.set(
       "detail",
       exchangeOnSubs
-        ? "Не заданы URL/anon для Subs Auth (NEXT_PUBLIC_SUBS_SUPABASE_URL / NEXT_PUBLIC_SUBS_SUPABASE_ANON_KEY)."
+        ? "Не заданы URL/anon для Spotify Store Auth (NEXT_PUBLIC_SUBS_SUPABASE_URL / NEXT_PUBLIC_SUBS_SUPABASE_ANON_KEY)."
         : "Не заданы NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     );
     if (exchangeOnSubs) q.set("site", "subs-store");
@@ -249,12 +252,17 @@ export async function GET(request: NextRequest) {
       console.error("[auth/callback] exchangeCodeForSession error:", error.message);
       exchangeError = error.message;
     }
-  } else if (token_hash && type) {
-    // token_hash не зависит от PKCE-verifier в этом браузере — чистим чужую сессию.
+  } else if (token_hash) {
+    // token_hash не зависит от PKCE-verifier — работает на любом устройстве.
     await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    const otpType = (type ?? (isRecovery ? "recovery" : "signup")) as
+      | "signup"
+      | "recovery"
+      | "email"
+      | "invite";
     const { error } = await supabase.auth.verifyOtp({
       token_hash,
-      type: type as "signup" | "recovery" | "email" | "invite",
+      type: otpType,
     });
     if (error) {
       console.error("[auth/callback] verifyOtp error:", error.message);
@@ -289,6 +297,7 @@ export async function GET(request: NextRequest) {
       );
       const res = redirectWithAuthCookies(`${origin}${path}`, siteParam);
       res.cookies.set("pending_signup_email", "", { path: "/", maxAge: 0 });
+      res.cookies.set("pending_signup_site", "", { path: "/", maxAge: 0 });
       return res;
     }
 
@@ -338,6 +347,30 @@ export async function GET(request: NextRequest) {
         `${origin}/reset-password?error=${isExpired ? "expired" : "callback"}${siteQuery}`
       );
     }
+
+    const emailForStatus = normalizeEmailForAuth(
+      pendingSignupEmail || requestUrl.searchParams.get("email") || "",
+    );
+    if (emailForStatus && isEmailConfirmation && !isRecovery) {
+      let confirmedState = await getEmailConfirmationState(emailForStatus, siteParam);
+      if (!confirmedState.emailConfirmed) {
+        const otherSite: SiteSlug = siteParam === "subs-store" ? "gpt-store" : "subs-store";
+        const otherState = await getEmailConfirmationState(emailForStatus, otherSite);
+        if (otherState.emailConfirmed) {
+          confirmedState = otherState;
+          if (otherState.signupSite) siteParam = otherState.signupSite;
+        }
+      }
+      if (confirmedState.emailConfirmed) {
+        const verifyQ = new URLSearchParams({ error: "used", email: emailForStatus });
+        if (siteParam === "subs-store") verifyQ.set("site", "subs-store");
+        const res = redirectWithAuthCookies(`${origin}/verify-email?${verifyQ.toString()}`);
+        res.cookies.set("pending_signup_email", "", { path: "/", maxAge: 0 });
+        res.cookies.set("pending_signup_site", "", { path: "/", maxAge: 0 });
+        return res;
+      }
+    }
+
     const verifyQ = new URLSearchParams({
       error: isExpired ? "expired" : "callback",
     });
@@ -396,6 +429,7 @@ export async function GET(request: NextRequest) {
         );
         const res = redirectWithAuthCookies(`${origin}${cabinetPath}`, siteParam);
         res.cookies.set("pending_signup_email", "", { path: "/", maxAge: 0 });
+        res.cookies.set("pending_signup_site", "", { path: "/", maxAge: 0 });
         return res;
       }
 
@@ -407,6 +441,7 @@ export async function GET(request: NextRequest) {
       );
       const res = redirectWithAuthCookies(`${origin}${path}`, siteParam);
       res.cookies.set("pending_signup_email", "", { path: "/", maxAge: 0 });
+      res.cookies.set("pending_signup_site", "", { path: "/", maxAge: 0 });
       return res;
     }
   } catch (err) {

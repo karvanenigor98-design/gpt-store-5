@@ -117,27 +117,29 @@ export function buildRecoveryRedirectTo(site: AuthSiteSlug, runtimeOrigin?: stri
 }
 
 /**
- * redirectTo для signUp / resend signup: /callback — hash-токены и PKCE в браузере.
+ * redirectTo для signUp / resend signup.
+ * /auth/callback — серверный verifyOtp(token_hash) работает на любом устройстве;
+ * /callback остаётся для #access_token из implicit-ссылок.
  */
 export function buildSignupRedirectTo(
   site: AuthSiteSlug,
   returnUrl: string,
   runtimeOrigin?: string,
 ): string {
-  const url = new URL("/callback", getBaseUrl(runtimeOrigin));
+  const url = new URL("/auth/callback", getBaseUrl(runtimeOrigin));
   url.searchParams.set("type", "signup");
   url.searchParams.set("site", site);
   const safeReturn =
     returnUrl.startsWith("/") && !returnUrl.startsWith("//")
       ? returnUrl
-      : `/dashboard?site=${site}`;
+      : defaultCustomerDashboard(site);
   url.searchParams.set("returnUrl", safeReturn);
   return url.toString();
 }
 
-/** Fallback-страница, если письмо ведёт через /callback. */
+/** redirectTo для recovery (Supabase resetPasswordForEmail / generateLink). */
 export function buildRecoveryCallbackRedirectTo(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/callback", getBaseUrl(runtimeOrigin));
+  const url = new URL("/auth/callback", getBaseUrl(runtimeOrigin));
   url.searchParams.set("site", site);
   url.searchParams.set("type", "recovery");
   url.searchParams.set("returnUrl", defaultCustomerDashboard(site));

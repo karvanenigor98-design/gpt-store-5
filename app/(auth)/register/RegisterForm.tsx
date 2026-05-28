@@ -83,7 +83,9 @@ export function RegisterForm() {
         : createClient();
     } catch (err) {
       setServerError(
-        err instanceof Error ? err.message : "Subs Auth не сконфигурирован: проверьте .env.local",
+        err instanceof Error
+          ? err.message
+          : "Spotify Store Auth не сконфигурирован: проверьте NEXT_PUBLIC_SUBS_SUPABASE_* в .env.local",
       );
       return;
     }

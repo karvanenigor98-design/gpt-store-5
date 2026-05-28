@@ -19,7 +19,9 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
     isPasswordUpdate || pathname.startsWith("/callback");
   const cookieSite = isRecoveryAuthPath
     ? readBrowserCookie("auth_reset_site")
-    : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
+    : readBrowserCookie("pending_signup_site") ||
+      readBrowserCookie("auth_reset_site") ||
+      readBrowserCookie("current_site");
   const port = typeof window !== "undefined" ? window.location.port || null : null;
 
   const isSubsStore =

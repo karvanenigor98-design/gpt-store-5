@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck } from "lucide-react";
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 import { buildSignupRedirectTo } from "@/lib/site-url";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
 import { createClient } from "@/lib/supabase/client";
@@ -58,7 +59,12 @@ export function VerifyEmailClient() {
   const flowCheckInbox = searchParams.get("flow") === "check_inbox";
   const autoloadConfirm = searchParams.get("autoload") === "1";
   const siteParam = searchParams.get("site") ?? "";
-  const siteSlug = siteParam === "subs-store" ? "subs-store" : "gpt-store";
+  const siteSlug = (() => {
+    if (siteParam === "subs-store" || siteParam === "gpt-store") return siteParam;
+    const pending = readBrowserCookie("pending_signup_site");
+    if (pending === "subs-store" || pending === "gpt-store") return pending;
+    return "gpt-store";
+  })();
   const isSubsStore = siteSlug === "subs-store";
   const accentColor = isSubsStore ? SPOTIFY_GREEN : "#10a37f";
   const postLoginTarget = defaultCustomerDashboard(siteSlug);
@@ -73,9 +79,34 @@ export function VerifyEmailClient() {
   const [entryPhase, setEntryPhase] = useState<"none" | "entering">("none");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showJustSent, setShowJustSent] = useState(false);
+  const [resolvedError, setResolvedError] = useState<
+    "expired" | "used" | "callback" | "wrong_account" | null
+  >(queryErr);
   const didRedirect = useRef(false);
   const strippedSent = useRef(false);
   const firstPollDone = useRef(false);
+
+  useEffect(() => {
+    if (!email || (queryErr !== "callback" && queryErr !== "expired")) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/auth/confirmation-status?email=${encodeURIComponent(email)}&site=${siteSlug}`,
+        );
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as { emailConfirmed?: boolean };
+        if (json.emailConfirmed) {
+          setResolvedError("used");
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [email, queryErr, siteSlug]);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -269,16 +300,20 @@ export function VerifyEmailClient() {
       <h1 className={`font-heading text-2xl font-bold mb-3 ${headingClass}`}>
         {flowCheckInbox && isSubsStore ? "Завершите регистрацию" : "Проверьте почту"}
       </h1>
-      {queryErr && (
+      {resolvedError && (
         <div className={`mb-4 space-y-3 rounded-lg border px-3 py-2 text-sm ${isSubsStore ? "border-red-700/40 bg-red-950/50 text-red-400" : "border-red-200 bg-red-50 text-red-700"}`}>
-          <p>{errorBannerText(queryErr)}</p>
-          {(queryErr === "used" || queryErr === "callback") && (
+          <p>{errorBannerText(resolvedError)}</p>
+          {(resolvedError === "used" || resolvedError === "callback") && (
             <a
-              href={postLoginTarget}
+              href={
+                resolvedError === "used"
+                  ? `/login?site=${siteSlug}&returnUrl=${encodeURIComponent(postLoginTarget)}`
+                  : postLoginTarget
+              }
               className="inline-flex w-full items-center justify-center rounded-xl py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               style={{ backgroundColor: accentColor }}
             >
-              {queryErr === "used" ? "Войти в кабинет" : "Перейти в кабинет"}
+              {resolvedError === "used" ? "Войти в кабинет" : "Перейти в кабинет"}
             </a>
           )}
         </div>
