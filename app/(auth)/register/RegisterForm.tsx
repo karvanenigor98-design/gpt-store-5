@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { buildSignupRedirectTo } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
@@ -99,6 +100,7 @@ export function RegisterForm() {
 
     if (typeof document !== "undefined") {
       document.cookie = `pending_signup_email=${encodeURIComponent(normalizedEmail)}; path=/; max-age=3600; samesite=lax`;
+      document.cookie = `pending_signup_site=${siteSlug}; path=/; max-age=3600; samesite=lax`;
     }
 
     try {
@@ -121,18 +123,17 @@ export function RegisterForm() {
         ? returnUrl
         : defaultCustomerDashboard(siteSlug);
 
-    // Pass site in emailRedirectTo so auth callback creates the right membership
-    const callbackUrl = new URL("/auth/callback", window.location.origin);
-    callbackUrl.searchParams.set("returnUrl", safeReturnUrl);
-    if (siteSlug !== "gpt-store") {
-      callbackUrl.searchParams.set("site", siteSlug);
-    }
+    const emailRedirectTo = buildSignupRedirectTo(
+      siteSlug,
+      safeReturnUrl,
+      window.location.origin,
+    );
 
     const { data: signData, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password: data.password,
       options: {
-        emailRedirectTo: callbackUrl.toString(),
+        emailRedirectTo,
         data: { signup_site: siteSlug },
       },
     });

@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/lib/validations";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 
 type Props = {
   callbackError?: string;
@@ -32,6 +34,33 @@ export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Pro
     }, 1000);
     return () => window.clearInterval(t);
   }, [cooldownSec]);
+
+  /** Сессия recovery уже есть (частичный успех / повторный заход) — сразу на форму нового пароля. */
+  useEffect(() => {
+    if (!callbackError) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = isSubsStore ? createSubsBrowserClient() : createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session || cancelled) return;
+        const updateUrl = new URL("/reset-password/update", window.location.origin);
+        updateUrl.searchParams.set("site", siteSlug);
+        updateUrl.searchParams.set(
+          "returnUrl",
+          isSubsStore ? "/dashboard?site=subs-store" : "/cabinet?site=gpt-store",
+        );
+        window.location.replace(`${updateUrl.pathname}?${updateUrl.searchParams.toString()}`);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [callbackError, isSubsStore, siteSlug]);
 
   async function onSubmit(data: ResetPasswordInput) {
     if (cooldownSec > 0) return;

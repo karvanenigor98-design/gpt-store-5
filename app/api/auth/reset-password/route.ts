@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 
 import { hasSubsStoreAuthUserByEmail } from "@/lib/auth/subsMembershipByEmail";
+import { sendTransactionalEmail } from "@/lib/email/send-email";
+import { buildRecoveryRedirectTo } from "@/lib/site-url";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   getSubsPublicSupabaseAnonKey,
@@ -203,9 +205,7 @@ export async function POST(request: NextRequest) {
     }
 
     const appBaseUrl = getAppBaseUrl(request);
-    // После сброса пароля для Subs — на витрину; для GPT — в кабинет.
-    const postResetPath = isSubsStore ? "/dashboard?site=subs-store" : "/dashboard?site=gpt-store";
-    const redirectTo = `${appBaseUrl}/auth/callback?type=recovery&site=${siteSlug}&returnUrl=${encodeURIComponent(postResetPath)}`;
+    const redirectTo = buildRecoveryRedirectTo(siteSlug, appBaseUrl);
 
     const appLoginUrl = isSubsStore
       ? `${appBaseUrl}/login?site=subs-store`
@@ -214,9 +214,6 @@ export async function POST(request: NextRequest) {
           : "");
 
     const debug: Record<string, unknown> = { redirectTo, siteSlug };
-
-    /** Только при явном ENABLE_RESEND_RESET_PASSWORD=1. Иначе — SMTP из Supabase Dashboard (mail.ru и т.д.). */
-    const useResendForReset = process.env.ENABLE_RESEND_RESET_PASSWORD === "1";
 
     const admin = isSubsStore ? createSubsStoreAdminClient()! : createAdminClient();
 
@@ -232,78 +229,44 @@ export async function POST(request: NextRequest) {
       }
       const actionLink = linkData?.properties?.action_link ?? "";
       const hashedToken = linkData?.properties?.hashed_token ?? "";
+      const postResetReturn = `/cabinet?site=${siteSlug}`;
       const callbackLink = hashedToken
-        ? `${appBaseUrl}/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=recovery&site=${siteSlug}&returnUrl=${encodeURIComponent(postResetPath)}`
+        ? `${appBaseUrl}/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=recovery&site=${siteSlug}&returnUrl=${encodeURIComponent(postResetReturn)}`
         : "";
-      return callbackLink || actionLink;
+      // action_link — официальный one-click URL Supabase (редирект на redirectTo с токенами).
+      return actionLink || callbackLink;
     }
 
-    async function sendViaSupabaseSmtp() {
-      return isSubsStore
-        ? createSupabaseJsClient(getSubsPublicSupabaseUrl(), getSubsPublicSupabaseAnonKey(), {
-            auth: { autoRefreshToken: false, persistSession: false },
-          }).auth.resetPasswordForEmail(email, { redirectTo })
-        : (await createClient()).auth.resetPasswordForEmail(email, { redirectTo });
+    async function sendCustomRecoveryEmail(recoveryLink: string): Promise<SendResult> {
+      const isSubs = siteSlug === "subs-store";
+      const subject = isSubs ? "Сброс пароля Spotify Store" : "Сброс пароля GPT STORE";
+      const html = buildResetEmailHtml(recoveryLink, siteSlug, appLoginUrl);
+      const text = `Сброс пароля. Откройте ссылку: ${recoveryLink}`;
+
+      const result = await sendTransactionalEmail(email, subject, text, html, {
+        siteSlug,
+      });
+
+      if (result.ok) {
+        return { ok: true, status: 200, reason: result.provider };
+      }
+      return {
+        ok: false,
+        reason: result.error ?? "custom_email_failed",
+        detail: result.error,
+      };
     }
 
-    // ——— Режим Resend: generateLink + Resend (без resetPasswordForEmail — иначе двойной лимит) ———
-    if (useResendForReset) {
-      const recoveryLinkForEmail = await buildRecoveryLinkFromAdmin();
-      if (!recoveryLinkForEmail) {
-        const msg = humanizeAuthDeliveryError(String(debug.generateLinkError ?? "Не удалось создать ссылку"));
-        const retryAfter = parseRateLimitSeconds(String(debug.generateLinkError ?? ""));
-        return NextResponse.json(
-          { ok: false, error: msg, retryAfter: retryAfter ?? undefined, channel: "generate_link_failed" },
-          { status: 429 },
-        );
-      }
-
-      const resendResult = await sendViaResend(email, recoveryLinkForEmail, siteSlug, appLoginUrl);
-      debug.resend = resendResult;
-      if (resendResult.ok) {
-        const res = NextResponse.json({
-          ok: true,
-          channel: "resend",
-          recoveryLink: canReturnDebug ? recoveryLinkForEmail : undefined,
-        });
-        res.cookies.set("auth_reset_site", siteSlug, {
-          path: "/",
-          maxAge: 60 * 60,
-          sameSite: "lax",
-          httpOnly: false,
-        });
-        return res;
-      }
-
-      const resendHint =
-        resendResult.detail ||
-        "Не удалось отправить письмо через Resend. Проверьте RESEND_API_KEY и домен в resend.com.";
-
-      if (canReturnDebug) {
-        return NextResponse.json({
-          ok: true,
-          channel: "resend_failed",
-          recoveryLink: recoveryLinkForEmail,
-          warning: resendHint,
-        });
-      }
-      return NextResponse.json({ ok: false, error: resendHint, channel: "resend_failed" }, { status: 502 });
-    }
-
-    // ——— Режим Supabase SMTP (как в Dashboard → Authentication → Emails): один запрос = одно письмо ———
-    const { error: supabaseError } = await sendViaSupabaseSmtp();
-    debug.supabaseError = supabaseError?.message ?? null;
-
-    if (!supabaseError) {
-      let recoveryLinkForEmail = "";
-      if (canReturnDebug) {
-        recoveryLinkForEmail = await buildRecoveryLinkFromAdmin();
-      }
+    function okRecoveryResponse(
+      channel: string,
+      recoveryLinkForEmail?: string,
+      extra?: Record<string, unknown>,
+    ) {
       const res = NextResponse.json({
         ok: true,
-        channel: "supabase",
-        message: "Письмо отправлено через SMTP Supabase",
-        recoveryLink: recoveryLinkForEmail || undefined,
+        channel,
+        recoveryLink: canReturnDebug ? recoveryLinkForEmail : undefined,
+        ...extra,
       });
       res.cookies.set("auth_reset_site", siteSlug, {
         path: "/",
@@ -314,6 +277,47 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
+    async function sendViaSupabaseSmtp() {
+      return isSubsStore
+        ? createSupabaseJsClient(getSubsPublicSupabaseUrl(), getSubsPublicSupabaseAnonKey(), {
+            auth: { autoRefreshToken: false, persistSession: false },
+          }).auth.resetPasswordForEmail(email, { redirectTo })
+        : (await createClient()).auth.resetPasswordForEmail(email, { redirectTo });
+    }
+
+    // ——— Приоритет: generateLink + своё письмо (SMTP/Resend из .env) — ссылка без PKCE-ловушки ———
+    const recoveryLinkForEmail = await buildRecoveryLinkFromAdmin();
+    debug.recoveryLinkGenerated = Boolean(recoveryLinkForEmail);
+
+    if (recoveryLinkForEmail) {
+      const customSend = await sendCustomRecoveryEmail(recoveryLinkForEmail);
+      debug.customEmail = customSend;
+      if (customSend.ok) {
+        return okRecoveryResponse(`app_${customSend.reason ?? "email"}`, recoveryLinkForEmail);
+      }
+    } else {
+      const msg = humanizeAuthDeliveryError(String(debug.generateLinkError ?? "Не удалось создать ссылку"));
+      const retryAfter = parseRateLimitSeconds(String(debug.generateLinkError ?? ""));
+      if (!retryAfter) {
+        return NextResponse.json(
+          { ok: false, error: msg, channel: "generate_link_failed" },
+          { status: 503 },
+        );
+      }
+    }
+
+    // ——— Fallback: письмо из Supabase Dashboard SMTP (PKCE) ———
+    const { error: supabaseError } = await sendViaSupabaseSmtp();
+    debug.supabaseError = supabaseError?.message ?? null;
+
+    if (!supabaseError) {
+      return okRecoveryResponse(
+        "supabase",
+        canReturnDebug ? recoveryLinkForEmail : undefined,
+        { message: "Письмо отправлено через SMTP Supabase" },
+      );
+    }
+
     const rateMsg = humanizeAuthDeliveryError(supabaseError.message);
     const retryAfter = parseRateLimitSeconds(supabaseError.message);
     const smtpIntervalHint =
@@ -321,16 +325,13 @@ export async function POST(request: NextRequest) {
         ? " В Supabase → Authentication → Emails задан интервал между письмами одному пользователю (у вас ~60 сек)."
         : "";
 
-    let recoveryLinkForEmail = "";
-    if (canReturnDebug) {
-      recoveryLinkForEmail = await buildRecoveryLinkFromAdmin();
-    }
+    const debugRecoveryLink = canReturnDebug ? recoveryLinkForEmail : "";
 
-    if (recoveryLinkForEmail && canReturnDebug) {
+    if (debugRecoveryLink && canReturnDebug) {
       return NextResponse.json({
         ok: true,
         channel: "rate_limited_with_link",
-        recoveryLink: recoveryLinkForEmail,
+        recoveryLink: debugRecoveryLink,
         warning: rateMsg + smtpIntervalHint,
         retryAfter: retryAfter ?? undefined,
       });
@@ -342,7 +343,7 @@ export async function POST(request: NextRequest) {
         error: rateMsg + smtpIntervalHint,
         retryAfter: retryAfter ?? undefined,
         channel: "supabase_rate_limited",
-        recoveryLink: recoveryLinkForEmail || undefined,
+        recoveryLink: debugRecoveryLink || undefined,
       },
       { status: 429 },
     );

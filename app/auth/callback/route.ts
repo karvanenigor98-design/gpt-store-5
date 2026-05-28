@@ -77,7 +77,11 @@ export async function GET(request: NextRequest) {
   const type = requestUrl.searchParams.get("type");
   const cookieSite = request.cookies.get("current_site")?.value;
   const resetSiteCookie = request.cookies.get("auth_reset_site")?.value;
-  const isRecovery = type === "recovery";
+  const pendingSignupEmail = request.cookies.get("pending_signup_email")?.value?.trim() ?? "";
+  const isRecovery =
+    type === "recovery" ||
+    (Boolean(code || token_hash) && resetSiteCookie === "gpt-store") ||
+    (Boolean(code || token_hash) && resetSiteCookie === "subs-store");
 
   /** Recovery: never infer site from `current_site` (visit to /spotify must not hijack GPT reset). */
   let siteParam: SiteSlug = isRecovery
@@ -120,9 +124,12 @@ export async function GET(request: NextRequest) {
         `${origin}/reset-password?error=${isExpired ? "expired" : "callback"}${siteQuery}`
       );
     }
-    return NextResponse.redirect(
-      `${origin}/verify-email?error=${isExpired ? "expired" : "callback"}${siteQuery}`
-    );
+    const verifyQ = new URLSearchParams({
+      error: isExpired ? "expired" : "callback",
+    });
+    if (siteParam === "subs-store") verifyQ.set("site", "subs-store");
+    if (pendingSignupEmail) verifyQ.set("email", pendingSignupEmail);
+    return NextResponse.redirect(`${origin}/verify-email?${verifyQ.toString()}`);
   }
 
   // Нет code/token_hash в query: часто это implicit / magic link — токены в #hash (сервер их не видит).
@@ -222,7 +229,6 @@ export async function GET(request: NextRequest) {
 
   let exchangeError: string | null = null;
 
-  const pendingSignupEmail = request.cookies.get("pending_signup_email")?.value?.trim() ?? "";
   const isEmailConfirmation =
     type === "signup" ||
     type === "email" ||
@@ -256,19 +262,87 @@ export async function GET(request: NextRequest) {
   }
 
   if (exchangeError) {
+    const {
+      data: { session: sessionAfterError },
+    } = await supabase.auth.getSession();
+    const userAfterError = sessionAfterError
+      ? (await supabase.auth.getUser()).data.user
+      : null;
+
+    if (
+      !isRecovery &&
+      isEmailConfirmation &&
+      userAfterError?.email_confirmed_at &&
+      sessionAfterError
+    ) {
+      siteParam = resolveSiteWithUser(
+        requestUrl,
+        cookieSite,
+        userAfterError.user_metadata?.signup_site,
+      );
+      const path = resolvePostLoginPath(
+        normalizeAuthReturnUrl(returnUrl, siteParam),
+        exchangeOnSubs
+          ? await syncSubsProfileRoleForUser(userAfterError.id, userAfterError.email ?? null)
+          : await syncProfileRoleForUser(userAfterError.id, userAfterError.email ?? null),
+      );
+      const res = redirectWithAuthCookies(`${origin}${path}`, siteParam);
+      res.cookies.set("pending_signup_email", "", { path: "/", maxAge: 0 });
+      return res;
+    }
+
+    if (isRecovery && sessionAfterError) {
+      const recoverySite: SiteSlug = siteParam;
+      const normalizedReturn =
+        returnUrl.includes("site=") ? returnUrl : `/cabinet?site=${recoverySite}`;
+      return redirectWithAuthCookies(
+        `${origin}/reset-password/update?returnUrl=${encodeURIComponent(normalizedReturn)}&site=${recoverySite}`,
+        recoverySite,
+      );
+    }
+
     const isExpired =
       exchangeError.toLowerCase().includes("expired") ||
       exchangeError.toLowerCase().includes("flow_state") ||
       exchangeError.toLowerCase().includes("invalid flow");
+
+    if (isRecovery && code && !token_hash && requestUrl.searchParams.get("from") !== "client") {
+      const clientRetry = new URL("/callback", origin);
+      clientRetry.searchParams.set("code", code);
+      clientRetry.searchParams.set("type", "recovery");
+      clientRetry.searchParams.set("site", siteParam);
+      clientRetry.searchParams.set("returnUrl", returnUrl);
+      clientRetry.searchParams.set("from", "client");
+      return redirectWithAuthCookies(clientRetry.toString(), siteParam);
+    }
+
+    if (
+      isEmailConfirmation &&
+      !isRecovery &&
+      code &&
+      !token_hash &&
+      requestUrl.searchParams.get("from") !== "client"
+    ) {
+      const clientRetry = new URL("/callback", origin);
+      clientRetry.searchParams.set("code", code);
+      clientRetry.searchParams.set("type", type === "email" || type === "invite" ? type : "signup");
+      clientRetry.searchParams.set("site", siteParam);
+      clientRetry.searchParams.set("returnUrl", returnUrl);
+      clientRetry.searchParams.set("from", "client");
+      return redirectWithAuthCookies(clientRetry.toString(), siteParam);
+    }
 
     if (isRecovery) {
       return redirectWithAuthCookies(
         `${origin}/reset-password?error=${isExpired ? "expired" : "callback"}${siteQuery}`
       );
     }
-    return redirectWithAuthCookies(
-      `${origin}/verify-email?error=${isExpired ? "expired" : "callback"}${siteQuery}`
-    );
+    const verifyQ = new URLSearchParams({
+      error: isExpired ? "expired" : "callback",
+    });
+    if (siteParam === "subs-store") verifyQ.set("site", "subs-store");
+    if (pendingSignupEmail) verifyQ.set("email", pendingSignupEmail);
+    return redirectWithAuthCookies(`${origin}/verify-email?${verifyQ.toString()}`);
   }
 
   // Успешный обмен

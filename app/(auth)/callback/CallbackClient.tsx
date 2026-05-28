@@ -129,7 +129,16 @@ export function CallbackClient() {
       const oauthErr = url.searchParams.get("error");
       const errCode = url.searchParams.get("error_code");
       const errDesc = (url.searchParams.get("error_description") ?? "").replace(/\+/g, " ");
-      const isRecoveryFlow = typeParam === "recovery";
+      const isRecoveryFlow =
+        typeParam === "recovery" ||
+        (Boolean(code) && Boolean(recoveryCookieSite()));
+      const pendingSignupEmail = readBrowserCookie("pending_signup_email");
+      const isSignupFlow =
+        typeParam === "signup" ||
+        typeParam === "email" ||
+        typeParam === "invite" ||
+        (Boolean(code) && !isRecoveryFlow && Boolean(pendingSignupEmail));
+      const clientRetryExhausted = url.searchParams.get("from") === "client";
       const resetCookie = isRecoveryFlow
         ? recoveryCookieSite()
         : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
@@ -144,8 +153,7 @@ export function CallbackClient() {
         ) === "subs-store";
 
       const siteSlug: AuthSiteSlug = subsContext ? "subs-store" : "gpt-store";
-      const defaultReturnUrl =
-        typeParam === "recovery" ? defaultCustomerDashboard(siteSlug) : "/cabinet";
+      const defaultReturnUrl = defaultCustomerDashboard(siteSlug);
       const rawReturnUrl = url.searchParams.get("returnUrl") ?? defaultReturnUrl;
       const returnUrl =
         rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : defaultReturnUrl;
@@ -164,15 +172,10 @@ export function CallbackClient() {
       }
 
       function verifyErr(kind: "expired" | "used" | "callback") {
-        router.replace(`/verify-email?error=${kind}${siteQs ? siteQs.replace("&", "?") : ""}`);
-      }
-
-      /** PKCE / token_hash — только серверный /auth/callback (правильный Supabase-проект + cookies). */
-      if (code || token_hash) {
-        setStatus("Перенаправляем на сервер авторизации…");
-        const target = `/auth/callback${url.search}`;
-        window.location.replace(target);
-        return;
+        const params = new URLSearchParams({ error: kind });
+        if (subsContext) params.set("site", "subs-store");
+        if (pendingSignupEmail) params.set("email", decodeURIComponent(pendingSignupEmail));
+        router.replace(`/verify-email?${params.toString()}`);
       }
 
       let supabase: SupabaseClient<Database>;
@@ -184,6 +187,93 @@ export function CallbackClient() {
             ? "/login?site=subs-store&error=config"
             : "/login?error=config",
         );
+        return;
+      }
+
+      /** Recovery + PKCE code: обмен в браузере (code_verifier). */
+      if (code && isRecoveryFlow && !clientRetryExhausted) {
+        setStatus("Подтверждаем сброс пароля…");
+        document.cookie = `auth_reset_site=${siteSlug}; path=/; max-age=3600; samesite=lax`;
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (!exchangeErr) {
+          if (cancelled) return;
+          const updateUrl = new URL("/reset-password/update", window.location.origin);
+          updateUrl.searchParams.set(
+            "returnUrl",
+            returnUrl.includes("site=") ? returnUrl : defaultCustomerDashboard(siteSlug),
+          );
+          updateUrl.searchParams.set("site", siteSlug);
+          router.replace(`${updateUrl.pathname}?${updateUrl.searchParams.toString()}`);
+          return;
+        }
+      }
+
+      if (clientRetryExhausted && isRecoveryFlow) {
+        recoveryErr("callback");
+        return;
+      }
+
+      async function finishEmailConfirm() {
+        setStatus("Завершаем вход…");
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          verifyErr("callback");
+          return;
+        }
+
+        const effectiveReturnUrl =
+          subsContext && (returnUrl === "/cabinet" || returnUrl === "/dashboard")
+            ? defaultCustomerDashboard("subs-store")
+            : returnUrl.includes("site=")
+              ? returnUrl
+              : defaultCustomerDashboard(siteSlug);
+
+        const syncRes = await fetch("/api/auth/post-auth-sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-auth-site": subsContext ? "subs-store" : "gpt-store",
+          },
+          body: JSON.stringify({ returnUrl: effectiveReturnUrl }),
+        });
+
+        if (!syncRes.ok) {
+          verifyErr("callback");
+          return;
+        }
+
+        const json = (await syncRes.json()) as { path?: string };
+        if (typeof json.path === "string" && json.path.startsWith("/")) {
+          router.replace(json.path);
+          return;
+        }
+        router.replace(effectiveReturnUrl);
+      }
+
+      /** Signup + PKCE code: обмен в браузере, затем сразу в кабинет. */
+      if (code && isSignupFlow && !clientRetryExhausted) {
+        setStatus("Подтверждаем email…");
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (!exchangeErr) {
+          if (cancelled) return;
+          document.cookie = "pending_signup_email=; path=/; max-age=0; samesite=lax";
+          await finishEmailConfirm();
+          return;
+        }
+      }
+
+      if (clientRetryExhausted && isSignupFlow) {
+        verifyErr("callback");
+        return;
+      }
+
+      /** token_hash и оставшийся PKCE — серверный /auth/callback. */
+      if (code || token_hash) {
+        setStatus("Перенаправляем на сервер авторизации…");
+        const target = `/auth/callback${url.search}`;
+        window.location.replace(target);
         return;
       }
 
@@ -305,15 +395,25 @@ export function CallbackClient() {
             return;
           }
           stripUrlHash();
+          if (isSignupConfirm) {
+            document.cookie = "pending_signup_email=; path=/; max-age=0; samesite=lax";
+            await finishEmailConfirm();
+            return;
+          }
         } else {
           const {
             data: { session: existing },
           } = await supabase.auth.getSession();
 
           if (isSignupConfirm && existing) {
-            await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-            verifyErr("callback");
-            return;
+            const {
+              data: { user: existingUser },
+            } = await supabase.auth.getUser();
+            if (existingUser?.email_confirmed_at) {
+              document.cookie = "pending_signup_email=; path=/; max-age=0; samesite=lax";
+              await finishEmailConfirm();
+              return;
+            }
           }
 
           if (!existing) {
@@ -344,9 +444,15 @@ export function CallbackClient() {
           return;
         }
 
+        if (isSignupConfirm) {
+          document.cookie = "pending_signup_email=; path=/; max-age=0; samesite=lax";
+          await finishEmailConfirm();
+          return;
+        }
+
         const effectiveReturnUrl =
           subsContext && (returnUrl === "/cabinet" || returnUrl === "/dashboard")
-            ? "/spotify"
+            ? defaultCustomerDashboard("subs-store")
             : returnUrl;
 
         const syncRes = await fetch("/api/auth/post-auth-sync", {

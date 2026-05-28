@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck } from "lucide-react";
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { buildSignupRedirectTo } from "@/lib/site-url";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
@@ -167,9 +168,9 @@ export function VerifyEmailClient() {
     };
   }, [syncAndGo]);
 
-  // After email link → /auth/callback → redirect here with session already established
+  // После клика по ссылке из письма (callback с autoload=1) — сразу в кабинет
   useEffect(() => {
-    if (!autoloadConfirm || !isSubsStore) return;
+    if (!autoloadConfirm) return;
     let cancelled = false;
     void (async () => {
       let supabase;
@@ -202,11 +203,15 @@ export function VerifyEmailClient() {
       setResendError("Auth не настроен. Проверьте .env.local");
       return;
     }
-    const callbackUrl = `${window.location.origin}/auth/callback?site=${siteSlug}&returnUrl=${encodeURIComponent(postLoginTarget)}`;
+    const emailRedirectTo = buildSignupRedirectTo(
+      siteSlug,
+      postLoginTarget,
+      window.location.origin,
+    );
     const { error } = await supabase.auth.resend({
       type: "signup",
       email,
-      options: { emailRedirectTo: callbackUrl },
+      options: { emailRedirectTo },
     });
     if (error) {
       setResendPhase("error");

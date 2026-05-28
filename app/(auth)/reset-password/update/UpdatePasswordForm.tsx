@@ -13,6 +13,7 @@ import {
   canonicalPasswordUpdateSearchParams,
   resolvePasswordUpdateSiteSync,
 } from "@/lib/auth/resolvePasswordUpdateSite";
+import { establishRecoverySessionFromUrl, readRecoveryTokensFromWindow } from "@/lib/auth/recoverySessionFromUrl";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export function UpdatePasswordForm({ initialSite }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [siteSlug, setSiteSlug] = useState<AuthSiteSlug>(initialSite);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   useEffect(() => {
     void (async () => {
@@ -53,6 +55,25 @@ export function UpdatePasswordForm({ initialSite }: Props) {
 
       setSiteSlug(detected);
 
+      const tokens = readRecoveryTokensFromWindow();
+      if (tokens.token_hash && tokens.type === "recovery") {
+        const q = new URLSearchParams(window.location.search);
+        q.set("token_hash", tokens.token_hash);
+        q.set("type", "recovery");
+        q.set("site", detected);
+        const ret = searchParams.get("returnUrl");
+        if (ret) q.set("returnUrl", ret);
+        window.location.replace(`/auth/callback?${q.toString()}`);
+        return;
+      }
+
+      const client = detected === "subs-store" ? createSubsBrowserClient() : createClient();
+      const boot = await establishRecoverySessionFromUrl(client);
+      if (!boot.ok && tokens.code) {
+        const other = detected === "subs-store" ? createClient() : createSubsBrowserClient();
+        await establishRecoverySessionFromUrl(other).catch(() => undefined);
+      }
+
       const canonical = canonicalPasswordUpdateSearchParams(
         detected,
         searchParams.get("returnUrl"),
@@ -61,6 +82,7 @@ export function UpdatePasswordForm({ initialSite }: Props) {
       if (`${window.location.pathname}${window.location.search}` !== next) {
         router.replace(next);
       }
+      setBootstrapping(false);
     })();
   }, [router, searchParams]);
   const isSubsStore = siteSlug === "subs-store";
@@ -80,16 +102,17 @@ export function UpdatePasswordForm({ initialSite }: Props) {
   });
 
   useEffect(() => {
+    if (bootstrapping) return;
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         setServerError(
           isSubsStore
-            ? "Сессия сброса не найдена. Откройте ссылку из письма ещё раз или запросите новую на странице сброса пароля Spotify Store."
-            : "Сессия сброса не найдена. Откройте ссылку из письма ещё раз.",
+            ? "Сессия сброса не найдена. Откройте ссылку из письма ещё раз или запросите новую: /reset-password?site=subs-store"
+            : "Сессия сброса не найдена. Откройте ссылку из письма ещё раз или запросите новую: /reset-password?site=gpt-store",
         );
       }
     });
-  }, [supabase, isSubsStore]);
+  }, [supabase, isSubsStore, bootstrapping]);
 
   async function onSubmit(data: NewPasswordInput) {
     setServerError(null);
@@ -181,6 +204,15 @@ export function UpdatePasswordForm({ initialSite }: Props) {
           ? "border-white/[0.15] bg-white/[0.06] text-white placeholder:text-gray-500"
           : "border-black/[0.12]"
     );
+
+  if (bootstrapping) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
+        <Loader2 size={18} className="animate-spin" style={{ color: accentColor }} />
+        Подтверждаем ссылку из письма…
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

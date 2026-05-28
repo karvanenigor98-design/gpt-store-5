@@ -107,9 +107,38 @@ export function getAuthCallbackUrl(site: AuthSiteSlug, returnUrl?: string, runti
   return url.toString();
 }
 
-/** redirectTo для Supabase resetPasswordForEmail / generateLink (без вложенных ? в returnUrl). */
+/**
+ * redirectTo для Supabase: сразу на форму нового пароля — токены приходят в #hash или ?code=.
+ */
 export function buildRecoveryRedirectTo(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/auth/callback", getBaseUrl(runtimeOrigin));
+  const url = new URL("/reset-password/update", getBaseUrl(runtimeOrigin));
+  url.searchParams.set("site", site);
+  url.searchParams.set("returnUrl", `/cabinet?site=${site}`);
+  return url.toString();
+}
+
+/**
+ * redirectTo для signUp / resend signup: /callback — hash-токены и PKCE в браузере.
+ */
+export function buildSignupRedirectTo(
+  site: AuthSiteSlug,
+  returnUrl: string,
+  runtimeOrigin?: string,
+): string {
+  const url = new URL("/callback", getBaseUrl(runtimeOrigin));
+  url.searchParams.set("type", "signup");
+  url.searchParams.set("site", site);
+  const safeReturn =
+    returnUrl.startsWith("/") && !returnUrl.startsWith("//")
+      ? returnUrl
+      : `/dashboard?site=${site}`;
+  url.searchParams.set("returnUrl", safeReturn);
+  return url.toString();
+}
+
+/** Fallback-страница, если письмо ведёт через /callback. */
+export function buildRecoveryCallbackRedirectTo(site: AuthSiteSlug, runtimeOrigin?: string): string {
+  const url = new URL("/callback", getBaseUrl(runtimeOrigin));
   url.searchParams.set("site", site);
   url.searchParams.set("type", "recovery");
   url.searchParams.set("returnUrl", `/cabinet?site=${site}`);
