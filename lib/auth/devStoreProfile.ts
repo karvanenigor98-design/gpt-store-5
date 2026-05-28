@@ -56,12 +56,12 @@ export function resolveAuthSiteContext(params: {
   }
 
   const returnUrl = params.returnUrl ?? "";
-  if (
-    returnUrl.includes("site=subs-store") ||
-    returnUrl.includes("/spotify") ||
-    returnUrl.startsWith("/spotify")
-  ) {
-    return "subs-store";
+
+  /** Страница нового пароля: returnUrl только для редиректа после save, не для бренда. */
+  if (pathname.startsWith("/reset-password/update")) {
+    const cookie = params.cookieSite?.trim();
+    if (cookie === "subs-store" || cookie === "gpt-store") return cookie;
+    return "gpt-store";
   }
 
   const isAuthPath =
@@ -69,11 +69,29 @@ export function resolveAuthSiteContext(params: {
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
-    pathname.startsWith("/verify-email");
+    pathname.startsWith("/verify-email") ||
+    pathname.startsWith("/callback");
 
-  /** На /login с GPT-лендинга не тянем старый cookie после /spotify */
   if (isAuthPath) {
+    if (returnUrl.includes("site=subs-store")) return "subs-store";
+    if (returnUrl.includes("site=gpt-store")) return "gpt-store";
+    const cookie = params.cookieSite?.trim();
+    if (cookie === "subs-store" || cookie === "gpt-store") return cookie;
+    if (
+      returnUrl.includes("/spotify") ||
+      returnUrl.startsWith("/spotify")
+    ) {
+      return "subs-store";
+    }
     return "gpt-store";
+  }
+
+  if (
+    returnUrl.includes("site=subs-store") ||
+    returnUrl.includes("/spotify") ||
+    returnUrl.startsWith("/spotify")
+  ) {
+    return "subs-store";
   }
 
   const cookie = params.cookieSite?.trim();

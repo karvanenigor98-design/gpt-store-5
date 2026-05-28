@@ -38,7 +38,10 @@ function siteFromQuery(requestUrl: URL): SiteSlug | null {
 /** Supabase иногда редиректит только с code=… без query — тогда смотрим returnUrl из ссылки. */
 function siteFromReturnParam(requestUrl: URL): SiteSlug | null {
   const ret = requestUrl.searchParams.get("returnUrl") ?? "";
-  if (ret.includes("/spotify") || ret.includes("site=subs-store")) return "subs-store";
+  if (ret.includes("site=gpt-store")) return "gpt-store";
+  if (ret.includes("site=subs-store") || ret.includes("/spotify") || ret.startsWith("/spotify")) {
+    return "subs-store";
+  }
   return null;
 }
 
@@ -72,31 +75,30 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const token_hash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const rawReturnUrl = requestUrl.searchParams.get("returnUrl") ?? "/cabinet";
+  const cookieSite = request.cookies.get("current_site")?.value;
+  const resetSiteCookie = request.cookies.get("auth_reset_site")?.value;
+  const isRecovery = type === "recovery";
+
+  /** Recovery: never infer site from `current_site` (visit to /spotify must not hijack GPT reset). */
+  let siteParam: SiteSlug = isRecovery
+    ? (siteFromQuery(requestUrl) ??
+      siteFromCookie(resetSiteCookie) ??
+      siteFromReturnParam(requestUrl) ??
+      "gpt-store")
+    : (siteFromQuery(requestUrl) ??
+      siteFromReturnParam(requestUrl) ??
+      siteFromCookie(resetSiteCookie) ??
+      siteFromCookie(cookieSite) ??
+      "gpt-store");
+
+  const defaultReturnUrl = `/cabinet?site=${siteParam}`;
+  const rawReturnUrl = requestUrl.searchParams.get("returnUrl") ?? defaultReturnUrl;
   const returnUrl =
     rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//")
       ? rawReturnUrl
-      : "/cabinet";
+      : defaultReturnUrl;
 
-  const cookieSite = request.cookies.get("current_site")?.value;
-  const resetSiteCookie = request.cookies.get("auth_reset_site")?.value;
-  let siteParam: SiteSlug =
-    siteFromQuery(requestUrl) ??
-    siteFromReturnParam(requestUrl) ??
-    siteFromCookie(resetSiteCookie) ??
-    siteFromCookie(cookieSite) ??
-    "gpt-store";
-  const isRecovery = type === "recovery";
-
-  if (isRecovery) {
-    siteParam =
-      siteFromQuery(requestUrl) ??
-      siteFromReturnParam(requestUrl) ??
-      siteFromCookie(resetSiteCookie) ??
-      (cookieSite === "subs-store" || cookieSite === "gpt-store" ? cookieSite : siteParam);
-  }
-
-  const siteQuery = siteParam !== "gpt-store" ? `&site=${siteParam}` : "";
+  const siteQuery = `&site=${siteParam}`;
 
   // Supabase может вернуть ошибку прямо в URL (истёкший OTP и т.д.)
   const oauthError = requestUrl.searchParams.get("error");
@@ -130,7 +132,8 @@ export async function GET(request: NextRequest) {
     if (siteParam === "subs-store" && !q.includes("site=subs-store")) {
       q += q.includes("?") ? "&site=subs-store" : "?site=subs-store";
     }
-    const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Subs Store — подтверждение</title><style>body{margin:0;background:#080808;color:#9ca3af;font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:2rem}.box{max-width:360px}.brand{color:#1DB954;font-weight:700;font-size:1.1rem;margin-bottom:.75rem}.spin{width:28px;height:28px;border:3px solid rgba(29,185,84,.25);border-top-color:#1DB954;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="box"><div class="brand">Subs Store</div><div class="spin"></div><p>Подтверждение ссылки из письма…</p></div><script>(function(){var q=${JSON.stringify(q)};var h=window.location.hash||"";var isRecovery=q.indexOf("type=recovery")!==-1;var isSubs=q.indexOf("site=subs-store")!==-1;if(h&&h!=="#"&&(h.indexOf("access_token=")!==-1||h.indexOf("refresh_token=")!==-1)){window.location.replace("/callback"+q+h);return;}if(!h||h==="#"){var err=isRecovery?"/reset-password?error=callback":"/verify-email?error=callback";if(isSubs)err+=(err.indexOf("?")===-1?"?":"&")+"site=subs-store";window.location.replace(err);return;}window.location.replace("/callback"+q+h);})();</script></html>`;
+    const isSubsUi = siteParam === "subs-store";
+    const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${isSubsUi ? "Spotify Store" : "GPT STORE"} — подтверждение</title><style>body{margin:0;background:${isSubsUi ? "#080808" : "#f8fafc"};color:${isSubsUi ? "#9ca3af" : "#475569"};font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:2rem}.box{max-width:360px}.brand{color:${isSubsUi ? "#1DB954" : "#10a37f"};font-weight:700;font-size:1.1rem;margin-bottom:.75rem}.spin{width:28px;height:28px;border:3px solid ${isSubsUi ? "rgba(29,185,84,.25)" : "rgba(16,163,127,.25)"};border-top-color:${isSubsUi ? "#1DB954" : "#10a37f"};border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="box"><div class="brand">${isSubsUi ? "Spotify Store" : "GPT STORE"}</div><div class="spin"></div><p>Подтверждение ссылки из письма…</p></div><script>(function(){var q=${JSON.stringify(q)};var h=window.location.hash||"";var isRecovery=q.indexOf("type=recovery")!==-1;var isSubs=q.indexOf("site=subs-store")!==-1;if(isRecovery&&!isSubs&&q.indexOf("site=gpt-store")===-1){q+=(q.indexOf("?")===-1?"?":"&")+"site=gpt-store";}if(h&&h!=="#"&&(h.indexOf("access_token=")!==-1||h.indexOf("refresh_token=")!==-1)){window.location.replace("/callback"+q+h);return;}if(!h||h==="#"){var err=isRecovery?"/reset-password?error=callback":"/verify-email?error=callback";err+=(err.indexOf("?")===-1?"?":"&")+"site="+(isSubs?"subs-store":"gpt-store");window.location.replace(err);return;}window.location.replace("/callback"+q+h);})();</script></html>`;
     return new NextResponse(html, {
       status: 200,
       headers: {
@@ -205,6 +208,14 @@ export async function GET(request: NextRequest) {
         sameSite: "lax",
         httpOnly: false,
       });
+      if (location.includes("/reset-password")) {
+        res.cookies.set("auth_reset_site", siteForLogin, {
+          path: "/",
+          maxAge: 60 * 60,
+          sameSite: "lax",
+          httpOnly: false,
+        });
+      }
     }
     return res;
   };
@@ -262,10 +273,12 @@ export async function GET(request: NextRequest) {
 
   // Успешный обмен
   if (isRecovery) {
-    const recoverySite: SiteSlug = exchangeOnSubs ? "subs-store" : "gpt-store";
+    const recoverySite: SiteSlug = siteParam;
+    const normalizedReturn =
+      returnUrl.includes("site=") ? returnUrl : `/cabinet?site=${recoverySite}`;
     const recoverySiteQuery = `&site=${recoverySite}`;
     return redirectWithAuthCookies(
-      `${origin}/reset-password/update?returnUrl=${encodeURIComponent(returnUrl)}${recoverySiteQuery}`,
+      `${origin}/reset-password/update?returnUrl=${encodeURIComponent(normalizedReturn)}${recoverySiteQuery}`,
       recoverySite,
     );
   }

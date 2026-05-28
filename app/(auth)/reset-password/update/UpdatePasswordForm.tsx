@@ -6,26 +6,63 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
-import { detectAuthSiteFromStrings } from "@/lib/auth/detectAuthSite";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
+import {
+  canonicalPasswordUpdateSearchParams,
+  resolvePasswordUpdateSiteSync,
+} from "@/lib/auth/resolvePasswordUpdateSite";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
 import { newPasswordSchema, type NewPasswordInput } from "@/lib/validations";
 
-export function UpdatePasswordForm() {
+type Props = { initialSite: AuthSiteSlug };
+
+export function UpdatePasswordForm({ initialSite }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [siteSlug, setSiteSlug] = useState<AuthSiteSlug>(initialSite);
 
-  const siteSlug = detectAuthSiteFromStrings(
-    searchParams.get("site") ?? "",
-    searchParams.get("returnUrl") ?? "",
-    readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
-  );
+  useEffect(() => {
+    void (async () => {
+      let detected = resolvePasswordUpdateSiteSync({
+        siteDirect: searchParams.get("site"),
+        cookieSite: readBrowserCookie("auth_reset_site"),
+        port: window.location.port || null,
+      });
+
+      try {
+        const [gptRes, subsRes] = await Promise.all([
+          createClient().auth.getSession(),
+          createSubsBrowserClient()
+            .auth.getSession()
+            .catch(() => ({ data: { session: null } })),
+        ]);
+        const hasGpt = Boolean(gptRes.data.session);
+        const hasSubs = Boolean(subsRes.data.session);
+        if (hasSubs && !hasGpt) detected = "subs-store";
+        else if (hasGpt && !hasSubs) detected = "gpt-store";
+      } catch {
+        /* noop */
+      }
+
+      setSiteSlug(detected);
+
+      const canonical = canonicalPasswordUpdateSearchParams(
+        detected,
+        searchParams.get("returnUrl"),
+      );
+      const next = `/reset-password/update?${canonical.toString()}`;
+      if (`${window.location.pathname}${window.location.search}` !== next) {
+        router.replace(next);
+      }
+    })();
+  }, [router, searchParams]);
   const isSubsStore = siteSlug === "subs-store";
   const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
 
@@ -47,7 +84,7 @@ export function UpdatePasswordForm() {
       if (!session) {
         setServerError(
           isSubsStore
-            ? "Сессия сброса не найдена. Откройте ссылку из письма ещё раз или запросите новую на странице сброса пароля Subs Store."
+            ? "Сессия сброса не найдена. Откройте ссылку из письма ещё раз или запросите новую на странице сброса пароля Spotify Store."
             : "Сессия сброса не найдена. Откройте ссылку из письма ещё раз.",
         );
       }
@@ -104,7 +141,7 @@ export function UpdatePasswordForm() {
       if (signInError) {
         setServerError(
           isSubsStore
-            ? "Пароль не сохранился в Subs Store. Запросите новое письмо: /reset-password?site=subs-store"
+            ? "Пароль не сохранился в Spotify Store. Запросите новое письмо: /reset-password?site=subs-store"
             : "Пароль не сохранился. Запросите новую ссылку из письма.",
         );
         return;
@@ -155,7 +192,7 @@ export function UpdatePasswordForm() {
             : "border-[#10a37f]/30 bg-[#10a37f]/10 text-teal-800",
         )}
       >
-        Смена пароля для: <strong>{isSubsStore ? "Subs Store (Spotify)" : "GPT STORE"}</strong>
+        Смена пароля для: <strong>{isSubsStore ? "SPOTIFY STORE" : "GPT STORE"}</strong>
       </p>
       <div>
         <label className={labelClass}>Новый пароль</label>

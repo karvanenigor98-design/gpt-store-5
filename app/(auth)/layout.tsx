@@ -14,13 +14,18 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const returnUrl = searchParams.get("returnUrl") ?? "";
   const siteDirect = searchParams.get("site") ?? "";
-  const cookieSite = readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
+  const isPasswordUpdate = pathname.startsWith("/reset-password/update");
+  const isRecoveryAuthPath =
+    isPasswordUpdate || pathname.startsWith("/callback");
+  const cookieSite = isRecoveryAuthPath
+    ? readBrowserCookie("auth_reset_site")
+    : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
   const port = typeof window !== "undefined" ? window.location.port || null : null;
 
   const isSubsStore =
     resolveAuthSiteContext({
       siteDirect,
-      returnUrl,
+      returnUrl: isPasswordUpdate ? null : returnUrl,
       cookieSite,
       port,
       pathname,

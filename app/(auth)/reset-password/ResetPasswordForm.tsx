@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -20,7 +20,7 @@ export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Pro
   const [cooldownSec, setCooldownSec] = useState(0);
   const isSubsStore = siteSlug === "subs-store";
   const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
-  const loginHref = isSubsStore ? "/login?site=subs-store" : "/login";
+  const loginHref = isSubsStore ? "/login?site=subs-store" : "/login?site=gpt-store";
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
     useForm<ResetPasswordInput>({ resolver: zodResolver(resetPasswordSchema) });
@@ -66,7 +66,7 @@ export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Pro
 
     if (isSubsStore && json.reason === "no_subs_membership") {
       setNotEligible(
-        `Аккаунт на Subs Store не найден. <a href="/register?site=subs-store" style="color:#1DB954;text-decoration:underline">Зарегистрируйтесь</a>.`
+        `Аккаунт в Spotify Store не найден. <a href="/register?site=subs-store" style="color:#1DB954;text-decoration:underline">Зарегистрируйтесь</a>.`
       );
       return;
     }

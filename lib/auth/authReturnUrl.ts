@@ -15,7 +15,12 @@ export function normalizeAuthReturnUrl(
 
   if (site === "subs-store") {
     if (raw === "/cabinet" || raw === "/dashboard" || raw === "/spotify") return fallback;
-  } else if (raw === "/cabinet" || raw === "/") {
+  } else if (
+    raw === "/cabinet" ||
+    raw === "/" ||
+    raw === "/spotify" ||
+    raw.startsWith("/spotify/")
+  ) {
     return fallback;
   }
 

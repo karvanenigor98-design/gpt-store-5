@@ -5,7 +5,8 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { detectAuthSiteFromStrings } from "@/lib/auth/detectAuthSite";
+import { detectAuthSiteFromStrings, type AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
@@ -89,16 +90,23 @@ function createAuthClient(isSubsStore: boolean): SupabaseClient<Database> {
   return isSubsStore ? createSubsBrowserClient() : createClient();
 }
 
+function recoveryCookieSite(): string | undefined {
+  return readBrowserCookie("auth_reset_site") || undefined;
+}
+
 function detectSubsFromWindow(): boolean {
   if (typeof window === "undefined") return false;
   const url = new URL(window.location.href);
   const hashParams = parseHashParams(window.location.hash);
+  const typeParam = url.searchParams.get("type") ?? hashParams.type ?? "";
+  const isRecovery = typeParam === "recovery";
   const rawReturnUrl = url.searchParams.get("returnUrl") ?? "";
   return (
     detectAuthSiteFromStrings(
       url.searchParams.get("site") ?? hashParams.site ?? "",
       rawReturnUrl,
-      readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+      isRecovery ? recoveryCookieSite() : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+      "/callback",
     ) === "subs-store"
   );
 }
@@ -121,21 +129,30 @@ export function CallbackClient() {
       const oauthErr = url.searchParams.get("error");
       const errCode = url.searchParams.get("error_code");
       const errDesc = (url.searchParams.get("error_description") ?? "").replace(/\+/g, " ");
-      const defaultReturnUrl = typeParam === "recovery" ? "/spotify" : "/cabinet";
-      const rawReturnUrl = url.searchParams.get("returnUrl") ?? defaultReturnUrl;
-      const returnUrl =
-        rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/cabinet";
+      const isRecoveryFlow = typeParam === "recovery";
+      const resetCookie = isRecoveryFlow
+        ? recoveryCookieSite()
+        : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
+      const siteHint = url.searchParams.get("site") ?? hashParams.site ?? "";
 
       const subsContext =
         detectAuthSiteFromStrings(
-          url.searchParams.get("site") ?? hashParams.site ?? "",
-          returnUrl,
-          readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+          siteHint,
+          url.searchParams.get("returnUrl") ?? "",
+          resetCookie,
+          "/callback",
         ) === "subs-store";
+
+      const siteSlug: AuthSiteSlug = subsContext ? "subs-store" : "gpt-store";
+      const defaultReturnUrl =
+        typeParam === "recovery" ? defaultCustomerDashboard(siteSlug) : "/cabinet";
+      const rawReturnUrl = url.searchParams.get("returnUrl") ?? defaultReturnUrl;
+      const returnUrl =
+        rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : defaultReturnUrl;
 
       setIsSubsStore(subsContext);
 
-      const siteQs = subsContext ? "&site=subs-store" : "";
+      const siteQs = subsContext ? "&site=subs-store" : "&site=gpt-store";
 
       function recoveryErr(kind: "expired" | "callback", detail?: string) {
         if (detail) {
@@ -231,9 +248,14 @@ export function CallbackClient() {
 
           if (cancelled) return;
 
+          document.cookie = `auth_reset_site=${siteSlug}; path=/; max-age=3600; samesite=lax`;
+
           const updateUrl = new URL("/reset-password/update", window.location.origin);
-          updateUrl.searchParams.set("returnUrl", returnUrl);
-          if (subsContext) updateUrl.searchParams.set("site", "subs-store");
+          updateUrl.searchParams.set(
+            "returnUrl",
+            returnUrl.includes("site=") ? returnUrl : defaultCustomerDashboard(siteSlug),
+          );
+          updateUrl.searchParams.set("site", siteSlug);
           router.replace(`${updateUrl.pathname}?${updateUrl.searchParams.toString()}`);
           return;
         } catch {
