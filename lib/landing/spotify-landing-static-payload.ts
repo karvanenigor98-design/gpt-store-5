@@ -103,7 +103,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
     plans: SPOTIFY_PLANS.map((p) => ({ ...p })),
     projectsSection: {
       eyebrow: "Наши проекты",
-      label: "Также от Subs Store",
+      label: "Также от SPOTIFY STORE",
       title: "GPT STORE",
       description: "Подписки ChatGPT Plus и Pro с оплатой в рублях, поддержкой и активацией на аккаунт.",
       ctaHref: getGptStoreLandingPath(),

@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 
+import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
 import { hasSubsStoreAuthUserByEmail } from "@/lib/auth/subsMembershipByEmail";
 import { sendTransactionalEmail } from "@/lib/email/send-email";
+import { getPublicBrandName } from "@/lib/sites";
 import { buildRecoveryRedirectTo } from "@/lib/site-url";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
@@ -68,7 +70,7 @@ function getAppBaseUrl(request: NextRequest): string {
 
 function buildResetEmailHtml(recoveryLink: string, siteSlug: string, appLoginUrl: string): string {
   const isSubsStore = siteSlug === "subs-store";
-  const brandName = isSubsStore ? "Subs Store" : "GPT STORE";
+  const brandName = getPublicBrandName(siteSlug);
   const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
   const bgColor = isSubsStore ? "#111111" : "#ffffff";
   const headingColor = isSubsStore ? "#ffffff" : "#111827";
@@ -137,7 +139,7 @@ async function sendViaResend(to: string, recoveryLink: string, siteSlug: string,
   }
 
   const isSubsStore = siteSlug === "subs-store";
-  const subject = isSubsStore ? "Сброс пароля Subs Store" : "Сброс пароля GPT STORE";
+  const subject = `Сброс пароля ${getPublicBrandName(siteSlug)}`;
   const html = buildResetEmailHtml(recoveryLink, siteSlug, appLoginUrl);
 
   try {
@@ -229,7 +231,9 @@ export async function POST(request: NextRequest) {
       }
       const actionLink = linkData?.properties?.action_link ?? "";
       const hashedToken = linkData?.properties?.hashed_token ?? "";
-      const postResetReturn = `/cabinet?site=${siteSlug}`;
+      const postResetReturn = defaultCustomerDashboard(
+        siteSlug === "subs-store" ? "subs-store" : "gpt-store",
+      );
       const callbackLink = hashedToken
         ? `${appBaseUrl}/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=recovery&site=${siteSlug}&returnUrl=${encodeURIComponent(postResetReturn)}`
         : "";
@@ -239,7 +243,7 @@ export async function POST(request: NextRequest) {
 
     async function sendCustomRecoveryEmail(recoveryLink: string): Promise<SendResult> {
       const isSubs = siteSlug === "subs-store";
-      const subject = isSubs ? "Сброс пароля Spotify Store" : "Сброс пароля GPT STORE";
+      const subject = `Сброс пароля ${getPublicBrandName(siteSlug)}`;
       const html = buildResetEmailHtml(recoveryLink, siteSlug, appLoginUrl);
       const text = `Сброс пароля. Откройте ссылку: ${recoveryLink}`;
 

@@ -12,6 +12,7 @@ import {
   isSubsPublicAuthConfigured,
 } from "@/lib/supabase/subs-auth-env";
 import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
+import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 import {
   isGptDevPort,
   isSubsDevPort,
@@ -19,10 +20,7 @@ import {
 } from "@/lib/auth/devStoreProfile";
 
 function isGptPublicAuthConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim(),
-  );
+  return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 }
 
 export async function middleware(request: NextRequest) {
@@ -74,7 +72,7 @@ export async function middleware(request: NextRequest) {
   const gptSb =
     isGptPublicAuthConfigured() ?
       createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        getGptPublicSupabaseUrl(),
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookieOptions: getAuthCookieOptions(),

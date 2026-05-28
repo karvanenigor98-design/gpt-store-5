@@ -35,11 +35,12 @@ function siteFromQuery(requestUrl: URL): SiteSlug | null {
   return s === "subs-store" || s === "gpt-store" ? s : null;
 }
 
-/** Supabase иногда редиректит только с code=… без query — тогда смотрим returnUrl из ссылки. */
-function siteFromReturnParam(requestUrl: URL): SiteSlug | null {
+/** returnUrl из ссылки: site= в query; /spotify только для signup (не recovery). */
+function siteFromReturnParam(requestUrl: URL, allowSpotifyPath: boolean): SiteSlug | null {
   const ret = requestUrl.searchParams.get("returnUrl") ?? "";
   if (ret.includes("site=gpt-store")) return "gpt-store";
-  if (ret.includes("site=subs-store") || ret.includes("/spotify") || ret.startsWith("/spotify")) {
+  if (ret.includes("site=subs-store")) return "subs-store";
+  if (allowSpotifyPath && (ret.includes("/spotify") || ret.startsWith("/spotify"))) {
     return "subs-store";
   }
   return null;
@@ -62,7 +63,7 @@ function resolveSiteWithUser(
   return (
     siteFromQuery(requestUrl) ??
     siteFromUserMetadata(userMetaSignupSite) ??
-    siteFromReturnParam(requestUrl) ??
+    siteFromReturnParam(requestUrl, true) ??
     siteFromCookie(cookieSite) ??
     "gpt-store"
   );
@@ -87,10 +88,10 @@ export async function GET(request: NextRequest) {
   let siteParam: SiteSlug = isRecovery
     ? (siteFromQuery(requestUrl) ??
       siteFromCookie(resetSiteCookie) ??
-      siteFromReturnParam(requestUrl) ??
+      siteFromReturnParam(requestUrl, false) ??
       "gpt-store")
     : (siteFromQuery(requestUrl) ??
-      siteFromReturnParam(requestUrl) ??
+      siteFromReturnParam(requestUrl, true) ??
       siteFromCookie(resetSiteCookie) ??
       siteFromCookie(cookieSite) ??
       "gpt-store");

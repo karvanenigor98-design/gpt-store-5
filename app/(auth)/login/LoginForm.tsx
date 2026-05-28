@@ -140,7 +140,7 @@ export function LoginForm() {
     if (!loginRes.ok) {
       setServerError(
         loginBody.error ??
-          "Не удалось войти в Subs Store. Проверьте email и пароль или восстановите пароль.",
+          "Не удалось войти в Spotify Store. Проверьте email и пароль или восстановите пароль.",
       );
       return;
     }

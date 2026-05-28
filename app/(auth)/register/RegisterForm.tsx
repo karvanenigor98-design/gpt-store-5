@@ -39,12 +39,18 @@ export function RegisterForm() {
   const siteDirect = searchParams.get("site") ?? "";
   const returnUrlParam = searchParams.get("returnUrl");
 
-  const isSubsStore =
-    siteDirect === "subs-store" ||
-    (returnUrlParam ?? "").includes("site=subs-store") ||
-    (returnUrlParam ?? "").includes("/spotify");
-
-  const siteSlug = isSubsStore ? "subs-store" : "gpt-store";
+  const siteSlug = (() => {
+    if (siteDirect === "subs-store" || siteDirect === "gpt-store") {
+      return siteDirect;
+    }
+    const ret = returnUrlParam ?? "";
+    if (ret.includes("site=subs-store") || ret.includes("/spotify")) {
+      return "subs-store";
+    }
+    if (ret.includes("site=gpt-store")) return "gpt-store";
+    return "gpt-store";
+  })();
+  const isSubsStore = siteSlug === "subs-store";
 
   const returnUrl = (() => {
     const raw = returnUrlParam ?? defaultCustomerDashboard(siteSlug);

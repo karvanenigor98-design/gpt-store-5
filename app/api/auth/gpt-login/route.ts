@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Этот email зарегистрирован в Subs Store (Spotify), а не в GPT STORE. Откройте вход Subs: /login?site=subs-store (порт 3055).",
+            "Этот email зарегистрирован в Spotify Store, а не в GPT STORE. Откройте вход: /login?site=subs-store.",
           code: "wrong_project",
         },
         { status: 401 },

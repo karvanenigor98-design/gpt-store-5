@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Subs Store Auth не настроен: NEXT_PUBLIC_SUBS_SUPABASE_URL и NEXT_PUBLIC_SUBS_SUPABASE_ANON_KEY в .env.local",
+          "Spotify Store Auth не настроен: NEXT_PUBLIC_SUBS_SUPABASE_URL и NEXT_PUBLIC_SUBS_SUPABASE_ANON_KEY в .env.local",
         code: "config",
       },
       { status: 503 },
@@ -48,9 +48,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const rawReturn = body.returnUrl ?? "/dashboard?site=subs-store";
+  const rawReturn = body.returnUrl ?? "/cabinet?site=subs-store";
   const returnUrl =
-    rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : "/dashboard?site=subs-store";
+    rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : "/cabinet?site=subs-store";
   const effectiveReturnUrl = normalizeAuthReturnUrl(returnUrl, "subs-store");
 
   const subs = await createSubsAuthServerClient();
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Этот email зарегистрирован в GPT STORE, а не в Subs Store. Войдите через /login?site=gpt-store (порт 3056).",
+            "Этот email зарегистрирован в GPT STORE, а не в Spotify Store. Войдите через /login?site=gpt-store.",
           code: "wrong_project",
         },
         { status: 401 },
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         {
           error: inSubs
             ? "Неправильный пароль"
-            : "Аккаунт Subs Store с таким email не найден. Зарегистрируйтесь: /register?site=subs-store",
+            : "Аккаунт Spotify Store с таким email не найден. Зарегистрируйтесь: /register?site=subs-store",
           code: inSubs ? "invalid_credentials" : "email_not_found",
         },
         { status: 401 },

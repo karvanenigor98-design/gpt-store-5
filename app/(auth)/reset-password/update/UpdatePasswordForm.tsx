@@ -13,7 +13,11 @@ import {
   canonicalPasswordUpdateSearchParams,
   resolvePasswordUpdateSiteSync,
 } from "@/lib/auth/resolvePasswordUpdateSite";
-import { establishRecoverySessionFromUrl, readRecoveryTokensFromWindow } from "@/lib/auth/recoverySessionFromUrl";
+import {
+  establishRecoverySessionForSite,
+  hasRecoveryTokensInUrl,
+  redirectToRecoveryHandler,
+} from "@/lib/auth/recoverySessionFromUrl";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
@@ -32,47 +36,46 @@ export function UpdatePasswordForm({ initialSite }: Props) {
 
   useEffect(() => {
     void (async () => {
+      const siteFromQuery = searchParams.get("site");
+      const resetCookie = readBrowserCookie("auth_reset_site");
       let detected = resolvePasswordUpdateSiteSync({
-        siteDirect: searchParams.get("site"),
-        cookieSite: readBrowserCookie("auth_reset_site"),
+        siteDirect: siteFromQuery,
+        cookieSite: resetCookie,
         port: window.location.port || null,
       });
 
-      try {
-        const [gptRes, subsRes] = await Promise.all([
-          createClient().auth.getSession(),
-          createSubsBrowserClient()
-            .auth.getSession()
-            .catch(() => ({ data: { session: null } })),
-        ]);
-        const hasGpt = Boolean(gptRes.data.session);
-        const hasSubs = Boolean(subsRes.data.session);
-        if (hasSubs && !hasGpt) detected = "subs-store";
-        else if (hasGpt && !hasSubs) detected = "gpt-store";
-      } catch {
-        /* noop */
+      const hasExplicitSite =
+        siteFromQuery === "gpt-store" || siteFromQuery === "subs-store";
+      const hasResetCookie =
+        resetCookie === "gpt-store" || resetCookie === "subs-store";
+
+      if (!hasExplicitSite && !hasResetCookie) {
+        try {
+          const [gptRes, subsRes] = await Promise.all([
+            createClient().auth.getSession(),
+            createSubsBrowserClient()
+              .auth.getSession()
+              .catch(() => ({ data: { session: null } })),
+          ]);
+          const hasGpt = Boolean(gptRes.data.session);
+          const hasSubs = Boolean(subsRes.data.session);
+          if (hasSubs && !hasGpt) detected = "subs-store";
+          else if (hasGpt && !hasSubs) detected = "gpt-store";
+        } catch {
+          /* noop */
+        }
       }
 
       setSiteSlug(detected);
 
-      const tokens = readRecoveryTokensFromWindow();
-      if (tokens.token_hash && tokens.type === "recovery") {
-        const q = new URLSearchParams(window.location.search);
-        q.set("token_hash", tokens.token_hash);
-        q.set("type", "recovery");
-        q.set("site", detected);
-        const ret = searchParams.get("returnUrl");
-        if (ret) q.set("returnUrl", ret);
-        window.location.replace(`/auth/callback?${q.toString()}`);
+      const returnUrlParam = searchParams.get("returnUrl");
+
+      if (hasRecoveryTokensInUrl()) {
+        redirectToRecoveryHandler(detected, returnUrlParam);
         return;
       }
 
-      const client = detected === "subs-store" ? createSubsBrowserClient() : createClient();
-      const boot = await establishRecoverySessionFromUrl(client);
-      if (!boot.ok && tokens.code) {
-        const other = detected === "subs-store" ? createClient() : createSubsBrowserClient();
-        await establishRecoverySessionFromUrl(other).catch(() => undefined);
-      }
+      await establishRecoverySessionForSite(detected);
 
       const canonical = canonicalPasswordUpdateSearchParams(
         detected,
@@ -102,7 +105,7 @@ export function UpdatePasswordForm({ initialSite }: Props) {
   });
 
   useEffect(() => {
-    if (bootstrapping) return;
+    if (bootstrapping || hasRecoveryTokensInUrl()) return;
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         setServerError(

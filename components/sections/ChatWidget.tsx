@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -19,7 +19,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   const isSubsStore = siteSlug === "subs-store";
   const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
   const accentHover = isSubsStore ? "#17a349" : "#0d8f68";
-  const chatPartyName = isSubsStore ? "Subs Store — поддержка" : "GPT STORE — поддержка";
+  const chatPartyName = isSubsStore ? "SPOTIFY STORE — поддержка" : "GPT STORE — поддержка";
   const [open, setOpen] = useState(false);
   const [user, setUser] = useState<Profile | null>(null);
   const [session, setSession] = useState<ClientChatSessionPayload | null>(null);
@@ -35,7 +35,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
       const r = await fetch("/api/subs/chat/rooms", { credentials: "include" });
       const j = (await r.json().catch(() => ({}))) as ClientChatSessionPayload & { error?: string; code?: string };
       if (!r.ok) {
-        throw new Error(j.error ?? `Не удалось открыть чат Subs Store (${r.status})`);
+        throw new Error(j.error ?? `Не удалось открыть чат Spotify Store (${r.status})`);
       }
       if (j?.id) setSession(j);
       else throw new Error("Пустой ответ сервера (Subs chat)");

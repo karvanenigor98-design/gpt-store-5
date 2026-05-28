@@ -5,7 +5,11 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { detectAuthSiteFromStrings, type AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import {
+  detectAuthSiteFromStrings,
+  detectRecoveryAuthSite,
+  type AuthSiteSlug,
+} from "@/lib/auth/detectAuthSite";
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 import { createClient } from "@/lib/supabase/client";
@@ -100,12 +104,24 @@ function detectSubsFromWindow(): boolean {
   const hashParams = parseHashParams(window.location.hash);
   const typeParam = url.searchParams.get("type") ?? hashParams.type ?? "";
   const isRecovery = typeParam === "recovery";
+  const siteHint = url.searchParams.get("site") ?? hashParams.site ?? "";
+
+  if (isRecovery) {
+    return (
+      detectRecoveryAuthSite(
+        siteHint,
+        recoveryCookieSite(),
+        window.location.port || null,
+      ) === "subs-store"
+    );
+  }
+
   const rawReturnUrl = url.searchParams.get("returnUrl") ?? "";
   return (
     detectAuthSiteFromStrings(
-      url.searchParams.get("site") ?? hashParams.site ?? "",
+      siteHint,
       rawReturnUrl,
-      isRecovery ? recoveryCookieSite() : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+      readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
       "/callback",
     ) === "subs-store"
   );
@@ -139,18 +155,20 @@ export function CallbackClient() {
         typeParam === "invite" ||
         (Boolean(code) && !isRecoveryFlow && Boolean(pendingSignupEmail));
       const clientRetryExhausted = url.searchParams.get("from") === "client";
-      const resetCookie = isRecoveryFlow
-        ? recoveryCookieSite()
-        : readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site");
       const siteHint = url.searchParams.get("site") ?? hashParams.site ?? "";
 
-      const subsContext =
-        detectAuthSiteFromStrings(
-          siteHint,
-          url.searchParams.get("returnUrl") ?? "",
-          resetCookie,
-          "/callback",
-        ) === "subs-store";
+      const subsContext = isRecoveryFlow
+        ? detectRecoveryAuthSite(
+            siteHint,
+            recoveryCookieSite(),
+            window.location.port || null,
+          ) === "subs-store"
+        : detectAuthSiteFromStrings(
+            siteHint,
+            url.searchParams.get("returnUrl") ?? "",
+            readBrowserCookie("auth_reset_site") || readBrowserCookie("current_site"),
+            "/callback",
+          ) === "subs-store";
 
       const siteSlug: AuthSiteSlug = subsContext ? "subs-store" : "gpt-store";
       const defaultReturnUrl = defaultCustomerDashboard(siteSlug);
@@ -519,7 +537,7 @@ export function CallbackClient() {
         </p>
       )}
       <p className={`text-xs ${isSubsStore ? "text-gray-500" : "text-gray-400"}`}>
-        {isSubsStore ? "Subs Store" : "GPT STORE"} · если экран не меняется больше 15 сек,{" "}
+        {isSubsStore ? "SPOTIFY STORE" : "GPT STORE"} · если экран не меняется больше 15 сек,{" "}
         <a
           href={isSubsStore ? "/reset-password?site=subs-store" : "/reset-password"}
           className="underline"

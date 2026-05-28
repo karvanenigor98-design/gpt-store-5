@@ -19,8 +19,8 @@ export async function POST(request: Request) {
   const authSite = request.headers.get("x-auth-site");
   const useSubs =
     authSite === "subs-store" ||
-    returnUrl.includes("/spotify") ||
-    returnUrl.includes("site=subs-store");
+    (authSite !== "gpt-store" &&
+      (returnUrl.includes("site=subs-store") || returnUrl.includes("/spotify")));
 
   if (useSubs) {
     const subs = await createSubsAuthServerClient();

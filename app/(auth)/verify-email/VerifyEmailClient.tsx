@@ -30,7 +30,7 @@ function mapQueryError(
 
 function errorBannerText(kind: "expired" | "used" | "callback" | "wrong_account"): string {
   if (kind === "expired") return "Ссылка истекла. Отправьте письмо ещё раз.";
-  if (kind === "used") return "Аккаунт уже подтверждён";
+  if (kind === "used") return "Email уже подтверждён. Войдите в личный кабинет.";
   if (kind === "wrong_account") {
     return "В браузере была активна другая учётная запись. Выйдите из всех аккаунтов на сайте, откройте ссылку из письма снова или зарегистрируйтесь в режиме инкогнито.";
   }
@@ -249,7 +249,7 @@ export function VerifyEmailClient() {
         <p className={`text-sm ${subTextClass}`}>
           Открываем{" "}
           {isSubsStore ? (
-            <span style={{ color: SPOTIFY_GREEN }}>Subs Store</span>
+            <span style={{ color: SPOTIFY_GREEN }}>Spotify Store</span>
           ) : "личный кабинет"}
           …
         </p>
@@ -270,9 +270,18 @@ export function VerifyEmailClient() {
         {flowCheckInbox && isSubsStore ? "Завершите регистрацию" : "Проверьте почту"}
       </h1>
       {queryErr && (
-        <p className={`mb-4 rounded-lg border px-3 py-2 text-sm ${isSubsStore ? "border-red-700/40 bg-red-950/50 text-red-400" : "border-red-200 bg-red-50 text-red-700"}`}>
-          {errorBannerText(queryErr)}
-        </p>
+        <div className={`mb-4 space-y-3 rounded-lg border px-3 py-2 text-sm ${isSubsStore ? "border-red-700/40 bg-red-950/50 text-red-400" : "border-red-200 bg-red-50 text-red-700"}`}>
+          <p>{errorBannerText(queryErr)}</p>
+          {(queryErr === "used" || queryErr === "callback") && (
+            <a
+              href={postLoginTarget}
+              className="inline-flex w-full items-center justify-center rounded-xl py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ backgroundColor: accentColor }}
+            >
+              {queryErr === "used" ? "Войти в кабинет" : "Перейти в кабинет"}
+            </a>
+          )}
+        </div>
       )}
       {showJustSent && (
         <p
@@ -286,13 +295,13 @@ export function VerifyEmailClient() {
         {flowCheckInbox && isSubsStore ? (
           <>
             Мы отправили инструкции на указанный адрес. Откройте письмо и подтвердите email — после этого вы
-            автоматически попадёте в личный кабинет Subs Store.
+            автоматически попадёте в личный кабинет Spotify Store.
           </>
         ) : (
           <>
             Мы отправили письмо для подтверждения регистрации. Откройте письмо и нажмите «Подтвердить email».
             После подтверждения вы автоматически попадёте в личный кабинет
-            {isSubsStore ? " Subs Store" : ""}.
+            {isSubsStore ? " Spotify Store" : ""}.
           </>
         )}
       </p>

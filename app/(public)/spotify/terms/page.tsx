@@ -21,7 +21,7 @@ export default function SpotifyTermsPage() {
           href="/spotify"
           className="font-heading text-sm font-semibold text-white transition-opacity hover:opacity-80"
         >
-          Subs <span style={{ color: ACCENT }}>Store</span>
+          SPOTIFY <span style={{ color: ACCENT }}>STORE</span>
         </Link>
       </header>
 
@@ -33,7 +33,7 @@ export default function SpotifyTermsPage() {
           Пользовательское соглашение
         </h1>
         <p className="text-sm mb-8" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Subs Store · Актуальная версия
+          SPOTIFY STORE · Актуальная версия
         </p>
 
         {/* 
@@ -56,7 +56,7 @@ export default function SpotifyTermsPage() {
             <p>
               <strong style={{ color: "#fff" }}>Сервис / Продавец</strong> — интернет-сайт и связанные с ним
               процессы оформления заказа под брендом{" "}
-              <strong style={{ color: ACCENT }}>Subs Store</strong>.{" "}
+              <strong style={{ color: ACCENT }}>SPOTIFY STORE</strong>.{" "}
               <strong style={{ color: "#fff" }}>Пользователь</strong> — физическое лицо, оформившее заказ или
               использующее сайт.{" "}
               <strong style={{ color: "#fff" }}>Услуга</strong> — комплекс действий по подключению или
@@ -185,7 +185,7 @@ export default function SpotifyTermsPage() {
             <p>
               Обработка персональных данных осуществляется в соответствии с{" "}
               <Link href="/spotify/privacy" className="hover:underline" style={{ color: ACCENT }}>
-                политикой конфиденциальности Subs Store
+                политикой конфиденциальности SPOTIFY STORE
               </Link>
               .
             </p>

@@ -1,4 +1,5 @@
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
 
 const PROD_BASE_URL = "https://gpt-store-5.vercel.app";
 const LOCAL_BASE_URL = "http://127.0.0.1:3055";
@@ -108,13 +109,11 @@ export function getAuthCallbackUrl(site: AuthSiteSlug, returnUrl?: string, runti
 }
 
 /**
- * redirectTo для Supabase: сразу на форму нового пароля — токены приходят в #hash или ?code=.
+ * redirectTo для Supabase resetPasswordForEmail / generateLink.
+ * /callback — клиент подхватывает #hash и PKCE, затем ведёт на /reset-password/update.
  */
 export function buildRecoveryRedirectTo(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/reset-password/update", getBaseUrl(runtimeOrigin));
-  url.searchParams.set("site", site);
-  url.searchParams.set("returnUrl", `/cabinet?site=${site}`);
-  return url.toString();
+  return buildRecoveryCallbackRedirectTo(site, runtimeOrigin);
 }
 
 /**
@@ -141,7 +140,7 @@ export function buildRecoveryCallbackRedirectTo(site: AuthSiteSlug, runtimeOrigi
   const url = new URL("/callback", getBaseUrl(runtimeOrigin));
   url.searchParams.set("site", site);
   url.searchParams.set("type", "recovery");
-  url.searchParams.set("returnUrl", `/cabinet?site=${site}`);
+  url.searchParams.set("returnUrl", defaultCustomerDashboard(site));
   return url.toString();
 }
 

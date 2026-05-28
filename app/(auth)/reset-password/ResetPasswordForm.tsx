@@ -50,7 +50,7 @@ export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Pro
         updateUrl.searchParams.set("site", siteSlug);
         updateUrl.searchParams.set(
           "returnUrl",
-          isSubsStore ? "/dashboard?site=subs-store" : "/cabinet?site=gpt-store",
+          isSubsStore ? "/cabinet?site=subs-store" : "/cabinet?site=gpt-store",
         );
         window.location.replace(`${updateUrl.pathname}?${updateUrl.searchParams.toString()}`);
       } catch {

@@ -2,7 +2,7 @@ import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 
 /** Личный кабинет покупателя по умолчанию. */
 export function defaultCustomerDashboard(site: AuthSiteSlug): string {
-  return site === "subs-store" ? "/dashboard?site=subs-store" : "/dashboard?site=gpt-store";
+  return site === "subs-store" ? "/cabinet?site=subs-store" : "/cabinet?site=gpt-store";
 }
 
 /** Витрина/общие пути → в кабинет после входа, регистрации или сброса пароля. */

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -399,7 +399,7 @@ export function ChatWindow({
         <div className="min-w-0 flex-1">
           <p className={cn("truncate text-sm font-semibold", isSubs ? "text-white" : "text-gray-900")}>
             {otherPartyName ??
-              (viewerIsStaff ? "Клиент" : siteSlug === "subs-store" ? "Subs Store — поддержка" : "GPT STORE — поддержка")}
+              (viewerIsStaff ? "Клиент" : siteSlug === "subs-store" ? "SPOTIFY STORE — поддержка" : "GPT STORE — поддержка")}
           </p>
           <div className="mt-0.5 flex items-center gap-1.5">
             <div

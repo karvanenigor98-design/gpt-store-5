@@ -21,7 +21,7 @@ export default function SpotifyPrivacyPage() {
           href="/spotify"
           className="font-heading text-sm font-semibold text-white transition-opacity hover:opacity-80"
         >
-          Subs <span style={{ color: ACCENT }}>Store</span>
+          SPOTIFY <span style={{ color: ACCENT }}>STORE</span>
         </Link>
       </header>
 
@@ -33,7 +33,7 @@ export default function SpotifyPrivacyPage() {
           Политика конфиденциальности
         </h1>
         <p className="text-sm mb-8" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Subs Store · Актуальная версия
+          SPOTIFY STORE · Актуальная версия
         </p>
 
         {/*
@@ -56,7 +56,7 @@ export default function SpotifyPrivacyPage() {
             <p>
               Настоящая политика описывает порядок сбора, хранения и использования персональных
               данных пользователей сайта{" "}
-              <strong style={{ color: ACCENT }}>Subs Store</strong>. Используя сайт, вы соглашаетесь
+              <strong style={{ color: ACCENT }}>SPOTIFY STORE</strong>. Используя сайт, вы соглашаетесь
               с условиями настоящей политики.
             </p>
           </section>
