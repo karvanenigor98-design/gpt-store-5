@@ -29,8 +29,19 @@ export function SpotifyCheckoutFlow() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ready, setReady] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  /** Не сбрасывать шаг при poll тарифов (каждые 5 с). */
-  const urlPlanStepAppliedRef = useRef<string | null>(null);
+  const plansHashRef = useRef(JSON.stringify(SPOTIFY_PLANS));
+  const urlPlanInitDoneRef = useRef(false);
+  const maxStepReachedRef = useRef(1);
+
+  function goToStep(next: number) {
+    maxStepReachedRef.current = Math.max(maxStepReachedRef.current, next);
+    setStep(next);
+  }
+
+  function goBackToStep(next: number) {
+    maxStepReachedRef.current = next;
+    setStep(next);
+  }
 
   useEffect(() => {
     async function loadPlans() {
@@ -42,9 +53,14 @@ export function SpotifyCheckoutFlow() {
           promoCodes?: { code: string; active: boolean }[];
           source?: string;
         };
-        if (j.plans?.length) {
-          setPlans(j.plans);
-          setPlansSource(j.source === "supabase" ? "supabase" : "static");
+        const nextPlans = j.plans?.length ? j.plans : null;
+        if (nextPlans) {
+          const nextHash = JSON.stringify(nextPlans);
+          if (nextHash !== plansHashRef.current) {
+            plansHashRef.current = nextHash;
+            setPlans(nextPlans);
+            setPlansSource(j.source === "supabase" ? "supabase" : "static");
+          }
         }
         if (j.promoCodes?.length) setPromoCodes(j.promoCodes.filter((p) => p.active));
       } catch {
@@ -57,21 +73,21 @@ export function SpotifyCheckoutFlow() {
     return () => window.clearInterval(id);
   }, []);
 
+  // Только выбор тарифа из URL — шаг не трогаем (poll каждые 5 с)
   useEffect(() => {
-    const planId = searchParams.get("plan");
-    if (!planId || !plans.length) return;
+    if (!planIdFromUrl || !plans.length) return;
+    const found = plans.find((p) => p.id === planIdFromUrl);
+    if (found) setSelectedPlan(found);
+  }, [planIdFromUrl, plans]);
 
-    const found = plans.find((p) => p.id === planId);
-    if (!found) return;
-
-    setSelectedPlan(found);
-
-    // Только при первом заходе с ?plan=… или смене plan в URL — не откатывать с шага 3
-    if (urlPlanStepAppliedRef.current !== planId) {
-      urlPlanStepAppliedRef.current = planId;
-      setStep((current) => (current < 2 ? 2 : current));
-    }
-  }, [searchParams, plans]);
+  // Один раз: с лендинга ?plan=… → шаг 2, но не откатывать если уже на 3
+  useEffect(() => {
+    if (!planIdFromUrl || urlPlanInitDoneRef.current || !plans.length) return;
+    if (!plans.some((p) => p.id === planIdFromUrl)) return;
+    urlPlanInitDoneRef.current = true;
+    setStep((current) => (current > 1 ? current : 2));
+    maxStepReachedRef.current = Math.max(maxStepReachedRef.current, 2);
+  }, [planIdFromUrl, plans]);
 
   useEffect(() => {
     const subs = tryCreateSubsBrowserClient();
@@ -99,7 +115,7 @@ export function SpotifyCheckoutFlow() {
       setEmailError(err);
       return;
     }
-    setStep(3);
+    goToStep(3);
   }
 
   async function handlePay() {
@@ -107,7 +123,7 @@ export function SpotifyCheckoutFlow() {
     const err = validateEmail(email);
     if (err) {
       setEmailError(err);
-      setStep(2);
+      goBackToStep(2);
       return;
     }
 
@@ -331,7 +347,7 @@ export function SpotifyCheckoutFlow() {
               <button
                 type="button"
                 disabled={!selectedPlan}
-                onClick={() => setStep(2)}
+                onClick={() => goToStep(2)}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-30 sm:w-auto sm:min-w-[220px]"
                 style={{ background: SPOTIFY_ACCENT }}
               >
@@ -404,7 +420,7 @@ export function SpotifyCheckoutFlow() {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  onClick={() => setStep(1)}
+                  onClick={() => goBackToStep(1)}
                   className="rounded-xl px-6 py-3.5 text-sm text-white/60 transition-colors hover:text-white sm:flex-1"
                   style={{ border: "1px solid rgba(255,255,255,0.12)" }}
                 >
@@ -492,7 +508,7 @@ export function SpotifyCheckoutFlow() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => goBackToStep(2)}
                 className="rounded-xl px-6 py-3.5 text-sm text-white/60 transition-colors hover:text-white sm:flex-1"
                 style={{ border: "1px solid rgba(255,255,255,0.12)" }}
               >
