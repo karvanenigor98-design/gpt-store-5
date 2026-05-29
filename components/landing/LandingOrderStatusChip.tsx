@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 
-type SiteSlug = "gpt-store" | "subs-store";
+import { buildCustomerOrdersListHref } from "@/lib/dashboard/customer-order-view";
+import type { SiteSlug } from "@/lib/auth/siteUiSession";
 
 export function LandingOrderStatusChip({ siteSlug }: { siteSlug: SiteSlug }) {
-  const [href, setHref] = useState(() =>
-    siteSlug === "subs-store" ? "/dashboard/orders?site=subs-store" : "/dashboard/orders?site=gpt-store",
-  );
+  const ordersHref = buildCustomerOrdersListHref(siteSlug);
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
@@ -17,14 +16,6 @@ export function LandingOrderStatusChip({ siteSlug }: { siteSlug: SiteSlug }) {
 
     const load = async () => {
       try {
-        const navRes = await fetch(`/api/customer/order-status-nav?site=${siteSlug}`, {
-          credentials: "include",
-        });
-        const navBody = (await navRes.json().catch(() => ({}))) as { href?: string };
-        if (!cancelled && navRes.ok && typeof navBody.href === "string") {
-          setHref(navBody.href);
-        }
-
         const notifApi =
           siteSlug === "subs-store" ? "/api/subs/notifications" : "/api/gpt/notifications";
         const notifRes = await fetch(notifApi, { credentials: "include" });
@@ -50,13 +41,13 @@ export function LandingOrderStatusChip({ siteSlug }: { siteSlug: SiteSlug }) {
 
   return (
     <Link
-      href={href}
+      href={ordersHref}
       className={`relative inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
         dark
           ? "border-white/15 bg-white/5 text-white hover:bg-white/10"
           : "border-black/[0.1] bg-white text-gray-700 hover:bg-gray-50"
       }`}
-      title="Статус заказа"
+      title="Мои заказы"
     >
       <Bell size={13} style={{ color: unread > 0 ? accent : undefined }} />
       Статус заказа
