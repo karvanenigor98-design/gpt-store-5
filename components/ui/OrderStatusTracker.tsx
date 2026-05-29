@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, Clock, Circle } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import {
   mapOrderStatusToTrackerStep,
   type OrderTrackerStep,
@@ -90,28 +88,6 @@ export function OrderStatusTracker({
   useEffect(() => {
     setTrackerStep(mapOrderStatusToTrackerStep(initialStatus));
   }, [initialStatus]);
-
-  useEffect(() => {
-    const supabase =
-      siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
-    if (!supabase) return;
-
-    const channel = supabase
-      .channel(`order-tracker-${siteSlug}-${orderId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
-        (payload) => {
-          const next = (payload.new as { status?: string }).status;
-          if (next) setTrackerStep(mapOrderStatusToTrackerStep(next));
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [orderId, siteSlug]);
 
   useEffect(() => {
     if (trackerStep !== "activation") {

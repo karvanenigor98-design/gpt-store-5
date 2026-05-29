@@ -12,6 +12,7 @@ import {
   type CustomerOrderView,
 } from "@/lib/dashboard/customer-order-view";
 import { shouldShowOrderStatusTracker } from "@/lib/dashboard/order-status-tracker";
+import { useOrderLiveStatus } from "@/lib/dashboard/use-order-live-status";
 import { cn } from "@/lib/utils";
 
 type StatusStyle = { label: string; color: string };
@@ -40,11 +41,14 @@ export function CustomerOrderCard({
   isNewest = false,
 }: Props) {
   const isSubs = siteSlug === "subs-store";
-  const awaitingPay = isOrderAwaitingPayment(order.status);
-  const showTracker = shouldShowOrderStatusTracker(order.status);
+  const liveStatus = useOrderLiveStatus(order.id, siteSlug, order.status);
+  const awaitingPay = isOrderAwaitingPayment(liveStatus);
+  const showTracker = shouldShowOrderStatusTracker(liveStatus);
   const isInProgress = showTracker;
-  const isActive = ["active", "activated", "completed"].includes(order.status);
-  const isExpiredOrFailed = ["expired", "failed", "refunded", "problem"].includes(order.status);
+  const isActive = ["active", "activated", "completed"].includes(liveStatus);
+  const isExpiredOrFailed = ["expired", "failed", "refunded", "problem", "cancelled"].includes(
+    liveStatus,
+  );
 
   return (
     <div
@@ -90,12 +94,7 @@ export function CustomerOrderCard({
           </p>
         </div>
         <div className="text-right">
-          <OrderLiveStatusBadge
-            orderId={order.id}
-            siteSlug={siteSlug}
-            initialStatus={order.status}
-            statusStyles={statusStyles}
-          />
+          <OrderLiveStatusBadge status={liveStatus} siteSlug={siteSlug} statusStyles={statusStyles} />
           <p className={cn("mt-1 text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
             {order.price.toLocaleString("ru")} ₽
           </p>
@@ -116,7 +115,7 @@ export function CustomerOrderCard({
         {isInProgress ? (
           <OrderStatusTracker
             orderId={order.id}
-            initialStatus={order.status}
+            initialStatus={liveStatus}
             siteSlug={siteSlug}
             planId={order.plan_id}
             activatedAt={order.activated_at}

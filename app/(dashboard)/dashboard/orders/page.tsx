@@ -1,5 +1,6 @@
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { CustomerOrderCard } from "@/components/dashboard/CustomerOrderCard";
+import { OrderFocusStatusPanel } from "@/components/dashboard/OrderFocusStatusPanel";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
@@ -122,21 +123,12 @@ export default async function OrdersPage({
       ) : null}
 
       {focusedOrder ? (
-        <div
-          className={cn(
-            "rounded-2xl border px-5 py-4",
-            isSubs ? "border-[#1DB954]/30 bg-[#1DB954]/10" : "border-[#10a37f]/25 bg-[#10a37f]/5",
-          )}
-        >
-          <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
-            Статус заказа: {orderStatusLabelRu(focusedOrder.status)}
-          </p>
-          <ul className={cn("mt-2 space-y-1 text-sm", isSubs ? "text-gray-300" : "text-gray-600")}>
-            {getOrderCustomerInstructionLines(siteSlug, focusedOrder.status, "updated").map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
+        <OrderFocusStatusPanel
+          orderId={focusedOrder.id}
+          siteSlug={siteSlug}
+          initialStatus={focusedOrder.status}
+          isSubs={isSubs}
+        />
       ) : null}
 
       {!orders || orders.length === 0 ? (
