@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { MessageCircle, RefreshCw } from "lucide-react";
 
 import { CompletePaymentButton } from "@/components/dashboard/CompletePaymentButton";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
@@ -164,6 +164,21 @@ export function CustomerOrderCard({
               Повторить в 1 клик
             </Link>
           </div>
+        ) : null}
+
+        {isNewest ? (
+          <Link
+            href={chatHref}
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-colors",
+              isSubs
+                ? "border-[#1DB954]/40 text-[#1DB954] hover:bg-[#1DB954]/10"
+                : "border-[#10a37f]/35 text-[#10a37f] hover:bg-[#10a37f]/5",
+            )}
+          >
+            <MessageCircle size={16} />
+            Написать в поддержку
+          </Link>
         ) : null}
       </div>
     </div>
