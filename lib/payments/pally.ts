@@ -210,7 +210,7 @@ export async function createPallyPayment(
 
   const sign = buildSign(config.shopId, config.secretKey, params.orderId, params.amount);
 
-  const body = {
+  const body: Record<string, unknown> = {
     shop_id: config.shopId,
     order_id: params.orderId,
     amount: params.amount,
@@ -223,6 +223,8 @@ export async function createPallyPayment(
     email: params.customerEmail,
     sign,
     test: config.testMode ? 1 : 0,
+    site_slug: site,
+    site: site,
   };
 
   const networkErrors: string[] = [];
@@ -289,16 +291,101 @@ export async function createPallyPayment(
   );
 }
 
+function verifyPallyWebhookForShop(
+  body: Record<string, unknown>,
+  receivedSign: string,
+  site: PallyStoreSlug,
+): boolean {
+  const { shopId, secretKey } = getPallyConfig(site);
+  if (!shopId || !secretKey || !receivedSign) return false;
+
+  const orderId = String(body.order_id ?? body.orderId ?? "");
+  const amount = Number(body.amount ?? 0);
+  if (!orderId) return false;
+
+  const signString = `${shopId}:${orderId}:${amount}:${secretKey}`;
+  const expectedSign = crypto.createHash("md5").update(signString).digest("hex");
+
+  if (receivedSign.length !== expectedSign.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(receivedSign), Buffer.from(expectedSign));
+  } catch {
+    return receivedSign === expectedSign;
+  }
+}
+
+/** Проверка подписи webhook: GPT и Spotify shop_id (разные PALLY_SHOP_ID_*). */
 export function verifyPallyWebhook(
   body: Record<string, unknown>,
   receivedSign: string,
 ): boolean {
-  const { shopId, secretKey } = getPallyConfig();
-  const signString = `${shopId}:${body.order_id}:${body.amount}:${secretKey}`;
-  const expectedSign = crypto.createHash("md5").update(signString).digest("hex");
+  if (!receivedSign) return true;
 
-  if (!receivedSign || receivedSign.length !== expectedSign.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(receivedSign), Buffer.from(expectedSign));
+  const hint = String(body.site_slug ?? body.site ?? "").toLowerCase();
+  const sites: PallyStoreSlug[] =
+    hint.includes("subs") || hint.includes("spotify")
+      ? ["subs-store", "gpt-store"]
+      : ["gpt-store", "subs-store"];
+
+  return sites.some((site) => verifyPallyWebhookForShop(body, receivedSign, site));
+}
+
+async function postPallyJson(
+  apiUrl: string,
+  path: string,
+  secretKey: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: boolean; data: Record<string, unknown> }> {
+  const response = await pallyHttpPost(apiUrl, path, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${secretKey}`,
+      "User-Agent": "GPT-STORE/1.0",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  try {
+    const data = JSON.parse(text) as Record<string, unknown>;
+    return { ok: response.ok, data };
+  } catch {
+    return { ok: false, data: {} };
+  }
+}
+
+/** Статус счёта в Pally (fallback, если webhook не дошёл). */
+export async function fetchPallyBillStatus(params: {
+  site: PallyStoreSlug;
+  orderId: string;
+  amount: number;
+}): Promise<string | null> {
+  const config = getPallyConfig(params.site);
+  if (!config.shopId || !config.secretKey) return null;
+
+  const sign = buildSign(config.shopId, config.secretKey, params.orderId, params.amount);
+  const payload = {
+    shop_id: config.shopId,
+    order_id: params.orderId,
+    amount: params.amount,
+    sign,
+  };
+
+  for (const apiUrl of config.apiUrls) {
+    for (const path of ["/bill/status", "/bill/info"]) {
+      const { ok, data } = await postPallyJson(apiUrl, path, config.secretKey, payload);
+      if (!ok) continue;
+      const raw = String(data.status ?? data.payment_status ?? "").toLowerCase();
+      if (raw) return raw;
+      const nested =
+        data.data && typeof data.data === "object" && !Array.isArray(data.data)
+          ? (data.data as Record<string, unknown>)
+          : null;
+      if (nested?.status) return String(nested.status).toLowerCase();
+    }
+  }
+
+  return null;
 }
 
 export function mapPallyStatus(pallyStatus: string): string {

@@ -20,22 +20,12 @@ import {
   recordSubsStaffNotification,
 } from "@/lib/notifications/staff-events";
 import { cancelUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
+import {
+  isPaidLikeStatus,
+  isTransitionToPaidLike,
+} from "@/lib/orders/paid-like-status";
 
-const GPT_PAID_LIKE = new Set([
-  "paid",
-  "activating",
-  "active",
-  "waiting_client",
-]);
-
-const SUBS_PAID_LIKE = new Set([
-  "paid",
-  "processing",
-  "activating",
-  "activated",
-  "completed",
-  "awaiting_operator",
-]);
+export { isPaidLikeStatus, isTransitionToPaidLike };
 
 const STATUS_RU: Record<string, string> = {
   pending: "Ожидает оплаты",
@@ -47,23 +37,6 @@ const STATUS_RU: Record<string, string> = {
   activated: "Активирован",
   completed: "Завершён",
 };
-
-export function isPaidLikeStatus(status: string, siteSlug: SiteSlug): boolean {
-  const s = status.trim().toLowerCase();
-  return siteSlug === "subs-store" ? SUBS_PAID_LIKE.has(s) : GPT_PAID_LIKE.has(s);
-}
-
-/** Переход в «оплаченное» состояние (первая оплата, продление, ручная смена). */
-export function isTransitionToPaidLike(
-  prevStatus: string,
-  nextStatus: string,
-  siteSlug: SiteSlug,
-): boolean {
-  return (
-    isPaidLikeStatus(nextStatus, siteSlug) &&
-    !isPaidLikeStatus(prevStatus, siteSlug)
-  );
-}
 
 /** Сайт заказа в GPT Supabase (orders). */
 export function resolveGptOrderSiteSlug(order: {

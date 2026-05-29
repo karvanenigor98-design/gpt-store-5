@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { CheckoutSuccessOrderRedirect } from "@/components/checkout/CheckoutSuccessOrderRedirect";
-import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
+import { CheckoutSuccessLiveTracker } from "@/components/checkout/CheckoutSuccessLiveTracker";
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
@@ -63,12 +63,13 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
             </p>
           </div>
 
-          <OrderStatusTracker
+          <CheckoutSuccessLiveTracker
             orderId={orderId}
             initialStatus={order.status}
             siteSlug="gpt-store"
             planId={order.plan_id}
             activatedAt={order.activated_at}
+            dashboardHref="/dashboard/orders?site=gpt-store"
           />
 
           {order.status === "waiting_client" && <TokenSafetyBlock compact={false} />}
@@ -141,11 +142,12 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
             </p>
           </div>
 
-          <OrderStatusTracker
+          <CheckoutSuccessLiveTracker
             orderId={orderId}
             initialStatus={String(subsOrder.status)}
             siteSlug="subs-store"
             variant="subs"
+            dashboardHref="/dashboard/orders?site=subs-store"
           />
 
           <div className="rounded-xl border border-black/[0.07] bg-gray-50 px-4 py-3 text-sm text-gray-600 space-y-1">

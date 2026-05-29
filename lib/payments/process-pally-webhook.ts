@@ -91,13 +91,18 @@ async function processGptOrder(
     rawPayload: body,
   });
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("orders")
     .update({
       status: newStatus,
       ...(paymentId ? { payment_id: paymentId, pally_order_id: paymentId } : {}),
     })
     .eq("id", orderId);
+
+  if (updateError) {
+    console.error("[Pally webhook] GPT order update failed:", updateError.message, orderId);
+    return { ok: false, status: 500, error: "Order update failed" };
+  }
 
   const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
   if (!isNewEvent && becamePaidLike) {
@@ -162,6 +167,18 @@ async function processGptOrder(
       newStatus,
       { siteSlug, skipStaffInAppAndEmail: true },
     );
+
+    if (order.user_id) {
+      const { notifyGptCustomerOrderStatus } = await import(
+        "@/lib/notifications/gpt-customer-notifications"
+      );
+      await notifyGptCustomerOrderStatus({
+        orderId: order.id,
+        customerUserId: order.user_id,
+        status: newStatus,
+        planLabel: planTitle,
+      }).catch(() => undefined);
+    }
   } else if (!becamePaidLike) {
     await notifyPaymentStatus(
       {
@@ -236,7 +253,7 @@ async function processSubsOrder(
     rawPayload: body,
   });
 
-  await subs
+  const { error: updateError } = await subs
     .from("orders")
     .update({
       status: newStatus,
@@ -244,6 +261,11 @@ async function processSubsOrder(
       ...(paymentId ? { payment_external_id: paymentId } : {}),
     })
     .eq("id", orderId);
+
+  if (updateError) {
+    console.error("[Pally webhook] Subs order update failed:", updateError.message, orderId);
+    return { ok: false, status: 500, error: "Order update failed" };
+  }
 
   const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
   if (!isNewEvent && becamePaidLike) {
@@ -298,6 +320,16 @@ async function processSubsOrder(
       newStatus,
       { siteSlug, skipStaffInAppAndEmail: true },
     );
+
+    if (order.user_id) {
+      const { notifySubsStoreCustomerOrderStatus } = await import("@/lib/subs/subs-notifications");
+      await notifySubsStoreCustomerOrderStatus({
+        orderId: order.id,
+        customerUserId: order.user_id,
+        status: newStatus,
+        planLabel: planTitle,
+      }).catch(() => undefined);
+    }
   } else if (!becamePaidLike) {
     await notifyPaymentStatus(
       {
@@ -319,6 +351,15 @@ async function processSubsOrder(
         price,
         siteSlug,
       }).catch(() => {});
+    }
+    if (order.user_id) {
+      const { notifySubsStoreCustomerOrderStatus } = await import("@/lib/subs/subs-notifications");
+      await notifySubsStoreCustomerOrderStatus({
+        orderId: order.id,
+        customerUserId: order.user_id,
+        status: newStatus,
+        planLabel: planTitle,
+      }).catch(() => undefined);
     }
   }
 
