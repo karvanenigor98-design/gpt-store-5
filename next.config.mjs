@@ -42,6 +42,17 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {
+        source: "/dashboard/order/:orderId",
+        has: [{ type: "query", key: "site", value: "subs-store" }],
+        destination: "/dashboard/orders?site=subs-store&order_id=:orderId",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/order/:orderId",
+        destination: "/dashboard/orders?site=gpt-store&order_id=:orderId",
+        permanent: false,
+      },
       { source: "/order", destination: "/checkout", permanent: true },
       { source: "/chatgpt", destination: "/gpt", permanent: false },
       { source: "/gpt-store", destination: "/gpt", permanent: false },

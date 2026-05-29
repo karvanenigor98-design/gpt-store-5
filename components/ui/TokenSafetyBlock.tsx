@@ -44,7 +44,7 @@ export function TokenSafetyBlock({
 }: Props) {
   const isSubs = variant === "subs";
   const accent = isSubs ? "#1DB954" : "#10a37f";
-  const siteLabel = isSubs ? "Subs Store" : "GPT STORE";
+  const siteLabel = isSubs ? "SPOTIFY STORE" : "GPT STORE";
 
   const [isOpen, setIsOpen] = useState(!compact);
   const [copied, setCopied] = useState(false);

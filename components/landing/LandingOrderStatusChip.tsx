@@ -1,56 +1,50 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 
 type SiteSlug = "gpt-store" | "subs-store";
 
-type Item = {
-  id: string;
-  entity_type: string | null;
-  entity_id: string | null;
-  is_read: boolean;
-  created_at: string;
-};
-
-const API_BY_SITE: Record<SiteSlug, string> = {
-  "gpt-store": "/api/gpt/notifications",
-  "subs-store": "/api/subs/notifications",
-};
-
 export function LandingOrderStatusChip({ siteSlug }: { siteSlug: SiteSlug }) {
-  const [items, setItems] = useState<Item[]>([]);
+  const [href, setHref] = useState(() =>
+    siteSlug === "subs-store" ? "/dashboard/orders?site=subs-store" : "/dashboard/orders?site=gpt-store",
+  );
+  const [unread, setUnread] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+
     const load = async () => {
       try {
-        const res = await fetch(API_BY_SITE[siteSlug], { credentials: "include" });
-        const body = (await res.json().catch(() => ({}))) as { items?: Item[] };
-        if (!cancelled && res.ok) {
-          setItems(Array.isArray(body.items) ? body.items : []);
+        const navRes = await fetch(`/api/customer/order-status-nav?site=${siteSlug}`, {
+          credentials: "include",
+        });
+        const navBody = (await navRes.json().catch(() => ({}))) as { href?: string };
+        if (!cancelled && navRes.ok && typeof navBody.href === "string") {
+          setHref(navBody.href);
+        }
+
+        const notifApi =
+          siteSlug === "subs-store" ? "/api/subs/notifications" : "/api/gpt/notifications";
+        const notifRes = await fetch(notifApi, { credentials: "include" });
+        const notifBody = (await notifRes.json().catch(() => ({}))) as {
+          items?: { is_read: boolean }[];
+        };
+        if (!cancelled && notifRes.ok && Array.isArray(notifBody.items)) {
+          setUnread(notifBody.items.filter((x) => !x.is_read).length);
         }
       } catch {
-        if (!cancelled) setItems([]);
+        /* keep defaults */
       }
     };
+
     void load();
     return () => {
       cancelled = true;
     };
   }, [siteSlug]);
 
-  const latestOrder = useMemo(() => {
-    return [...items]
-      .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
-      .find((x) => x.entity_type === "order" && x.entity_id);
-  }, [items]);
-
-  if (!latestOrder?.entity_id) return null;
-
-  const unread = items.filter((x) => !x.is_read).length;
-  const href = `/dashboard/order/${encodeURIComponent(latestOrder.entity_id)}?site=${siteSlug}`;
   const accent = siteSlug === "subs-store" ? "#1DB954" : "#10a37f";
   const dark = siteSlug === "subs-store";
 
@@ -62,7 +56,7 @@ export function LandingOrderStatusChip({ siteSlug }: { siteSlug: SiteSlug }) {
           ? "border-white/15 bg-white/5 text-white hover:bg-white/10"
           : "border-black/[0.1] bg-white text-gray-700 hover:bg-gray-50"
       }`}
-      title="Открыть актуальный статус заказа"
+      title="Статус заказа"
     >
       <Bell size={13} style={{ color: unread > 0 ? accent : undefined }} />
       Статус заказа

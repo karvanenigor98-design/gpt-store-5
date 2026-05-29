@@ -1,15 +1,14 @@
 ﻿import { createAdminClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { DashboardClient } from "./DashboardClient";
-import { getSiteBySlug, filterOrdersBySite } from "@/lib/sites";
+import { getSiteBySlug } from "@/lib/sites";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
-import type { Database } from "@/types/database";
-
-type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
+import { loadCustomerOrdersForUser } from "@/lib/dashboard/load-customer-orders";
+import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
 
@@ -34,8 +33,14 @@ export default async function DashboardPage({
 
   let profile: { username: string | null; email: string | null; created_at: string | null } | null =
     null;
-  let orders: OrderRow[] = [];
+  let orders: CustomerOrderView[] = [];
   let chatsCount = 0;
+
+  orders = await loadCustomerOrdersForUser({
+    siteSlug,
+    userId: user.id,
+    userEmail: user.email ?? null,
+  });
 
   if (siteSlug === "subs-store") {
     const subsAdmin = createSubsStoreAdminClient();
@@ -47,14 +52,6 @@ export default async function DashboardPage({
         .maybeSingle();
       profile = prof;
     }
-
-    const { data: allUserOrders } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    orders = (allUserOrders ?? []) as OrderRow[];
 
     const { count } = await supabase
       .from("chat_threads")
@@ -69,15 +66,6 @@ export default async function DashboardPage({
       .eq("id", user.id)
       .maybeSingle();
     profile = prof;
-
-    const { data: allUserOrders } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    orders = filterOrdersBySite(allUserOrders ?? [], siteSlug);
 
     const siteId = await getSiteUUID(siteSlug);
     let chatsCountQuery = supabase

@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
+import { CompletePaymentButton } from "@/components/dashboard/CompletePaymentButton";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { OrderStatus } from "@/types/database";
@@ -9,22 +9,23 @@ import { RefreshCw, Plus } from "lucide-react";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
-import { getSiteBySlug, filterOrdersBySite } from "@/lib/sites";
+import { getSiteBySlug } from "@/lib/sites";
+import {
+  getOrderCustomerInstructionLines,
+  orderStatusLabelRu,
+} from "@/lib/email/order-customer-instructions";
+import { loadCustomerOrdersForUser } from "@/lib/dashboard/load-customer-orders";
+import {
+  getCustomerOrderProductLabel,
+  isOrderAwaitingPayment,
+  orderStatusForTracker,
+} from "@/lib/dashboard/customer-order-view";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Мои заказы" };
 
-function getProductDisplayName(product: string, planId: string): string {
-  if (product.startsWith("spotify")) {
-    const suffix = planId.replace(/^spotify-/, "").replace(/-/g, " ");
-    return `Spotify Premium — ${suffix}`;
-  }
-  if (product === "chatgpt-plus") return "ChatGPT Plus";
-  if (product === "chatgpt-pro") return "ChatGPT Pro";
-  return `${product} — ${planId}`;
-}
-
 const STATUS_LABELS_LIGHT: Record<string, { label: string; color: string }> = {
+  awaiting_payment: { label: "Ожидает оплаты", color: "text-amber-600 bg-amber-50 border-amber-200" },
   pending: { label: "Ожидает оплаты", color: "text-amber-600 bg-amber-50 border-amber-200" },
   activating: { label: "Активируется", color: "text-blue-600 bg-blue-50 border-blue-200" },
   waiting_client: { label: "Ожидает данных", color: "text-orange-600 bg-orange-50 border-orange-200" },
@@ -40,6 +41,7 @@ const STATUS_LABELS_LIGHT: Record<string, { label: string; color: string }> = {
 };
 
 const STATUS_LABELS_SUBS: Record<string, { label: string; color: string }> = {
+  awaiting_payment: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
   pending: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
   activating: { label: "Активируется", color: "text-sky-200 bg-sky-500/15 border-sky-500/30" },
   waiting_client: { label: "Ожидает данных", color: "text-orange-200 bg-orange-500/15 border-orange-500/30" },
@@ -66,9 +68,6 @@ export default async function OrdersPage({
   });
 
   const orderFocus = params.highlight ?? params.order_id;
-  if (orderFocus) {
-    redirect(`/dashboard/order/${orderFocus}?site=${siteSlug}`);
-  }
   const site = getSiteBySlug(siteSlug);
   const isSubs = siteSlug === "subs-store";
   const STATUS_LABELS = isSubs ? STATUS_LABELS_SUBS : STATUS_LABELS_LIGHT;
@@ -81,15 +80,14 @@ export default async function OrdersPage({
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: allOrders } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const orders = await loadCustomerOrdersForUser({
+    siteSlug,
+    userId: user.id,
+    userEmail: user.email ?? null,
+  });
 
-  const orders =
-    siteSlug === "subs-store" ? (allOrders ?? []) : filterOrdersBySite(allOrders ?? [], siteSlug);
+  const focusedOrder = orderFocus ? orders.find((o) => o.id === orderFocus) : undefined;
+  const orderFocusMissing = Boolean(orderFocus && !focusedOrder);
 
   return (
     <div className={cn("w-full max-w-none space-y-6", isSubs && "text-gray-100")}>
@@ -110,6 +108,46 @@ export default async function OrdersPage({
           {isSubs ? "Подключить Premium" : "Новый заказ"}
         </Link>
       </div>
+
+      {orderFocusMissing ? (
+        <div
+          className={cn(
+            "rounded-2xl border px-5 py-4",
+            isSubs ? "border-amber-500/30 bg-amber-500/10" : "border-amber-200 bg-amber-50",
+          )}
+        >
+          <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
+            Заказ не найден или относится к другому аккаунту
+          </p>
+          <p className={cn("mt-1 text-sm", isSubs ? "text-gray-400" : "text-gray-600")}>
+            Проверьте, что вы вошли в кабинет того же магазина, где оформляли заказ.
+          </p>
+          <Link
+            href={chatHref}
+            className={cn("mt-3 inline-block text-sm font-semibold underline", isSubs ? "text-[#1DB954]" : "text-[#10a37f]")}
+          >
+            Написать в поддержку
+          </Link>
+        </div>
+      ) : null}
+
+      {focusedOrder ? (
+        <div
+          className={cn(
+            "rounded-2xl border px-5 py-4",
+            isSubs ? "border-[#1DB954]/30 bg-[#1DB954]/10" : "border-[#10a37f]/25 bg-[#10a37f]/5",
+          )}
+        >
+          <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
+            Статус заказа: {orderStatusLabelRu(focusedOrder.status)}
+          </p>
+          <ul className={cn("mt-2 space-y-1 text-sm", isSubs ? "text-gray-300" : "text-gray-600")}>
+            {getOrderCustomerInstructionLines(siteSlug, focusedOrder.status, "updated").map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {!orders || orders.length === 0 ? (
         <div
@@ -143,9 +181,14 @@ export default async function OrdersPage({
         <div className="space-y-4">
           {orders.map((order) => {
             const statusInfo = STATUS_LABELS[order.status] ?? STATUS_LABELS.pending;
-            const isInProgress = ["pending", "waiting_client", "activating"].includes(order.status);
-            const isActive = order.status === "active";
-            const isExpiredOrFailed = ["expired", "failed"].includes(order.status);
+            const awaitingPay = isOrderAwaitingPayment(order.status);
+            const isInProgress =
+              awaitingPay ||
+              ["waiting_client", "activating", "processing", "paid"].includes(order.status);
+            const isActive = ["active", "activated", "completed"].includes(order.status);
+            const isExpiredOrFailed = ["expired", "failed", "refunded", "problem"].includes(order.status);
+            const payEmail =
+              order.customer_email ?? order.account_email ?? user.email ?? "";
 
             return (
               <div
@@ -164,7 +207,7 @@ export default async function OrdersPage({
                 >
                   <div>
                     <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
-                      {getProductDisplayName(order.product, order.plan_id)}
+                      {getCustomerOrderProductLabel(order)}
                     </p>
                     <p className={cn("mt-0.5 text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>
                       {new Date(order.created_at).toLocaleDateString("ru", {
@@ -187,10 +230,20 @@ export default async function OrdersPage({
                 </div>
 
                 <div className="space-y-3 px-5 py-4">
+                  {awaitingPay && payEmail ? (
+                    <CompletePaymentButton
+                      siteSlug={siteSlug}
+                      orderId={order.id}
+                      planId={order.plan_id}
+                      accountEmail={payEmail}
+                      variant={isSubs ? "subs" : "gpt"}
+                    />
+                  ) : null}
+
                   {isInProgress && (
                     <OrderStatusTracker
                       orderId={order.id}
-                      initialStatus={order.status as OrderStatus}
+                      initialStatus={orderStatusForTracker(order.status) as OrderStatus}
                       planId={order.plan_id}
                       activatedAt={order.activated_at}
                       variant={isSubs ? "subs" : "light"}

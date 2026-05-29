@@ -32,7 +32,10 @@ export function buildClientNotificationHref(
   const siteQ = `site=${siteSlug}`;
 
   if (isClientOrderNotification(item) && item.entity_id) {
-    return `/dashboard/order/${encodeURIComponent(item.entity_id)}?${siteQ}`;
+    if (siteSlug === "subs-store") {
+      return `/dashboard/orders?${siteQ}&order_id=${encodeURIComponent(item.entity_id)}`;
+    }
+    return `/dashboard/orders?site=gpt-store&order_id=${encodeURIComponent(item.entity_id)}`;
   }
   if (isClientChatNotification(item) && item.entity_id) {
     if (siteSlug === "subs-store") {

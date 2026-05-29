@@ -25,7 +25,7 @@ export default function NotFound() {
           href={subsHref}
           className="rounded-xl bg-[#1DB954] px-6 py-2.5 text-sm font-semibold text-white hover:opacity-90"
         >
-          Subs Store
+          SPOTIFY STORE
         </Link>
         <Link
           href={gptHref}
@@ -36,7 +36,7 @@ export default function NotFound() {
       </div>
       {process.env.NODE_ENV === "development" && (
         <p className="mt-6 max-w-md text-xs text-gray-400">
-          Dev: Subs — <span className="font-mono">{subsFull}</span>
+          Dev: SPOTIFY — <span className="font-mono">{subsFull}</span>
           <br />
           GPT — <span className="font-mono">{gptFull}</span> или <span className="font-mono">/gpt</span> на порту
           3055

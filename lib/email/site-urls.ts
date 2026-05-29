@@ -38,10 +38,16 @@ export function buildCustomerChatUrl(siteSlug: SiteSlug, sessionOrThreadId: stri
   return `${base}/dashboard/chat?${siteQ}&session_id=${encodeURIComponent(sessionOrThreadId)}`;
 }
 
-/** Прямая ссылка на статус конкретного заказа (из писем и уведомлений). */
+/** Ссылка на заказ в истории (письма и уведомления). */
 export function buildCustomerOrderUrl(siteSlug: SiteSlug, orderId: string): string {
   const base = resolveSiteCustomerAppOrigin(siteSlug);
-  return `${base}/dashboard/order/${encodeURIComponent(orderId)}?site=${siteSlug}`;
+  const siteQ = `site=${siteSlug}`;
+  return `${base}/dashboard/orders?${siteQ}&order_id=${encodeURIComponent(orderId)}`;
+}
+
+/** Legacy: письма до миграции вели на /dashboard/order/:id — оставляем для справки в redirect-странице. */
+export function buildLegacyCustomerOrderPath(orderId: string, siteSlug: SiteSlug): string {
+  return `/dashboard/order/${encodeURIComponent(orderId)}?site=${siteSlug}`;
 }
 
 export function buildReviewUrl(siteSlug: SiteSlug): string {

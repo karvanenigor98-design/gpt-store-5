@@ -224,7 +224,7 @@ export function SpotifyPromoPlayerCard({
                 href={href}
                 onClick={handlePlayClick}
                 spacious={spacious}
-                ariaLabel={ctaLabel ?? "Перейти в Subs Store"}
+                ariaLabel={ctaLabel ?? "Перейти в SPOTIFY STORE"}
               />
             </div>
           )}
@@ -236,7 +236,7 @@ export function SpotifyPromoPlayerCard({
                 href={href}
                 onClick={handlePlayClick}
                 spacious={spacious}
-                ariaLabel={ctaLabel ?? "Перейти в Subs Store"}
+                ariaLabel={ctaLabel ?? "Перейти в SPOTIFY STORE"}
               />
             </div>
           )}
