@@ -120,8 +120,16 @@ export function SpotifyCheckoutFlow() {
       const json = (await res.json()) as {
         paymentUrl?: string;
         error?: string;
+        orderId?: string;
         orderSaved?: boolean;
       };
+      if (json.orderId) {
+        try {
+          sessionStorage.setItem("subs-checkout-order", json.orderId);
+        } catch {
+          // private mode
+        }
+      }
       if (!res.ok || !json.paymentUrl) {
         const base = formatPallyCheckoutError(json.error ?? "Не удалось создать ссылку на оплату");
         setPayError(

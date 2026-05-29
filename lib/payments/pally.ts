@@ -59,12 +59,32 @@ function getPallyConfig(site: PallyStoreSlug = "gpt-store") {
   };
 }
 
+/** URL success/fail как в кабинете Pally (без ?order= — иначе api:error.url_not_allowed). */
+export function buildPallyRedirectUrls(
+  appUrl: string,
+  site: PallyStoreSlug = "gpt-store",
+): { successUrl: string; failUrl: string } {
+  const base = appUrl.replace(/\/$/, "");
+  if (site === "subs-store") {
+    return {
+      successUrl: `${base}/checkout/success?site=subs-store`,
+      failUrl: `${base}/checkout/fail?site=subs-store`,
+    };
+  }
+  return {
+    successUrl: `${base}/checkout/success`,
+    failUrl: `${base}/checkout/fail`,
+  };
+}
+
 export interface CreatePallyPaymentParams {
   orderId: string;
   amount: number;
   description: string;
-  returnUrl: string;
   webhookUrl: string;
+  /** Должны совпадать с «Ссылки» в кабинете Pally для этого shop_id. */
+  successUrl: string;
+  failUrl: string;
   customerEmail?: string;
   /** Какой магазин Pally (разные shop_id, один API-токен). */
   site?: PallyStoreSlug;
@@ -136,6 +156,13 @@ async function formatPallyError(
     const ipHint = deniedIp ? ` IP для whitelist: ${deniedIp}.` : "";
     return "Pally отклонил запрос: IP сервера не в белом списке." + ipHint + relayHint;
   }
+  if (message.includes("url_not_allowed")) {
+    return (
+      "Pally: URL оплаты не совпадает с настройками магазина (url_not_allowed). " +
+      "В кабинете Pally → магазин → «Ссылки» укажите те же success/fail/webhook, что в docs/PALLY-MANUAL-ONLY.md " +
+      "(без лишних ?order= в Success/Fail)."
+    );
+  }
   if (message) return `Pally: ${message}`;
   return `Pally API ошибка (HTTP ${status})`;
 }
@@ -189,8 +216,8 @@ export async function createPallyPayment(
     amount: params.amount,
     currency: "RUB",
     desc: params.description,
-    success_url: `${params.returnUrl}?orderId=${params.orderId}`,
-    fail_url: `${params.returnUrl.replace("success", "fail")}?orderId=${params.orderId}`,
+    success_url: params.successUrl,
+    fail_url: params.failUrl,
     webhook_url: params.webhookUrl,
     email: params.customerEmail,
     sign,

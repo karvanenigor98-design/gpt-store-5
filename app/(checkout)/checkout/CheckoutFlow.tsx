@@ -145,6 +145,11 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
       if (json.orderId) {
         setDraftOrderId(json.orderId);
+        try {
+          sessionStorage.setItem("gpt-checkout-order", json.orderId);
+        } catch {
+          // private mode / blocked storage
+        }
       }
 
       if (!res.ok || !json.paymentUrl) {

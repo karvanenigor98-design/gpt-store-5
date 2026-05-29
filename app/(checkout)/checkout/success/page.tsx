@@ -1,6 +1,8 @@
 ﻿import type { Metadata } from "next";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
+import { CheckoutSuccessOrderRedirect } from "@/components/checkout/CheckoutSuccessOrderRedirect";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { CheckCircle2 } from "lucide-react";
@@ -9,20 +11,36 @@ import Link from "next/link";
 export const metadata: Metadata = { title: "Заказ создан" };
 
 interface Props {
-  searchParams: Promise<{ order?: string; site?: string }>;
+  searchParams: Promise<{
+    order?: string;
+    orderId?: string;
+    order_id?: string;
+    site?: string;
+  }>;
 }
 
 export default async function CheckoutSuccessPage({ searchParams }: Props) {
-  const { order: orderId, site: siteParam } = await searchParams;
+  const params = await searchParams;
+  const orderId = params.order ?? params.orderId ?? params.order_id;
+  const siteParam = params.site;
 
   if (!orderId) {
     return (
-      <div className="text-center">
-        <p className="text-gray-500">Заказ не найден</p>
-        <Link href="/" className="mt-4 text-[#10a37f] hover:underline">
-          На главную
-        </Link>
-      </div>
+      <>
+        <Suspense fallback={null}>
+          <CheckoutSuccessOrderRedirect />
+        </Suspense>
+        <div className="text-center">
+          <p className="text-gray-500">Загрузка заказа…</p>
+          <p className="mt-2 text-xs text-gray-400">
+            Если страница не обновилась, откройте{" "}
+            <Link href="/dashboard" className="text-[#10a37f] hover:underline">
+              личный кабинет
+            </Link>
+            .
+          </p>
+        </div>
+      </>
     );
   }
 

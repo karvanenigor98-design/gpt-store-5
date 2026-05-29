@@ -3,7 +3,7 @@
 import { resolveGptCheckoutPlan, upsertGptPendingOrder } from "@/lib/checkout/resolve-gpt-checkout";
 import { ensureGptProfile } from "@/lib/orders/create-gpt-order";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { createPallyPayment } from "@/lib/payments/pally";
+import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
 import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
 import {
   notifyCustomerOrderCreated,
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
 
     const { getPublicSiteOrigin } = await import("@/lib/app-url");
     const appUrl = getPublicSiteOrigin();
+    const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "gpt-store");
 
     let payment: { paymentId: string; paymentUrl: string };
     try {
@@ -89,7 +90,8 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         amount: finalPrice,
         description: `GPT STORE: ${plan.name}`,
-        returnUrl: `${appUrl}/checkout/success?order=${order.id}`,
+        successUrl,
+        failUrl,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
         customerEmail: user.email ?? undefined,
         site: "gpt-store",

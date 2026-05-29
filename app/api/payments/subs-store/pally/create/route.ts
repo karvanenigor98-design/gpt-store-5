@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createPallyPayment } from "@/lib/payments/pally";
+import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
 import { isPallyConfigError } from "@/lib/payments/pally-env-hint";
 import { applyPromo, findPromo } from "@/lib/store-config";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     const orderId = created.orderId;
     const { getPublicSiteOrigin } = await import("@/lib/app-url");
     const appUrl = getPublicSiteOrigin();
+    const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "subs-store");
 
     let payment: { paymentId: string; paymentUrl: string };
     try {
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
         orderId,
         amount: finalPrice,
         description: `SPOTIFY STORE: ${plan.name}`,
-        returnUrl: `${appUrl}/checkout/success?order=${orderId}&site=subs-store`,
+        successUrl,
+        failUrl,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
         customerEmail: sessionEmail ?? customerEmail,
         site: "subs-store",

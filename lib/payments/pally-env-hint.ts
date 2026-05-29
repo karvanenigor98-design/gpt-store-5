@@ -13,12 +13,16 @@ export function getPallyEnvSetupHint(): string {
 
 export function isPallyConfigError(message: string | undefined): boolean {
   if (!message) return false;
+  if (/url_not_allowed|настройками магазина/i.test(message)) return false;
   return /pally|fetch failed|PALLY_|не настроен|временно недоступна|связаться с pally|ENOTFOUND|ip_access|белом списке/i.test(
     message,
   );
 }
 
 export function formatPallyCheckoutError(message: string): string {
+  if (/url_not_allowed|настройками магазина/i.test(message)) {
+    return `${message} Заказ сохранён — повторите оплату после правки ссылок в Pally.`;
+  }
   if (/ip_access|белом списке/i.test(message)) {
     return `${message} Заказ сохранён — оплату можно повторить после настройки Pally.`;
   }
