@@ -12,6 +12,18 @@ export function getPublicSiteOrigin(): string {
 
   try {
     const u = new URL(withProtocol);
+    const host = u.hostname.toLowerCase();
+    const isLocal =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host);
+
+    if (process.env.NODE_ENV === "production" && isLocal) {
+      return FALLBACK_ORIGIN;
+    }
+
     return u.origin;
   } catch {
     return FALLBACK_ORIGIN;

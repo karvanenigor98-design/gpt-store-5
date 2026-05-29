@@ -7,7 +7,8 @@
  */
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const { requireVercelToken } = require("./lib/vercel-token.cjs");
+const { upsertProjectEnv } = require("./lib/vercel-env-api.cjs");
 
 const ROOT = path.join(__dirname, "..");
 const ENV_FILE = path.join(ROOT, ".env.local");
@@ -51,18 +52,7 @@ function parseEnvFile(filePath) {
   return out;
 }
 
-function runVercel(args, stdinValue) {
-  return spawnSync("npx", ["vercel", ...args], {
-    cwd: ROOT,
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    input: stdinValue,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-}
-
-function upsertEnv(name, value, environment) {
+async function upsertEnv(name, value, environment) {
   if (!value) {
     console.log(`  skip ${name} (${environment}): пусто в .env.local`);
     return { ok: true, skipped: true };
@@ -72,15 +62,17 @@ function upsertEnv(name, value, environment) {
     return { ok: true, skipped: true };
   }
 
-  const add = runVercel(["env", "add", name, environment, "--yes", "--force"], value);
-
-  const out = `${add.stdout ?? ""}${add.stderr ?? ""}`;
-  if (add.status === 0 || /already exists|Updated|overwritten/i.test(out)) {
+  const r = await upsertProjectEnv(name, value, environment);
+  if (r.ok) {
     console.log(`  ok ${name} → ${environment}`);
     return { ok: true };
   }
 
-  console.error(`  FAIL ${name} → ${environment}:`, out.trim() || add.status);
+  console.error(
+    `  FAIL ${name} → ${environment}:`,
+    r.status,
+    r.json?.error?.message || JSON.stringify(r.json).slice(0, 200),
+  );
   return { ok: false };
 }
 
@@ -90,6 +82,34 @@ function normalizePallyApiUrl(raw) {
     .replace(/\/$/, "");
   if (/api\.pally\.info/i.test(trimmed)) return "https://pally.info/api/v1";
   return trimmed || "https://pally.info/api/v1";
+}
+
+if (!DRY) {
+  try {
+    requireVercelToken();
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+}
+
+const PROD_APP_URL = "https://gpt-store-5.vercel.app";
+
+function resolveAppUrlForVercel(localValue, environment) {
+  const raw = (localValue || "").trim();
+  if (environment !== "production" && environment !== "preview") return raw;
+  if (!raw) return PROD_APP_URL;
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`);
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) {
+      console.warn(`  warn NEXT_PUBLIC_APP_URL: ${raw} → ${PROD_APP_URL} (${environment})`);
+      return PROD_APP_URL;
+    }
+    return u.origin;
+  } catch {
+    return PROD_APP_URL;
+  }
 }
 
 const env = parseEnvFile(ENV_FILE);
@@ -107,21 +127,30 @@ const ENVIRONMENTS = process.argv.includes("--preview")
   ? ["production", "preview"]
   : ["production"];
 
-for (const environment of ENVIRONMENTS) {
-  console.log(`\n[${environment}]`);
-  for (const key of KEYS) {
-    const r = upsertEnv(key, env[key]?.trim() ?? "", environment);
-    if (!r.ok) failed += 1;
+(async () => {
+  for (const environment of ENVIRONMENTS) {
+    console.log(`\n[${environment}]`);
+    for (const key of KEYS) {
+      let value = env[key]?.trim() ?? "";
+      if (key === "NEXT_PUBLIC_APP_URL") {
+        value = resolveAppUrlForVercel(value, environment);
+      }
+      const r = await upsertEnv(key, value, environment);
+      if (!r.ok) failed += 1;
+    }
   }
-}
 
-if (failed) {
-  console.error(`\nОшибок: ${failed}`);
+  if (failed) {
+    console.error(`\nОшибок: ${failed}`);
+    process.exit(1);
+  }
+
+  console.log("\nГотово.");
+  console.log("Redeploy: node scripts/vercel-redeploy-prod.cjs");
+  console.log(
+    "Pally: в настройках магазина добавьте IP Vercel (регион fra1) или отключите IP-filter для проверки.",
+  );
+})().catch((e) => {
+  console.error(e);
   process.exit(1);
-}
-
-console.log("\nГотово.");
-console.log("Redeploy: npx vercel --prod");
-console.log(
-  "Pally: в настройках магазина добавьте IP Vercel (регион fra1) или отключите IP-filter для проверки.",
-);
+});
