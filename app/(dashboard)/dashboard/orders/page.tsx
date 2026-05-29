@@ -8,10 +8,7 @@ import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { getSiteBySlug } from "@/lib/sites";
-import {
-  getOrderCustomerInstructionLines,
-  orderStatusLabelRu,
-} from "@/lib/email/order-customer-instructions";
+import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
 import { loadCustomerOrdersWithFocus } from "@/lib/dashboard/load-customer-orders";
 import { cn } from "@/lib/utils";
 
@@ -73,12 +70,25 @@ export default async function OrdersPage({
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { orders, focusedOrder, orderFocusMissing } = await loadCustomerOrdersWithFocus({
-    siteSlug,
-    userId: user.id,
-    userEmail: user.email ?? null,
-    orderFocusId: orderFocus,
-  });
+  let orders: CustomerOrderView[] = [];
+  let focusedOrder: CustomerOrderView | undefined;
+  let orderFocusMissing = false;
+  let ordersLoadFailed = false;
+
+  try {
+    const loaded = await loadCustomerOrdersWithFocus({
+      siteSlug,
+      userId: user.id,
+      userEmail: user.email ?? null,
+      orderFocusId: orderFocus,
+    });
+    orders = loaded.orders;
+    focusedOrder = loaded.focusedOrder;
+    orderFocusMissing = loaded.orderFocusMissing;
+  } catch (err) {
+    console.error("[dashboard/orders] load orders failed", err);
+    ordersLoadFailed = true;
+  }
 
   return (
     <div className={cn("w-full max-w-none space-y-6", isSubs && "text-gray-100")}>
@@ -99,6 +109,28 @@ export default async function OrdersPage({
           {isSubs ? "Подключить Premium" : "Новый заказ"}
         </Link>
       </div>
+
+      {ordersLoadFailed ? (
+        <div
+          className={cn(
+            "rounded-2xl border px-5 py-4",
+            isSubs ? "border-red-500/30 bg-red-500/10" : "border-red-200 bg-red-50",
+          )}
+        >
+          <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
+            Не удалось загрузить заказы
+          </p>
+          <p className={cn("mt-1 text-sm", isSubs ? "text-gray-400" : "text-gray-600")}>
+            Обновите страницу. Если ошибка повторяется — напишите в поддержку.
+          </p>
+          <Link
+            href={chatHref}
+            className={cn("mt-3 inline-block text-sm font-semibold underline", isSubs ? "text-[#1DB954]" : "text-[#10a37f]")}
+          >
+            Написать в поддержку
+          </Link>
+        </div>
+      ) : null}
 
       {orderFocusMissing ? (
         <div
