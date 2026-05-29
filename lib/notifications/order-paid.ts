@@ -232,10 +232,6 @@ export async function handleOrderPaidNotification(
         clientLines.unshift("Спасибо за продление! Повторная оплата успешно получена.");
       }
 
-      const supportLine = site.supportEmail
-        ? `Поддержка: ${site.supportEmail}`
-        : `Поддержка в чате: ${site.supportTelegram}`;
-
       await dispatchSiteEmail({
         siteSlug: params.siteSlug,
         eventType: "order_paid",
@@ -243,7 +239,7 @@ export async function handleOrderPaidNotification(
         recipientRole: "client",
         recipientUserId: params.customerUserId,
         title: isRenewal ? "Оплата продления получена" : "Оплата получена",
-        bodyLines: [...clientLines, supportLine],
+        bodyLines: clientLines,
         ctaLabel: "Статус заказа",
         ctaUrl: buildCustomerOrderUrl(params.siteSlug, params.orderId),
         dedupeKey: orderPaidDedupeKey(params.siteSlug, params.orderId, clientEmail),
