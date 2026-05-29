@@ -23,13 +23,17 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const headersList = await headers();
   const invokePath = headersList.get("x-invoke-pathname") ?? "";
+  const invokeSearch = headersList.get("x-invoke-search") ?? "";
   const urlSite = headersList.get("x-site-slug");
-  const cookieSite = cookieStore.get("current_site")?.value;
   const siteSlug: SiteSlug = await resolveCustomerSiteSlug({
     siteParam: urlSite === "subs-store" || urlSite === "gpt-store" ? urlSite : null,
     pathname: invokePath || "/dashboard",
   });
-  const returnUrl = encodeURIComponent(`/dashboard?site=${siteSlug}`);
+  const returnPath =
+    invokePath && invokePath.startsWith("/dashboard")
+      ? `${invokePath}${invokeSearch}`
+      : `/dashboard?site=${siteSlug}`;
+  const returnUrl = encodeURIComponent(returnPath);
 
   let bundle;
   try {

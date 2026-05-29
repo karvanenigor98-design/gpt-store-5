@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Package, CheckCircle, MessageCircle, Plus, ArrowRight } from "lucide-react";
+import { buildCustomerOrderFocusHref, orderStatusForTracker } from "@/lib/dashboard/customer-order-view";
 import { cn } from "@/lib/utils";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { ClientLoyaltyBlock } from "@/components/ui/ClientLoyaltyBlock";
@@ -37,8 +38,10 @@ interface Props {
 }
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string }> = {
+  awaiting_payment: { label: "Ожидает", bg: "bg-yellow-100", text: "text-yellow-700" },
   pending: { label: "Ожидает", bg: "bg-yellow-100", text: "text-yellow-700" },
   paid: { label: "Оплачен", bg: "bg-emerald-100", text: "text-emerald-700" },
+  processing: { label: "В работе", bg: "bg-blue-100", text: "text-blue-700" },
   activating: { label: "В работе", bg: "bg-blue-100", text: "text-blue-700" },
   waiting_client: { label: "Нужен токен", bg: "bg-orange-100", text: "text-orange-700" },
   active: { label: "Активно", bg: "bg-green-100", text: "text-green-700" },
@@ -48,8 +51,10 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string }> = 
 };
 
 const STATUS_MAP_SUBS: Record<string, { label: string; bg: string; text: string }> = {
+  awaiting_payment: { label: "Ожидает", bg: "bg-yellow-500/15", text: "text-yellow-200" },
   pending: { label: "Ожидает", bg: "bg-yellow-500/15", text: "text-yellow-200" },
   paid: { label: "Оплачен", bg: "bg-emerald-500/20", text: "text-emerald-200" },
+  processing: { label: "В работе", bg: "bg-sky-500/15", text: "text-sky-200" },
   activating: { label: "В работе", bg: "bg-sky-500/15", text: "text-sky-200" },
   waiting_client: { label: "Нужен токен", bg: "bg-orange-500/15", text: "text-orange-200" },
   active: { label: "Активно", bg: "bg-emerald-500/20", text: "text-emerald-200" },
@@ -90,9 +95,18 @@ export function DashboardClient({
   const primaryColor = sitePrimaryColor;
   const statusStyles = isSpotify ? STATUS_MAP_SUBS : STATUS_MAP;
 
-  const activeOrPendingOrders = orders.filter((o) =>
-    ["pending", "waiting_client", "activating"].includes(o.status)
-  );
+  const activeOrPendingOrders = orders.filter((o) => {
+    const s = o.status;
+    return [
+      "pending",
+      "awaiting_payment",
+      "paid",
+      "processing",
+      "waiting_client",
+      "activating",
+      "awaiting_data",
+    ].includes(s);
+  });
   const completedOrders = orders.filter((o) => o.status === "active").length;
   const recentOrders = orders.slice(0, 5);
 
@@ -203,7 +217,7 @@ export function DashboardClient({
               </div>
               <OrderStatusTracker
                 orderId={order.id}
-                initialStatus={order.status as OrderStatus}
+                initialStatus={orderStatusForTracker(order.status) as OrderStatus}
                 planId={order.plan_id}
                 activatedAt={order.activated_at ?? undefined}
                 variant={isSpotify ? "subs" : "light"}
@@ -282,9 +296,15 @@ export function DashboardClient({
                   const statusInfo = statusStyles[order.status] ?? statusStyles.pending;
                   const canRepeat = ["expired", "failed"].includes(order.status);
                   const isActive = order.status === "active";
+                  const orderHref =
+                    siteSlug === "gpt-store" || siteSlug === "subs-store"
+                      ? buildCustomerOrderFocusHref(siteSlug, order.id)
+                      : `/dashboard/orders?order_id=${order.id}`;
+
                   return (
-                    <div
+                    <Link
                       key={order.id}
+                      href={orderHref}
                       className={cn(
                         "flex items-center gap-3 px-5 py-3 transition-colors",
                         isSpotify ? "hover:bg-white/[0.04]" : "hover:bg-gray-50/60"
@@ -320,18 +340,18 @@ export function DashboardClient({
                         {order.price.toLocaleString("ru")} ₽
                       </span>
                       {(canRepeat || isActive) && (
-                        <Link
-                          href={`${siteCheckoutPath}?plan=${order.plan_id}`}
-                          className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors hover:opacity-80"
+                        <span
+                          className="shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold"
                           style={{
                             borderColor: `${primaryColor}40`,
                             color: primaryColor,
                           }}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           {isActive ? "Продлить" : "Повторить"}
-                        </Link>
+                        </span>
                       )}
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

@@ -28,6 +28,7 @@ export async function middleware(request: NextRequest) {
   const devPort = request.nextUrl.port || null;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-invoke-pathname", path);
+  requestHeaders.set("x-invoke-search", request.nextUrl.search);
   if (isGptDevPort(devPort)) {
     requestHeaders.set("x-dev-store-profile", "gpt-store");
   } else if (isSubsDevPort(devPort)) {
