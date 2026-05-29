@@ -3,17 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OrderStatus } from "@/types/database";
+import { GPT_ORDER_STATUSES, GPT_ORDER_STATUS_LABELS } from "@/lib/admin/gpt-order-status-labels";
 
-const OPTIONS: { value: OrderStatus; label: string }[] = [
-  { value: "pending", label: "Ожидает оплаты" },
-  { value: "paid", label: "Оплачен" },
-  { value: "activating", label: "В активации" },
-  { value: "waiting_client", label: "Ждём данные клиента" },
-  { value: "active", label: "Активирован" },
-  { value: "failed", label: "Ошибка" },
-  { value: "expired", label: "Истёк" },
-  { value: "refunded", label: "Возврат" },
-];
+const OPTIONS: { value: OrderStatus; label: string }[] = GPT_ORDER_STATUSES.map((value) => ({
+  value,
+  label: GPT_ORDER_STATUS_LABELS[value],
+}));
 
 type Props = {
   orderId: string;
@@ -31,7 +26,7 @@ export function OrderStatusSelect({ orderId, initialStatus }: Props) {
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch(`/api/admin/orders/${orderId}`, {
+      const res = await fetch(`/api/admin/orders/${orderId}?site=gpt-store`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next }),

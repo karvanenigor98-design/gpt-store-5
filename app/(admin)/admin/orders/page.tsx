@@ -10,6 +10,7 @@ import { fetchGptOrdersForAdmin } from "@/lib/admin/gpt-orders-fetch";
 import { resolveGptOrderPlanLabel } from "@/lib/admin/gpt-order-plan-label";
 import { fetchSubsOrdersForAdmin } from "@/lib/admin/subs-orders-fetch";
 import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
+import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
 import { getSiteBySlug } from "@/lib/sites";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { UnpaidOrdersEmailCampaign } from "@/components/admin/UnpaidOrdersEmailCampaign";
@@ -40,14 +41,14 @@ const SUBS_STATUS_CLASSES: Record<string, string> = {
 };
 
 const GPT_STATUS_LABELS: Record<string, string> = {
-  pending: "Ожидает оплаты",
-  paid: "Оплачен",
-  activating: "В активации",
-  waiting_client: "Ждем клиента",
-  active: "Активен",
-  failed: "Ошибка",
-  expired: "Истек",
-  refunded: "Возврат",
+  pending: gptOrderStatusLabelRu("pending"),
+  paid: gptOrderStatusLabelRu("paid"),
+  activating: gptOrderStatusLabelRu("activating"),
+  waiting_client: gptOrderStatusLabelRu("waiting_client"),
+  active: gptOrderStatusLabelRu("active"),
+  failed: gptOrderStatusLabelRu("failed"),
+  expired: gptOrderStatusLabelRu("expired"),
+  refunded: gptOrderStatusLabelRu("refunded"),
 };
 
 const SUBS_PAY_LABELS: Record<string, string> = {
@@ -244,7 +245,11 @@ export default async function AdminOrdersPage({
                   : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {s ? (s === "awaiting_payment" ? "Ожидает оплаты" : GPT_STATUS_LABELS[s]) : "Все"}
+              {s
+                ? s === "awaiting_payment"
+                  ? subsOrderStatusLabelRu("awaiting_payment")
+                  : GPT_STATUS_LABELS[s] ?? gptOrderStatusLabelRu(s)
+                : "Все"}
             </a>
           ))}
         </div>

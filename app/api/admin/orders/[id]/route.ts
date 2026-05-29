@@ -9,6 +9,10 @@ import {
   isTransitionToPaidLike,
 } from "@/lib/notifications/order-paid";
 import { notifyCustomerOrderStatus, notifyManualOrderStatusChange } from "@/lib/telegram/notifications";
+import {
+  fetchSubsOrderForStatusPatch,
+  subsPaymentStatusForOrderStatus,
+} from "@/lib/admin/patch-subs-order-status";
 
 const SUBS_ORDER_STATUSES = new Set([
   "new",
@@ -75,36 +79,40 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!SUBS_ORDER_STATUSES.has(nextSubs)) {
       return NextResponse.json({ error: "Недопустимый статус для Subs Store" }, { status: 400 });
     }
-    const { data: order, error: findErr } = await subsCtx.subs
-      .from("orders")
-      .select("id,status,user_id,plan_id,plan_name")
-      .eq("id", orderId)
-      .single();
-    if (findErr || !order) {
+    const order = await fetchSubsOrderForStatusPatch(subsCtx.subs, orderId);
+    if (!order) {
       return NextResponse.json({ error: "Заказ не найден" }, { status: 404 });
     }
-    const prev = String(order.status);
+    const prev = order.status;
     if (prev === nextSubs) {
       return NextResponse.json({ ok: true, status: nextSubs });
     }
+
+    const nextPaymentStatus = subsPaymentStatusForOrderStatus(nextSubs);
+    const updatePayload: Record<string, unknown> = {
+      status: nextSubs,
+      updated_at: new Date().toISOString(),
+    };
+    if (nextPaymentStatus) {
+      updatePayload.payment_status = nextPaymentStatus;
+    }
+
     const { error: updErr } = await subsCtx.subs
       .from("orders")
-      .update({ status: nextSubs, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", orderId);
     if (updErr) {
+      console.error("[admin/orders PATCH subs]", updErr.message);
       return NextResponse.json({ error: "Не удалось обновить" }, { status: 500 });
     }
 
-    const userId = (order as { user_id?: string | null }).user_id;
-    const planTitle =
-      (order as { plan_name?: string | null }).plan_name
-      ?? (order as { plan_id?: string }).plan_id
-      ?? "Spotify Premium";
+    const userId = order.user_id;
+    const planTitle = order.planTitle;
 
-    let subsEmail: string | null = null;
+    let subsEmail = order.customer_email?.trim().toLowerCase() ?? null;
     if (userId) {
       const { data: subsProfile } = await subsCtx.subs.auth.admin.getUserById(userId);
-      subsEmail = subsProfile?.user?.email?.trim().toLowerCase() ?? null;
+      subsEmail = subsProfile?.user?.email?.trim().toLowerCase() ?? subsEmail;
     }
 
     const becamePaidSubs = isTransitionToPaidLike(prev, nextSubs, "subs-store");
@@ -122,7 +130,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         orderId,
         siteSlug: "subs-store",
         planName: planTitle,
-        price: Number((order as { final_price?: number }).final_price ?? 0),
+        price: Number(order.final_price ?? 0),
         status: nextSubs,
         customerEmail: subsEmail,
         customerUserId: userId ?? undefined,
@@ -146,7 +154,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           orderId,
           planName: planTitle,
           status: nextSubs,
-          price: Number((order as { final_price?: number }).final_price ?? 0),
+          price: Number(order.final_price ?? 0),
           siteSlug: "subs-store",
         }).catch(() => undefined);
       }
