@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
@@ -29,6 +29,8 @@ export function SpotifyCheckoutFlow() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ready, setReady] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  /** Не сбрасывать шаг при poll тарифов (каждые 5 с). */
+  const urlPlanStepAppliedRef = useRef<string | null>(null);
 
   useEffect(() => {
     async function loadPlans() {
@@ -57,12 +59,17 @@ export function SpotifyCheckoutFlow() {
 
   useEffect(() => {
     const planId = searchParams.get("plan");
-    if (planId && plans.length) {
-      const found = plans.find((p) => p.id === planId);
-      if (found) {
-        setSelectedPlan(found);
-        setStep(2);
-      }
+    if (!planId || !plans.length) return;
+
+    const found = plans.find((p) => p.id === planId);
+    if (!found) return;
+
+    setSelectedPlan(found);
+
+    // Только при первом заходе с ?plan=… или смене plan в URL — не откатывать с шага 3
+    if (urlPlanStepAppliedRef.current !== planId) {
+      urlPlanStepAppliedRef.current = planId;
+      setStep((current) => (current < 2 ? 2 : current));
     }
   }, [searchParams, plans]);
 
