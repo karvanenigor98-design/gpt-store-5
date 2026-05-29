@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, User } from "lucide-react";
+import { LandingOrderStatusChip } from "@/components/landing/LandingOrderStatusChip";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "Как работает" },
@@ -65,6 +66,9 @@ export function ChatGptLandingNav() {
 
         {/* CTA + auth */}
         <div className="flex items-center gap-2">
+          <div className="hidden sm:block">
+            <LandingOrderStatusChip siteSlug="gpt-store" />
+          </div>
           <Link
             href="/cabinet?site=gpt-store"
             className="hidden items-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-1.5 text-sm text-gray-600 transition-colors duration-100 hover:bg-gray-50 sm:flex"
@@ -118,6 +122,9 @@ export function ChatGptLandingNav() {
               >
                 Личный кабинет
               </Link>
+              <div className="mt-1">
+                <LandingOrderStatusChip siteSlug="gpt-store" />
+              </div>
               <button
                 type="button"
                 onClick={() => handleAnchorClick("#pricing")}

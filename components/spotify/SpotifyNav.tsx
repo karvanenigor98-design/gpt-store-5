@@ -7,6 +7,7 @@ import { Menu, X, User } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
+import { LandingOrderStatusChip } from "@/components/landing/LandingOrderStatusChip";
 
 export function SpotifyNav() {
   const { nav, hero } = useSpotifyLanding();
@@ -72,6 +73,9 @@ export function SpotifyNav() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <div className="hidden sm:block">
+            <LandingOrderStatusChip siteSlug="subs-store" />
+          </div>
           <Link
             href="/cabinet?site=subs-store"
             className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
@@ -153,6 +157,9 @@ export function SpotifyNav() {
               >
                 Личный кабинет
               </Link>
+              <div className="mt-1">
+                <LandingOrderStatusChip siteSlug="subs-store" />
+              </div>
               <button
                 type="button"
                 onClick={handlePremiumCta}

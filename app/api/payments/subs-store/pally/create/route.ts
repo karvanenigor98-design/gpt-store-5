@@ -13,6 +13,7 @@ import {
   notifyOperationalFailure,
 } from "@/lib/telegram/notifications";
 import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
+import { insertSubsStoreNotification } from "@/lib/subs/subs-notifications";
 
 export const maxDuration = 60;
 
@@ -123,6 +124,17 @@ export async function POST(request: NextRequest) {
 
     const planLabel = plan.name;
     const msg = `${planLabel} · ${finalPrice} ₽ · ${customerEmail}`;
+
+    if (subsUserId) {
+      await insertSubsStoreNotification({
+        recipientUserId: subsUserId,
+        type: "new_order",
+        title: "Заказ создан",
+        message: `${planLabel} · ${finalPrice} ₽`,
+        entity_type: "order",
+        entity_id: orderId,
+      }).catch(() => ({ ok: false as const, reason: "insert_failed" }));
+    }
 
     await notifySubsStoreStaffOrderEvent({
       type: "new_order",

@@ -5,6 +5,7 @@ import { ensureGptProfile } from "@/lib/orders/create-gpt-order";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
 import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
+import { insertGptCustomerNotification } from "@/lib/notifications/gpt-customer-notifications";
 import {
   notifyCustomerOrderCreated,
   notifyNewOrder,
@@ -67,6 +68,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (created) {
+      await insertGptCustomerNotification({
+        recipientUserId: user.id,
+        type: "new_order",
+        title: "Заказ создан",
+        message: `${plan.name} · ${finalPrice} ₽`,
+        entity_type: "order",
+        entity_id: order.id,
+      }).catch(() => {});
       await notifyNewOrder(
         {
           id: order.id,
