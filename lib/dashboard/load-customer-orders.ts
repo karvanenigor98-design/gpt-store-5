@@ -31,11 +31,14 @@ export async function loadCustomerOrdersForUser(params: {
   siteSlug: SiteSlug;
   userId: string;
   userEmail: string | null;
+  /** Переиспользуем сессию со страницы — не создаём клиент повторно. */
+  sessionClient?: SupabaseClient;
 }): Promise<CustomerOrderView[]> {
   const { siteSlug, userId, userEmail } = params;
 
   if (siteSlug === "subs-store") {
-    const { browserLike: supabase } = await createSiteSessionClient(siteSlug);
+    const supabase =
+      params.sessionClient ?? (await createSiteSessionClient(siteSlug)).browserLike;
     return loadSubsCustomerOrders(supabase, userId, userEmail);
   }
 
@@ -47,6 +50,7 @@ export async function loadCustomerOrdersWithFocus(params: {
   userId: string;
   userEmail: string | null;
   orderFocusId?: string | null;
+  sessionClient?: SupabaseClient;
 }): Promise<{
   orders: CustomerOrderView[];
   focusedOrder?: CustomerOrderView;
@@ -56,6 +60,7 @@ export async function loadCustomerOrdersWithFocus(params: {
     siteSlug: params.siteSlug,
     userId: params.userId,
     userEmail: params.userEmail,
+    sessionClient: params.sessionClient,
   });
 
   const focusId = params.orderFocusId?.trim();
@@ -197,7 +202,9 @@ async function fetchCustomerOrderById(params: {
     if (!row) return null;
 
     const email = userEmail?.trim().toLowerCase() ?? "";
-    const orderEmail = (row.customer_email ?? "").trim().toLowerCase();
+    const orderEmail = String(row.customer_email ?? row.account_email ?? "")
+      .trim()
+      .toLowerCase();
     const owned = row.user_id === userId || (!!email && !!orderEmail && orderEmail === email);
 
     if (!owned) return null;

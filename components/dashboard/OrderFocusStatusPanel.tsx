@@ -29,8 +29,8 @@ export function OrderFocusStatusPanel({ orderId, siteSlug, initialStatus, isSubs
         Статус заказа: {orderStatusLabelRu(liveStatus)}
       </p>
       <ul className={cn("mt-2 space-y-1 text-sm", isSubs ? "text-gray-300" : "text-gray-600")}>
-        {lines.map((line) => (
-          <li key={line}>{line}</li>
+        {lines.map((line, i) => (
+          <li key={`${i}-${line}`}>{line}</li>
         ))}
       </ul>
     </div>

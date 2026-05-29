@@ -2,6 +2,7 @@ import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { CustomerOrderCard } from "@/components/dashboard/CustomerOrderCard";
 import { OrderFocusStatusPanel } from "@/components/dashboard/OrderFocusStatusPanel";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -63,12 +64,23 @@ export default async function OrdersPage({
   const STATUS_LABELS = isSubs ? STATUS_LABELS_SUBS : STATUS_LABELS_LIGHT;
   const chatHref = `/dashboard/chat?site=${siteSlug}`;
   const primaryColor = site.primaryColor;
+  const returnPath = `/dashboard/orders?site=${siteSlug}${orderFocus ? `&order_id=${encodeURIComponent(orderFocus)}` : ""}`;
 
-  const { browserLike: supabase } = await createSiteSessionClient(siteSlug);
+  let supabase;
+  try {
+    ({ browserLike: supabase } = await createSiteSessionClient(siteSlug));
+  } catch {
+    redirect(
+      `/login?site=${siteSlug}&returnUrl=${encodeURIComponent(returnPath)}&reason=subs_env_missing`,
+    );
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) {
+    redirect(`/login?site=${siteSlug}&returnUrl=${encodeURIComponent(returnPath)}`);
+  }
 
   let orders: CustomerOrderView[] = [];
   let focusedOrder: CustomerOrderView | undefined;
@@ -81,6 +93,7 @@ export default async function OrdersPage({
       userId: user.id,
       userEmail: user.email ?? null,
       orderFocusId: orderFocus,
+      sessionClient: supabase,
     });
     orders = loaded.orders;
     focusedOrder = loaded.focusedOrder;
@@ -143,7 +156,7 @@ export default async function OrdersPage({
             Заказ не найден или относится к другому аккаунту
           </p>
           <p className={cn("mt-1 text-sm", isSubs ? "text-gray-400" : "text-gray-600")}>
-            Проверьте, что вы вошли в кабинет того же магазина, где оформляли заказ.
+            Войдите тем же email, что указывали при оформлении заказа на Spotify STORE.
           </p>
           <Link
             href={chatHref}
