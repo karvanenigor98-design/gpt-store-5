@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
         returnUrl: `${appUrl}/checkout/success?order=${order.id}`,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
         customerEmail: user.email ?? undefined,
+        site: "gpt-store",
       });
     } catch (payErr) {
       const detail = payErr instanceof Error ? payErr.message : undefined;

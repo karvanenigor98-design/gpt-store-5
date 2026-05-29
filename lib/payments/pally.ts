@@ -32,9 +32,27 @@ function pallyApiUrlCandidates(): string[] {
   return urls;
 }
 
-function getPallyConfig() {
+export type PallyStoreSlug = "gpt-store" | "subs-store";
+
+/** GPT: PALLY_SHOP_ID или PALLY_SHOP_ID_GPT. Spotify: PALLY_SHOP_ID_SUBS (fallback — PALLY_SHOP_ID). */
+export function resolvePallyShopId(site: PallyStoreSlug = "gpt-store"): string {
+  if (site === "subs-store") {
+    return (
+      process.env.PALLY_SHOP_ID_SUBS?.trim() ||
+      process.env.PALLY_SHOP_ID_SPOTIFY?.trim() ||
+      ""
+    );
+  }
+  return (
+    process.env.PALLY_SHOP_ID?.trim() ||
+    process.env.PALLY_SHOP_ID_GPT?.trim() ||
+    ""
+  );
+}
+
+function getPallyConfig(site: PallyStoreSlug = "gpt-store") {
   return {
-    shopId: process.env.PALLY_SHOP_ID ?? "",
+    shopId: resolvePallyShopId(site),
     secretKey: process.env.PALLY_SECRET_KEY ?? "",
     apiUrls: pallyApiUrlCandidates(),
     testMode: process.env.PALLY_TEST_MODE === "true",
@@ -48,6 +66,8 @@ export interface CreatePallyPaymentParams {
   returnUrl: string;
   webhookUrl: string;
   customerEmail?: string;
+  /** Какой магазин Pally (разные shop_id, один API-токен). */
+  site?: PallyStoreSlug;
 }
 
 export interface PallyPaymentResult {
@@ -68,11 +88,15 @@ function resolvePaymentUrl(data: Record<string, unknown>): string {
       : null;
 
   const candidates = [
+    data.link_url,
+    data.link_page_url,
     data.payment_url,
     data.url,
     data.redirect_url,
     data.link,
     data.bill_url,
+    nested?.link_url,
+    nested?.link_page_url,
     nested?.payment_url,
     nested?.url,
     nested?.link,
@@ -147,9 +171,14 @@ async function postBillCreate(
 export async function createPallyPayment(
   params: CreatePallyPaymentParams,
 ): Promise<PallyPaymentResult> {
-  const config = getPallyConfig();
+  const site = params.site ?? "gpt-store";
+  const config = getPallyConfig(site);
   if (!config.shopId || !config.secretKey) {
-    throw new Error("Pally не настроен: добавьте PALLY_SHOP_ID и PALLY_SECRET_KEY в переменные окружения");
+    const shopHint =
+      site === "subs-store"
+        ? "PALLY_SHOP_ID_SUBS (Spotify) и PALLY_SECRET_KEY"
+        : "PALLY_SHOP_ID (GPT) и PALLY_SECRET_KEY";
+    throw new Error(`Pally не настроен: добавьте ${shopHint} в переменные окружения`);
   }
 
   const sign = buildSign(config.shopId, config.secretKey, params.orderId, params.amount);
@@ -181,7 +210,13 @@ export async function createPallyPayment(
       );
 
       const paymentUrl = resolvePaymentUrl(data);
-      const success = data.success === true || Boolean(paymentUrl);
+      const successFlag = data.success;
+      const success =
+        successFlag === true ||
+        successFlag === "true" ||
+        successFlag === 1 ||
+        successFlag === "1" ||
+        Boolean(paymentUrl);
 
       if (!response.ok || !success || !paymentUrl) {
         lastApiError = await formatPallyError(data, response.status);

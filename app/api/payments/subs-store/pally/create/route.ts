@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
         returnUrl: `${appUrl}/checkout/success?order=${orderId}&site=subs-store`,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
         customerEmail: sessionEmail ?? customerEmail,
+        site: "subs-store",
       });
     } catch (payErr) {
       const detail = payErr instanceof Error ? payErr.message : undefined;

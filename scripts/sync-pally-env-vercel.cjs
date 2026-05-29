@@ -15,6 +15,8 @@ const DRY = process.argv.includes("--dry-run");
 
 const KEYS = [
   "PALLY_SHOP_ID",
+  "PALLY_SHOP_ID_GPT",
+  "PALLY_SHOP_ID_SUBS",
   "PALLY_SECRET_KEY",
   "PALLY_API_URL",
   "PALLY_TEST_MODE",
