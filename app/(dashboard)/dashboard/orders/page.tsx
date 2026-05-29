@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import type { OrderStatus } from "@/types/database";
 import { RefreshCw, Plus } from "lucide-react";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { getSiteBySlug, filterOrdersBySite } from "@/lib/sites";
 import { cn } from "@/lib/utils";
@@ -56,12 +57,18 @@ const STATUS_LABELS_SUBS: Record<string, { label: string; color: string }> = {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ site?: string; highlight?: string }>;
+  searchParams: Promise<{ site?: string; highlight?: string; order_id?: string }>;
 }) {
   const params = await searchParams;
-  const cookieStore = await cookies();
-  const rawSite = params.site ?? cookieStore.get("current_site")?.value;
-  const siteSlug: SiteSlug = rawSite === "subs-store" ? "subs-store" : "gpt-store";
+  const siteSlug: SiteSlug = await resolveCustomerSiteSlug({
+    siteParam: params.site,
+    pathname: "/dashboard/orders",
+  });
+
+  const orderFocus = params.highlight ?? params.order_id;
+  if (orderFocus) {
+    redirect(`/dashboard/order/${orderFocus}?site=${siteSlug}`);
+  }
   const site = getSiteBySlug(siteSlug);
   const isSubs = siteSlug === "subs-store";
   const STATUS_LABELS = isSubs ? STATUS_LABELS_SUBS : STATUS_LABELS_LIGHT;

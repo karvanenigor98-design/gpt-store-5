@@ -197,7 +197,17 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (path === "/" || path === "/gpt" || path === "/gpt-store" || path === "/chatgpt") {
+  if (
+    (path.startsWith("/dashboard") || path.startsWith("/cabinet")) &&
+    (siteQuery === "subs-store" || siteQuery === "gpt-store")
+  ) {
+    supabaseResponse.cookies.set("current_site", siteQuery, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+      sameSite: "lax",
+      httpOnly: false,
+    });
+  } else if (path === "/" || path === "/gpt" || path === "/gpt-store" || path === "/chatgpt") {
     supabaseResponse.cookies.set("current_site", "gpt-store", {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,

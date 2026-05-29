@@ -29,7 +29,7 @@ export function unpaidOrderReminderEmail(params: {
     siteSlug: params.siteSlug,
     title,
     bodyLines,
-    ctaLabel: "Завершить оплату",
+    ctaLabel: "Статус заказа",
     ctaUrl: buildCustomerOrderUrl(params.siteSlug, params.orderId),
   });
 

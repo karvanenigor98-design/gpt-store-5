@@ -9,6 +9,7 @@ import {
   buildCustomerOrderUrl,
   buildStaffOrderUrl,
 } from "@/lib/email/site-urls";
+import { getOrderCustomerInstructionLines } from "@/lib/email/order-customer-instructions";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { SiteSlug } from "@/lib/sites";
@@ -218,7 +219,7 @@ export async function handleOrderPaidNotification(
         `Тариф: ${params.planName}`,
         `Сумма: ${params.price.toLocaleString("ru-RU")} ₽`,
         `Номер заказа: ${shortId}…`,
-        "Статус заказа можно отслеживать в личном кабинете.",
+        ...getOrderCustomerInstructionLines(params.siteSlug, params.status, "paid"),
       ];
 
       if (params.siteSlug === "subs-store") {
@@ -243,7 +244,7 @@ export async function handleOrderPaidNotification(
         recipientUserId: params.customerUserId,
         title: isRenewal ? "Оплата продления получена" : "Оплата получена",
         bodyLines: [...clientLines, supportLine],
-        ctaLabel: "Открыть заказ",
+        ctaLabel: "Статус заказа",
         ctaUrl: buildCustomerOrderUrl(params.siteSlug, params.orderId),
         dedupeKey: orderPaidDedupeKey(params.siteSlug, params.orderId, clientEmail),
         relatedEntityType: "order",

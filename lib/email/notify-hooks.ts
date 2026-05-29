@@ -15,6 +15,10 @@ import {
   buildStaffOrderUrl,
   resolveAppBaseUrl,
 } from "@/lib/email/site-urls";
+import {
+  getOrderCustomerInstructionLines,
+  orderStatusLabelRu,
+} from "@/lib/email/order-customer-instructions";
 
 const STATUS_RU: Record<string, string> = {
   pending: "Ожидает оплаты",
@@ -105,12 +109,13 @@ export async function emailCustomerOrderUpdate(params: {
   status: string;
   price: number;
 }): Promise<void> {
-  const label = STATUS_RU[params.status] ?? params.status;
+  const label = orderStatusLabelRu(params.status);
   const lines = [
     `Заказ: ${params.orderId.slice(0, 8)}…`,
     `Тариф: ${params.planName}`,
     `Сумма: ${params.price} ₽`,
     `Статус: ${label}`,
+    ...getOrderCustomerInstructionLines(params.siteSlug, params.status, "updated"),
   ];
 
   let eventType: EmailEventType = "order_status_changed";
@@ -131,7 +136,11 @@ export async function emailCustomerOrderUpdate(params: {
           ctaUrl: buildReviewUrl(params.siteSlug),
           extraLine: "Если всё понравилось, будем благодарны за отзыв.",
         }
-      : { ctaLabel: "Открыть заказ" as const, ctaUrl: buildCustomerOrderUrl(params.siteSlug, params.orderId), extraLine: null as string | null };
+      : {
+          ctaLabel: "Статус заказа" as const,
+          ctaUrl: buildCustomerOrderUrl(params.siteSlug, params.orderId),
+          extraLine: null as string | null,
+        };
 
   if (reviewCta.extraLine) lines.push(reviewCta.extraLine);
 
@@ -173,9 +182,10 @@ export async function emailCustomerOrderCreated(params: {
       `Номер: ${params.orderId.slice(0, 8)}…`,
       `Тариф: ${params.planName}`,
       `Сумма: ${params.price} ₽`,
-      "Статус и оплату можно проверить в личном кабинете.",
+      `Статус: ${orderStatusLabelRu("pending")}`,
+      ...getOrderCustomerInstructionLines(params.siteSlug, "pending", "created"),
     ],
-    ctaLabel: "Открыть заказ",
+    ctaLabel: "Статус заказа",
     ctaUrl: buildCustomerOrderUrl(params.siteSlug, params.orderId),
     dedupeKey: `order_created:${params.siteSlug}:${params.orderId}:${params.customerEmail}`,
     relatedEntityType: "order",

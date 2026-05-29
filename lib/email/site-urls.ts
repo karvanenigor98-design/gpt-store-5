@@ -8,7 +8,7 @@ export function resolveAppBaseUrl(): string {
   return getPublicSiteOrigin();
 }
 
-/** Публичный URL лендинга/кабинета по сайту (env приоритетнее APP_URL для multi-domain). */
+/** Публичный URL лендинга по сайту (env приоритетнее APP_URL для multi-domain). */
 export function resolveSitePublicUrl(siteSlug: SiteSlug): string {
   if (siteSlug === "subs-store") return getSubsStoreLandingUrl();
   if (siteSlug === "gpt-store") return getGptStoreLandingUrl();
@@ -17,26 +17,37 @@ export function resolveSitePublicUrl(siteSlug: SiteSlug): string {
   return `${app}${site.landingPath.startsWith("/") ? site.landingPath : `/${site.landingPath}`}`;
 }
 
-export function buildCustomerChatUrl(siteSlug: SiteSlug, sessionOrThreadId: string): string {
-  const base = resolveSitePublicUrl(siteSlug);
-  if (siteSlug === "subs-store") {
-    return `${base}/dashboard/chat?site=subs-store&thread_id=${encodeURIComponent(sessionOrThreadId)}`;
+/**
+ * Origin приложения для ссылок в ЛК (dashboard, chat).
+ * Берём origin из env лендинга, без pathname (/spotify), иначе получится /spotify/dashboard/…
+ */
+export function resolveSiteCustomerAppOrigin(siteSlug: SiteSlug): string {
+  try {
+    return new URL(resolveSitePublicUrl(siteSlug)).origin;
+  } catch {
+    return resolveAppBaseUrl();
   }
-  return `${base}/dashboard/chat?session_id=${encodeURIComponent(sessionOrThreadId)}`;
 }
 
-export function buildCustomerOrderUrl(siteSlug: SiteSlug, orderId: string): string {
-  const base = resolveSitePublicUrl(siteSlug);
+export function buildCustomerChatUrl(siteSlug: SiteSlug, sessionOrThreadId: string): string {
+  const base = resolveSiteCustomerAppOrigin(siteSlug);
+  const siteQ = `site=${siteSlug}`;
   if (siteSlug === "subs-store") {
-    return `${base}/dashboard/orders?site=subs-store&order_id=${encodeURIComponent(orderId)}`;
+    return `${base}/dashboard/chat?${siteQ}&thread_id=${encodeURIComponent(sessionOrThreadId)}`;
   }
-  return `${base}/dashboard/orders?order_id=${encodeURIComponent(orderId)}`;
+  return `${base}/dashboard/chat?${siteQ}&session_id=${encodeURIComponent(sessionOrThreadId)}`;
+}
+
+/** Прямая ссылка на статус конкретного заказа (из писем и уведомлений). */
+export function buildCustomerOrderUrl(siteSlug: SiteSlug, orderId: string): string {
+  const base = resolveSiteCustomerAppOrigin(siteSlug);
+  return `${base}/dashboard/order/${encodeURIComponent(orderId)}?site=${siteSlug}`;
 }
 
 export function buildReviewUrl(siteSlug: SiteSlug): string {
-  const base = resolveSitePublicUrl(siteSlug);
+  const base = resolveSiteCustomerAppOrigin(siteSlug);
   if (siteSlug === "subs-store") {
-    return `${base}/reviews?site=subs-store`;
+    return `${base}/spotify/reviews?site=subs-store`;
   }
   return `${base}/reviews`;
 }

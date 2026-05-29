@@ -32,7 +32,7 @@ export function buildClientNotificationHref(
   const siteQ = `site=${siteSlug}`;
 
   if (isClientOrderNotification(item) && item.entity_id) {
-    return `/dashboard/orders?${siteQ}&highlight=${encodeURIComponent(item.entity_id)}`;
+    return `/dashboard/order/${encodeURIComponent(item.entity_id)}?${siteQ}`;
   }
   if (isClientChatNotification(item) && item.entity_id) {
     if (siteSlug === "subs-store") {

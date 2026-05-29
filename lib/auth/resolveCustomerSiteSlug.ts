@@ -30,6 +30,11 @@ export async function resolveCustomerSiteSlug(params: {
     return siteParam;
   }
 
+  const headerSite = h.get("x-site-slug")?.trim();
+  if (headerSite === "subs-store" || headerSite === "gpt-store") {
+    return headerSite;
+  }
+
   if (port === "3055") return "subs-store";
   if (port === "3056") return "gpt-store";
 
