@@ -10,8 +10,11 @@ export type CustomerOrderView = {
   created_at: string;
   activated_at?: string | null;
   expires_at?: string | null;
+  /** Email Spotify-аккаунта (если указан при оформлении). */
   account_email?: string | null;
   customer_email?: string | null;
+  /** Название тарифа для отображения (Subs Store). */
+  tariff_title?: string | null;
 };
 
 export function normalizeGptOrderRow(row: Record<string, unknown>): CustomerOrderView {
@@ -45,13 +48,14 @@ export function normalizeSubsOrderRow(
     activated_at: (row.activated_at as string | null) ?? null,
     expires_at: (row.expires_at as string | null) ?? null,
     customer_email: (row.customer_email as string | null) ?? null,
-    account_email: tariffTitle ?? null,
+    account_email: (row.account_email as string | null) ?? null,
+    tariff_title: tariffTitle ?? null,
   };
 }
 
 export function getCustomerOrderProductLabel(order: CustomerOrderView): string {
   if (order.product.startsWith("spotify")) {
-    if (order.account_email) return `Spotify Premium — ${order.account_email}`;
+    if (order.tariff_title) return `Spotify Premium — ${order.tariff_title}`;
     const suffix = order.plan_id.replace(/^spotify-/, "").replace(/-/g, " ");
     return `Spotify Premium — ${suffix || order.plan_id}`;
   }

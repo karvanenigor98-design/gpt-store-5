@@ -13,9 +13,13 @@ const AWAITING_DATA = new Set(["waiting_client", "awaiting_data"]);
 
 const PAYMENT_RECEIVED = new Set(["paid"]);
 
+function normalizeStatus(status: string | null | undefined): string {
+  return String(status ?? "pending").trim().toLowerCase();
+}
+
 /** Любой статус БД → шаг трекера (GPT + Spotify / subs). */
-export function mapOrderStatusToTrackerStep(status: string): OrderTrackerStep {
-  const s = status.trim().toLowerCase();
+export function mapOrderStatusToTrackerStep(status: string | null | undefined): OrderTrackerStep {
+  const s = normalizeStatus(status);
   if (ACTIVATED.has(s)) return "activated";
   if (ACTIVATION.has(s)) return "activation";
   if (AWAITING_DATA.has(s)) return "awaiting_data";
@@ -24,13 +28,13 @@ export function mapOrderStatusToTrackerStep(status: string): OrderTrackerStep {
   return "payment_received";
 }
 
-export function orderStatusForTracker(status: string): OrderTrackerStep {
+export function orderStatusForTracker(status: string | null | undefined): OrderTrackerStep {
   return mapOrderStatusToTrackerStep(status);
 }
 
 /** Показывать трекер только после оплаты (не на «ожидает оплаты»). */
-export function shouldShowOrderStatusTracker(status: string): boolean {
-  const s = status.trim().toLowerCase();
+export function shouldShowOrderStatusTracker(status: string | null | undefined): boolean {
+  const s = normalizeStatus(status);
   if (["pending", "awaiting_payment", "new", "pending_payment_setup"].includes(s)) {
     return false;
   }

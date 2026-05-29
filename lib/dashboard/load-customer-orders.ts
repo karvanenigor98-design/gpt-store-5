@@ -12,6 +12,27 @@ import {
   type CustomerOrderView,
 } from "@/lib/dashboard/customer-order-view";
 
+function normalizeEmail(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function orderEmails(row: Record<string, unknown>): string[] {
+  const emails = [normalizeEmail(row.customer_email as string), normalizeEmail(row.account_email as string)];
+  return [...new Set(emails.filter(Boolean))];
+}
+
+function orderOwnedByUser(params: {
+  row: Record<string, unknown>;
+  userId: string;
+  userEmail: string | null;
+}): boolean {
+  const { row, userId, userEmail } = params;
+  if (row.user_id === userId) return true;
+  const email = normalizeEmail(userEmail);
+  if (!email) return false;
+  return orderEmails(row).includes(email);
+}
+
 function dedupeOrders(orders: CustomerOrderView[]): CustomerOrderView[] {
   const seen = new Set<string>();
   const out: CustomerOrderView[] = [];
@@ -131,16 +152,27 @@ async function loadSubsCustomerOrders(
 
   let rawRows: Record<string, unknown>[] = (byUser ?? []) as Record<string, unknown>[];
 
-  const email = userEmail?.trim().toLowerCase();
+  const email = normalizeEmail(userEmail);
   if (email) {
-    const { data: byEmail } = await subsAdmin
-      .from("orders")
-      .select("*")
-      .eq("customer_email", email)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const [{ data: byCustomerEmail }, { data: byAccountEmail }] = await Promise.all([
+      subsAdmin
+        .from("orders")
+        .select("*")
+        .eq("customer_email", email)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      subsAdmin
+        .from("orders")
+        .select("*")
+        .eq("account_email", email)
+        .order("created_at", { ascending: false })
+        .limit(50),
+    ]);
 
-    const emailRows = (byEmail ?? []) as Record<string, unknown>[];
+    const emailRows = [...(byCustomerEmail ?? []), ...(byAccountEmail ?? [])] as Record<
+      string,
+      unknown
+    >[];
     const byId = new Map<string, Record<string, unknown>>();
     for (const row of [...rawRows, ...emailRows]) {
       byId.set(String(row.id), row);
@@ -149,11 +181,7 @@ async function loadSubsCustomerOrders(
 
     const orphanIds = emailRows.filter((o) => !o.user_id).map((o) => String(o.id));
     if (orphanIds.length) {
-      await subsAdmin
-        .from("orders")
-        .update({ user_id: userId })
-        .in("id", orphanIds)
-        .eq("customer_email", email);
+      await subsAdmin.from("orders").update({ user_id: userId }).in("id", orphanIds);
     }
   }
 
@@ -201,13 +229,9 @@ async function fetchCustomerOrderById(params: {
     const { data: row } = await subsAdmin.from("orders").select("*").eq("id", orderId).maybeSingle();
     if (!row) return null;
 
-    const email = userEmail?.trim().toLowerCase() ?? "";
-    const orderEmail = String(row.customer_email ?? row.account_email ?? "")
-      .trim()
-      .toLowerCase();
-    const owned = row.user_id === userId || (!!email && !!orderEmail && orderEmail === email);
-
-    if (!owned) return null;
+    if (!orderOwnedByUser({ row: row as Record<string, unknown>, userId, userEmail })) {
+      return null;
+    }
 
     if (!row.user_id) {
       await subsAdmin.from("orders").update({ user_id: userId }).eq("id", orderId);

@@ -1,3 +1,5 @@
+"use client";
+
 import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
 import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";

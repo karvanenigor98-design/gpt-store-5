@@ -1,8 +1,8 @@
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
-import { CustomerOrderCard } from "@/components/dashboard/CustomerOrderCard";
-import { OrderFocusStatusPanel } from "@/components/dashboard/OrderFocusStatusPanel";
+import { CustomerOrdersSection } from "@/components/dashboard/CustomerOrdersSection";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -11,6 +11,7 @@ import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { getSiteBySlug } from "@/lib/sites";
 import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
 import { loadCustomerOrdersWithFocus } from "@/lib/dashboard/load-customer-orders";
+import { isSubsStoreBackendConfigured } from "@/lib/supabase/subs-store-admin";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Мои заказы" };
@@ -99,9 +100,12 @@ export default async function OrdersPage({
     focusedOrder = loaded.focusedOrder;
     orderFocusMissing = loaded.orderFocusMissing;
   } catch (err) {
+    if (isRedirectError(err)) throw err;
     console.error("[dashboard/orders] load orders failed", err);
     ordersLoadFailed = true;
   }
+
+  const subsBackendMissing = isSubs && !isSubsStoreBackendConfigured();
 
   return (
     <div className={cn("w-full max-w-none space-y-6", isSubs && "text-gray-100")}>
@@ -145,6 +149,18 @@ export default async function OrdersPage({
         </div>
       ) : null}
 
+      {subsBackendMissing ? (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4">
+          <p className="text-sm font-bold text-white">Заказы временно недоступны</p>
+          <p className="mt-1 text-sm text-gray-400">
+            На сервере не настроен доступ к базе Spotify STORE. Напишите в поддержку — мы откроем заказ вручную.
+          </p>
+          <Link href={chatHref} className="mt-3 inline-block text-sm font-semibold text-[#1DB954] underline">
+            Написать в поддержку
+          </Link>
+        </div>
+      ) : null}
+
       {orderFocusMissing ? (
         <div
           className={cn(
@@ -167,61 +183,18 @@ export default async function OrdersPage({
         </div>
       ) : null}
 
-      {focusedOrder ? (
-        <OrderFocusStatusPanel
-          orderId={focusedOrder.id}
-          siteSlug={siteSlug}
-          initialStatus={focusedOrder.status}
-          isSubs={isSubs}
-        />
-      ) : null}
-
-      {!orders || orders.length === 0 ? (
-        <div
-          className={cn(
-            "rounded-2xl border p-10 text-center",
-            isSubs ? "border-white/10 bg-[#161616]" : "border-black/[0.07] bg-gray-50",
-          )}
-        >
-          <p className={cn("mb-1 font-medium", isSubs ? "text-gray-100" : "text-gray-600")}>
-            Заказов пока нет
-          </p>
-          <p className={cn("mb-5 text-sm", isSubs ? "text-gray-400" : "text-gray-400")}>
-            {isSubs
-              ? "Подключите Spotify Premium — активация 10–15 минут"
-              : "Оформите первый заказ — активация за 5–15 минут"}
-          </p>
-          <Link
-            href={site.checkoutPath}
-            className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: primaryColor }}
-          >
-            {isSubs ? "Подключить Premium" : "Оформить подписку"}
-          </Link>
-          {isSubs ? (
-            <p className="mt-6 text-xs text-gray-500">
-              Вопросы по подключению — напишите в чат справа (или ниже на телефоне).
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {orders.map((order, index) => (
-            <CustomerOrderCard
-              key={order.id}
-              order={order}
-              siteSlug={siteSlug}
-              statusStyles={STATUS_LABELS}
-              primaryColor={primaryColor}
-              checkoutPath={site.checkoutPath}
-              chatHref={chatHref}
-              payEmail={order.customer_email ?? order.account_email ?? user.email ?? ""}
-              isHighlighted={orderFocus === order.id}
-              isNewest={index === 0}
-            />
-          ))}
-        </div>
-      )}
+      <CustomerOrdersSection
+        siteSlug={siteSlug}
+        orders={orders}
+        focusedOrder={focusedOrder}
+        orderFocusId={orderFocus}
+        statusStyles={STATUS_LABELS}
+        primaryColor={primaryColor}
+        checkoutPath={site.checkoutPath}
+        chatHref={chatHref}
+        payEmailFallback={user.email ?? ""}
+        isSubs={isSubs}
+      />
 
       {!isSubs && (
         <div className="flex flex-wrap gap-3 pt-2">
