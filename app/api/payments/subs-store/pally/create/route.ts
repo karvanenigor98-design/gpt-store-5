@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
     }
 
     const orderId = created.orderId;
-    const { getPublicSiteOrigin } = await import("@/lib/app-url");
-    const appUrl = getPublicSiteOrigin();
+    const { getServerSiteOrigin } = await import("@/lib/app-url");
+    const appUrl = getServerSiteOrigin();
     const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "subs-store");
 
     let payment: { paymentId: string; paymentUrl: string };

@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
       ).catch(() => {});
     }
 
-    const { getPublicSiteOrigin } = await import("@/lib/app-url");
-    const appUrl = getPublicSiteOrigin();
+    const { getServerSiteOrigin } = await import("@/lib/app-url");
+    const appUrl = getServerSiteOrigin();
     const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "gpt-store");
 
     let payment: { paymentId: string; paymentUrl: string };

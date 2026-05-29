@@ -15,6 +15,7 @@ const ENV_FILE = path.join(ROOT, ".env.local");
 const DRY = process.argv.includes("--dry-run");
 
 const KEYS = [
+  "APP_URL",
   "PALLY_SHOP_ID",
   "PALLY_SHOP_ID_GPT",
   "PALLY_SHOP_ID_SUBS",
@@ -132,8 +133,11 @@ const ENVIRONMENTS = process.argv.includes("--preview")
     console.log(`\n[${environment}]`);
     for (const key of KEYS) {
       let value = env[key]?.trim() ?? "";
-      if (key === "NEXT_PUBLIC_APP_URL") {
-        value = resolveAppUrlForVercel(value, environment);
+      if (key === "NEXT_PUBLIC_APP_URL" || key === "APP_URL") {
+        value = resolveAppUrlForVercel(
+          key === "APP_URL" ? value || PROD_APP_URL : value,
+          environment,
+        );
       }
       const r = await upsertEnv(key, value, environment);
       if (!r.ok) failed += 1;

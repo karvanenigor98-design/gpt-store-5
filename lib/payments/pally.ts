@@ -219,6 +219,7 @@ export async function createPallyPayment(
     success_url: params.successUrl,
     fail_url: params.failUrl,
     webhook_url: params.webhookUrl,
+    result_url: params.webhookUrl,
     email: params.customerEmail,
     sign,
     test: config.testMode ? 1 : 0,
