@@ -5,11 +5,16 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, Clock, Circle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { OrderStatus } from "@/types/database";
+import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
+import {
+  mapOrderStatusToTrackerStep,
+  type OrderTrackerStep,
+} from "@/lib/dashboard/order-status-tracker";
+import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { cn } from "@/lib/utils";
 
 interface StatusStep {
-  key: OrderStatus;
+  key: OrderTrackerStep;
   label: string;
   hint: string;
 }
@@ -21,12 +26,11 @@ const STEPS: StatusStep[] = [
   { key: "active", label: "Активировано", hint: "Подписка успешно активирована! Можете пользоваться" },
 ];
 
-function stepIndex(status: OrderStatus): number {
-  const idx = STEPS.findIndex((s) => s.key === status);
+function stepIndex(step: OrderTrackerStep): number {
+  const idx = STEPS.findIndex((s) => s.key === step);
   return idx === -1 ? 0 : idx;
 }
 
-// Время активации в минутах для тарифов
 const ACTIVATION_MINUTES: Record<string, number> = {
   "plus-fast": 5,
   "plus-std": 15,
@@ -37,7 +41,8 @@ const ACTIVATION_MINUTES: Record<string, number> = {
 
 interface Props {
   orderId: string;
-  initialStatus: OrderStatus;
+  initialStatus: string;
+  siteSlug: SiteSlug;
   planId?: string;
   activatedAt?: string | null;
   onOpenChat?: () => void;
@@ -48,6 +53,7 @@ interface Props {
 export function OrderStatusTracker({
   orderId,
   initialStatus,
+  siteSlug,
   planId,
   activatedAt,
   onOpenChat,
@@ -55,7 +61,9 @@ export function OrderStatusTracker({
   variant = "light",
 }: Props) {
   const router = useRouter();
-  const [status, setStatus] = useState<OrderStatus>(initialStatus);
+  const [trackerStep, setTrackerStep] = useState<OrderTrackerStep>(() =>
+    mapOrderStatusToTrackerStep(initialStatus),
+  );
   const [countdown, setCountdown] = useState<string | null>(null);
   const isSubs = variant === "subs";
   const accent = isSubs ? "#1DB954" : "#10a37f";
@@ -63,28 +71,37 @@ export function OrderStatusTracker({
   const openChat =
     onOpenChat ?? (() => router.push(chatHref ?? "/dashboard/chat"));
 
-  // Supabase Realtime — обновление статуса без перезагрузки
   useEffect(() => {
-    const supabase = createClient();
+    setTrackerStep(mapOrderStatusToTrackerStep(initialStatus));
+  }, [initialStatus]);
+
+  useEffect(() => {
+    const supabase =
+      siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
+    if (!supabase) return;
 
     const channel = supabase
-      .channel(`order-${orderId}`)
+      .channel(`order-tracker-${siteSlug}-${orderId}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
         (payload) => {
-          const newStatus = (payload.new as { status: OrderStatus }).status;
-          setStatus(newStatus);
-        }
+          const next = (payload.new as { status?: string }).status;
+          if (next) setTrackerStep(mapOrderStatusToTrackerStep(next));
+        },
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [orderId]);
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [orderId, siteSlug]);
 
-  // Таймер обратного отсчёта при статусе activating
   useEffect(() => {
-    if (status !== "activating") { setCountdown(null); return; }
+    if (trackerStep !== "activating") {
+      setCountdown(null);
+      return;
+    }
 
     const totalMinutes = planId ? (ACTIVATION_MINUTES[planId] ?? 15) : 15;
     const startTime = activatedAt ? new Date(activatedAt).getTime() : Date.now();
@@ -104,9 +121,9 @@ export function OrderStatusTracker({
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [status, planId, activatedAt]);
+  }, [trackerStep, planId, activatedAt]);
 
-  const currentIdx = stepIndex(status);
+  const currentIdx = stepIndex(trackerStep);
 
   return (
     <div
@@ -124,7 +141,6 @@ export function OrderStatusTracker({
         Статус заказа
       </h3>
 
-      {/* Desktop — горизонтальный прогресс */}
       <div className="hidden items-start gap-0 md:flex">
         {STEPS.map((step, i) => {
           const isDone = i < currentIdx;
@@ -133,25 +149,31 @@ export function OrderStatusTracker({
           return (
             <div key={step.key} className="flex flex-1 flex-col items-center">
               <div className="flex w-full items-center">
-                {/* Connector line left */}
                 <div
                   className={cn(
                     "h-0.5 flex-1",
-                    i === 0 ? "invisible" : isDone || isCurrent ? "" : isSubs ? "bg-white/15" : "bg-gray-200"
+                    i === 0 ? "invisible" : isDone || isCurrent ? "" : isSubs ? "bg-white/15" : "bg-gray-200",
                   )}
                   style={
                     i !== 0 && (isDone || isCurrent) ? { backgroundColor: accent } : undefined
                   }
                 />
-                {/* Icon */}
                 <motion.div
                   animate={isCurrent ? { scale: [1, 1.1, 1] } : {}}
                   transition={isCurrent ? { duration: 1.2, repeat: Infinity } : {}}
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all",
                     isDone && "text-white",
-                    !isDone && !isCurrent && (isSubs ? "border-white/20 bg-[#161616] text-gray-500" : "border-gray-200 bg-white text-gray-300"),
-                    isCurrent && !isDone && (isSubs ? "bg-[#161616] text-[#1DB954]" : "border-[#10a37f] bg-white text-[#10a37f]"),
+                    !isDone &&
+                      !isCurrent &&
+                      (isSubs
+                        ? "border-white/20 bg-[#161616] text-gray-500"
+                        : "border-gray-200 bg-white text-gray-300"),
+                    isCurrent &&
+                      !isDone &&
+                      (isSubs
+                        ? "bg-[#161616] text-[#1DB954]"
+                        : "border-[#10a37f] bg-white text-[#10a37f]"),
                   )}
                   style={
                     isDone
@@ -161,9 +183,14 @@ export function OrderStatusTracker({
                         : undefined
                   }
                 >
-                  {isDone ? <Check size={14} /> : isCurrent ? <Circle size={14} style={{ fill: accent }} /> : <Circle size={14} />}
+                  {isDone ? (
+                    <Check size={14} />
+                  ) : isCurrent ? (
+                    <Circle size={14} style={{ fill: accent }} />
+                  ) : (
+                    <Circle size={14} />
+                  )}
                 </motion.div>
-                {/* Connector line right */}
                 <div
                   className={cn(
                     "h-0.5 flex-1",
@@ -198,7 +225,6 @@ export function OrderStatusTracker({
         })}
       </div>
 
-      {/* Mobile — вертикальный timeline */}
       <div className="flex flex-col gap-4 md:hidden">
         {STEPS.map((step, i) => {
           const isDone = i < currentIdx;
@@ -211,8 +237,14 @@ export function OrderStatusTracker({
                 className={cn(
                   "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2",
                   isDone && "text-white",
-                  !isDone && !isCurrent && (isSubs ? "border-white/20 bg-[#161616] text-gray-500" : "border-gray-200 bg-white text-gray-300"),
-                  isCurrent && !isDone && (isSubs ? "bg-[#161616]" : "border-[#10a37f] bg-white text-[#10a37f]"),
+                  !isDone &&
+                    !isCurrent &&
+                    (isSubs
+                      ? "border-white/20 bg-[#161616] text-gray-500"
+                      : "border-gray-200 bg-white text-gray-300"),
+                  isCurrent &&
+                    !isDone &&
+                    (isSubs ? "bg-[#161616]" : "border-[#10a37f] bg-white text-[#10a37f]"),
                 )}
                 style={
                   isDone
@@ -222,7 +254,11 @@ export function OrderStatusTracker({
                       : undefined
                 }
               >
-                {isDone ? <Check size={12} /> : <Circle size={10} style={isCurrent ? { fill: accent } : undefined} />}
+                {isDone ? (
+                  <Check size={12} />
+                ) : (
+                  <Circle size={10} style={isCurrent ? { fill: accent } : undefined} />
+                )}
               </motion.div>
               <div>
                 <p
@@ -236,7 +272,9 @@ export function OrderStatusTracker({
                   {step.label}
                 </p>
                 {isCurrent && (
-                  <p className={cn("mt-0.5 text-xs", isSubs ? "text-gray-500" : "text-gray-500")}>{step.hint}</p>
+                  <p className={cn("mt-0.5 text-xs", isSubs ? "text-gray-500" : "text-gray-500")}>
+                    {step.hint}
+                  </p>
                 )}
               </div>
             </div>
@@ -244,7 +282,6 @@ export function OrderStatusTracker({
         })}
       </div>
 
-      {/* Таймер обратного отсчёта */}
       {countdown && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
@@ -259,7 +296,7 @@ export function OrderStatusTracker({
         </motion.div>
       )}
 
-      {status !== "active" && !isSubs && (
+      {trackerStep !== "active" && !isSubs && (
         <button
           type="button"
           onClick={openChat}
@@ -268,7 +305,7 @@ export function OrderStatusTracker({
           Написать в поддержку
         </button>
       )}
-      {status !== "active" && isSubs && (
+      {trackerStep !== "active" && isSubs && (
         <p className="mt-4 text-center text-xs text-gray-500">
           Чат с оператором открыт справа — напишите туда
         </p>

@@ -65,10 +65,8 @@ export function isOrderAwaitingPayment(status: string): boolean {
   return s === "pending" || s === "awaiting_payment";
 }
 
-export function orderStatusForTracker(status: string): string {
-  if (status === "awaiting_payment") return "pending";
-  return status;
-}
+export { mapOrderStatusToTrackerStep, orderStatusForTracker } from "@/lib/dashboard/order-status-tracker";
+export type { OrderTrackerStep } from "@/lib/dashboard/order-status-tracker";
 
 export function buildCustomerOrdersListHref(siteSlug: SiteSlug): string {
   return siteSlug === "subs-store" ? "/dashboard/orders?site=subs-store" : "/dashboard/orders?site=gpt-store";

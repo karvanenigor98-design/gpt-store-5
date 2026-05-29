@@ -66,6 +66,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
           <OrderStatusTracker
             orderId={orderId}
             initialStatus={order.status}
+            siteSlug="gpt-store"
             planId={order.plan_id}
             activatedAt={order.activated_at}
           />
@@ -114,12 +115,17 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
         if (tariff?.title) planName = tariff.title;
       }
 
-      const statusLabel =
-        subsOrder.payment_status === "paid" || subsOrder.status === "paid"
-          ? "Оплачен"
-          : subsOrder.status === "awaiting_payment"
-            ? "Ожидает оплаты"
-            : subsOrder.status;
+      const isPaid =
+        subsOrder.payment_status === "paid" ||
+        ["paid", "processing", "awaiting_data", "activated", "completed"].includes(
+          String(subsOrder.status),
+        );
+
+      const statusLabel = isPaid
+        ? "В работе"
+        : subsOrder.status === "awaiting_payment"
+          ? "Ожидает оплаты"
+          : subsOrder.status;
 
       return (
         <div className="w-full max-w-lg space-y-5">
@@ -129,11 +135,18 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
             </div>
             <h1 className="font-heading text-2xl font-bold text-gray-900">Заказ SPOTIFY STORE</h1>
             <p className="mt-2 text-sm text-gray-500">
-              {subsOrder.payment_status === "paid"
+              {isPaid
                 ? "Оплата получена. Оператор подключит подписку в ближайшее время."
                 : "Заказ создан. Если оплата прошла — статус обновится автоматически."}
             </p>
           </div>
+
+          <OrderStatusTracker
+            orderId={orderId}
+            initialStatus={String(subsOrder.status)}
+            siteSlug="subs-store"
+            variant="subs"
+          />
 
           <div className="rounded-xl border border-black/[0.07] bg-gray-50 px-4 py-3 text-sm text-gray-600 space-y-1">
             <p>

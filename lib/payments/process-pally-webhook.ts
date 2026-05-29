@@ -213,7 +213,11 @@ async function processSubsOrder(
   const siteSlug: SiteSlug = "subs-store";
   const prevStatus = String(order.status);
   const newStatus =
-    internalStatus === "paid" ? "paid" : internalStatus === "failed" ? "cancelled" : prevStatus;
+    internalStatus === "paid"
+      ? "processing"
+      : internalStatus === "failed"
+        ? "cancelled"
+        : prevStatus;
   const newPaymentStatus =
     internalStatus === "paid"
       ? "paid"

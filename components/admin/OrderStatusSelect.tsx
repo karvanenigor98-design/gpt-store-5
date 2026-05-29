@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { OrderStatus } from "@/types/database";
 
 const OPTIONS: { value: OrderStatus; label: string }[] = [
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function OrderStatusSelect({ orderId, initialStatus }: Props) {
+  const router = useRouter();
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export function OrderStatusSelect({ orderId, initialStatus }: Props) {
         return;
       }
       setStatus(next);
+      router.refresh();
     } catch {
       setErr("Сеть");
     } finally {

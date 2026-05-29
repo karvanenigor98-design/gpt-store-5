@@ -169,17 +169,18 @@ export default async function OrdersPage({
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order) => (
+          {orders.map((order, index) => (
             <CustomerOrderCard
               key={order.id}
               order={order}
               siteSlug={siteSlug}
-              statusInfo={STATUS_LABELS[order.status] ?? STATUS_LABELS.pending}
+              statusStyles={STATUS_LABELS}
               primaryColor={primaryColor}
               checkoutPath={site.checkoutPath}
               chatHref={chatHref}
               payEmail={order.customer_email ?? order.account_email ?? user.email ?? ""}
               isHighlighted={orderFocus === order.id}
+              isNewest={index === 0}
             />
           ))}
         </div>

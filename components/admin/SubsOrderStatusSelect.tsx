@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   SUBS_ORDER_STATUS_LABELS,
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function SubsOrderStatusSelect({ orderId, initialStatus }: Props) {
+  const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export function SubsOrderStatusSelect({ orderId, initialStatus }: Props) {
         return;
       }
       setStatus(next);
+      router.refresh();
     } catch {
       setErr("Сеть");
     } finally {

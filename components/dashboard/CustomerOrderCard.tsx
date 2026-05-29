@@ -4,12 +4,11 @@ import { RefreshCw } from "lucide-react";
 import { CompletePaymentButton } from "@/components/dashboard/CompletePaymentButton";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
-import type { OrderStatus } from "@/types/database";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { OrderLiveStatusBadge } from "@/components/dashboard/OrderLiveStatusBadge";
 import {
   getCustomerOrderProductLabel,
   isOrderAwaitingPayment,
-  orderStatusForTracker,
   type CustomerOrderView,
 } from "@/lib/dashboard/customer-order-view";
 import { cn } from "@/lib/utils";
@@ -19,23 +18,25 @@ type StatusStyle = { label: string; color: string };
 type Props = {
   order: CustomerOrderView;
   siteSlug: SiteSlug;
-  statusInfo: StatusStyle;
+  statusStyles: Record<string, StatusStyle>;
   primaryColor: string;
   checkoutPath: string;
   chatHref: string;
   payEmail: string;
   isHighlighted?: boolean;
+  isNewest?: boolean;
 };
 
 export function CustomerOrderCard({
   order,
   siteSlug,
-  statusInfo,
+  statusStyles,
   primaryColor,
   checkoutPath,
   chatHref,
   payEmail,
   isHighlighted = false,
+  isNewest = false,
 }: Props) {
   const isSubs = siteSlug === "subs-store";
   const awaitingPay = isOrderAwaitingPayment(order.status);
@@ -50,11 +51,24 @@ export function CustomerOrderCard({
       id={`row-${order.id}`}
       className={cn(
         "scroll-mt-6 overflow-hidden rounded-2xl border shadow-sm transition-shadow",
-        isSubs ? "border-white/10 bg-[#161616]" : "border-black/[0.07] bg-white",
+        isSubs ? "bg-[#161616]" : "bg-white",
+        isNewest
+          ? isSubs
+            ? "border-2 border-[#1DB954]/70 shadow-[0_0_24px_rgba(29,185,84,0.18)]"
+            : "border-2 border-[#10a37f]/55 shadow-[0_0_20px_rgba(16,163,127,0.12)]"
+          : isSubs
+            ? "border border-white/10"
+            : "border border-black/[0.07]",
         isHighlighted &&
+          !isNewest &&
           (isSubs
             ? "ring-2 ring-[#1DB954]/40 ring-offset-2 ring-offset-[#0a0a0a]"
             : "ring-2 ring-[#10a37f]/30 ring-offset-2 ring-offset-gray-50"),
+        isHighlighted &&
+          isNewest &&
+          (isSubs
+            ? "ring-2 ring-[#1DB954]/55 ring-offset-2 ring-offset-[#0a0a0a]"
+            : "ring-2 ring-[#10a37f]/45 ring-offset-2 ring-offset-gray-50"),
       )}
     >
       <div
@@ -76,11 +90,12 @@ export function CustomerOrderCard({
           </p>
         </div>
         <div className="text-right">
-          <span
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.color}`}
-          >
-            {statusInfo.label}
-          </span>
+          <OrderLiveStatusBadge
+            orderId={order.id}
+            siteSlug={siteSlug}
+            initialStatus={order.status}
+            statusStyles={statusStyles}
+          />
           <p className={cn("mt-1 text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
             {order.price.toLocaleString("ru")} ₽
           </p>
@@ -101,7 +116,8 @@ export function CustomerOrderCard({
         {isInProgress ? (
           <OrderStatusTracker
             orderId={order.id}
-            initialStatus={orderStatusForTracker(order.status) as OrderStatus}
+            initialStatus={order.status}
+            siteSlug={siteSlug}
             planId={order.plan_id}
             activatedAt={order.activated_at}
             variant={isSubs ? "subs" : "light"}

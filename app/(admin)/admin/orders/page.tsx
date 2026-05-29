@@ -14,6 +14,7 @@ import { getSiteBySlug } from "@/lib/sites";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { UnpaidOrdersEmailCampaign } from "@/components/admin/UnpaidOrdersEmailCampaign";
 import { MarkOrdersSeenOnVisit } from "@/components/admin/MarkOrdersSeenOnVisit";
+import { AdminOrdersLiveRefresh } from "@/components/admin/AdminOrdersLiveRefresh";
 
 export const metadata: Metadata = { title: "Admin · Заказы" };
 
@@ -91,6 +92,7 @@ export default async function AdminOrdersPage({
 
     return (
       <div className="p-6">
+        <AdminOrdersLiveRefresh siteSlug="subs-store" />
         <MarkOrdersSeenOnVisit site="subs-store" />
         <HighlightScroll accent="subs" />
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -221,6 +223,7 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="p-6">
+      <AdminOrdersLiveRefresh siteSlug="gpt-store" />
       <MarkOrdersSeenOnVisit site="gpt-store" />
       <HighlightScroll accent="gpt" />
       <div className="mb-6 flex items-center justify-between">
