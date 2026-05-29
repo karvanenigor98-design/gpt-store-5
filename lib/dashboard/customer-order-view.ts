@@ -1,4 +1,5 @@
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 
 /** Единый вид заказа для кабинета (GPT + SPOTIFY / subs DB). */
 export type CustomerOrderView = {
@@ -64,9 +65,27 @@ export function getCustomerOrderProductLabel(order: CustomerOrderView): string {
   return `${order.product} — ${order.plan_id}`;
 }
 
-export function isOrderAwaitingPayment(status: string): boolean {
-  const s = status.toLowerCase();
-  return s === "pending" || s === "awaiting_payment";
+export function isOrderAwaitingPayment(status: string | null | undefined): boolean {
+  const s = coerceOrderStatus(status);
+  return s === "pending" || s === "awaiting_payment" || s === "new" || s === "pending_payment_setup";
+}
+
+/** Нормализация перед передачей в client components (RSC → props). */
+export function sanitizeCustomerOrderView(order: CustomerOrderView): CustomerOrderView {
+  return {
+    ...order,
+    id: String(order.id),
+    product: String(order.product ?? "spotify-premium"),
+    plan_id: String(order.plan_id ?? ""),
+    price: Number(order.price) || 0,
+    status: coerceOrderStatus(order.status),
+    created_at: String(order.created_at ?? new Date().toISOString()),
+    activated_at: order.activated_at ?? null,
+    expires_at: order.expires_at ?? null,
+    account_email: order.account_email ?? null,
+    customer_email: order.customer_email ?? null,
+    tariff_title: order.tariff_title ?? null,
+  };
 }
 
 export { mapOrderStatusToTrackerStep, orderStatusForTracker } from "@/lib/dashboard/order-status-tracker";

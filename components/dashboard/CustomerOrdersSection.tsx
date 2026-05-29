@@ -4,9 +4,8 @@ import { Component, type ReactNode } from "react";
 import Link from "next/link";
 
 import { CustomerOrderCard } from "@/components/dashboard/CustomerOrderCard";
-import { OrderFocusStatusPanel } from "@/components/dashboard/OrderFocusStatusPanel";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
-import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
+import { sanitizeCustomerOrderView, type CustomerOrderView } from "@/lib/dashboard/customer-order-view";
 import { cn } from "@/lib/utils";
 
 type StatusStyle = { label: string; color: string };
@@ -14,7 +13,6 @@ type StatusStyle = { label: string; color: string };
 type Props = {
   siteSlug: SiteSlug;
   orders: CustomerOrderView[];
-  focusedOrder?: CustomerOrderView;
   orderFocusId?: string | null;
   statusStyles: Record<string, StatusStyle>;
   primaryColor: string;
@@ -72,7 +70,6 @@ class OrdersCardsErrorBoundary extends Component<{ children: ReactNode; chatHref
 export function CustomerOrdersSection({
   siteSlug,
   orders,
-  focusedOrder,
   orderFocusId,
   statusStyles,
   primaryColor,
@@ -81,18 +78,11 @@ export function CustomerOrdersSection({
   payEmailFallback,
   isSubs,
 }: Props) {
+  const safeOrders = orders.map(sanitizeCustomerOrderView);
+
   return (
     <OrdersCardsErrorBoundary chatHref={chatHref} isSubs={isSubs}>
-      {focusedOrder ? (
-        <OrderFocusStatusPanel
-          orderId={focusedOrder.id}
-          siteSlug={siteSlug}
-          initialStatus={focusedOrder.status}
-          isSubs={isSubs}
-        />
-      ) : null}
-
-      {!orders.length ? (
+      {!safeOrders.length ? (
         <div
           className={cn(
             "rounded-2xl border p-10 text-center",
@@ -117,7 +107,7 @@ export function CustomerOrdersSection({
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order, index) => (
+          {safeOrders.map((order, index) => (
             <CustomerOrderCard
               key={order.id}
               order={order}

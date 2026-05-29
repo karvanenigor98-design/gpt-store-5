@@ -44,6 +44,7 @@ export function CustomerOrderCard({
 }: Props) {
   const isSubs = siteSlug === "subs-store";
   const liveStatus = useOrderLiveStatus(order.id, siteSlug, order.status);
+  const priceLabel = `${(Number(order.price) || 0).toLocaleString("ru")} ₽`;
   const awaitingPay = isOrderAwaitingPayment(liveStatus);
   const showTracker = shouldShowOrderStatusTracker(liveStatus);
   const isInProgress = showTracker;
@@ -98,7 +99,7 @@ export function CustomerOrderCard({
         <div className="text-right">
           <OrderLiveStatusBadge status={liveStatus} siteSlug={siteSlug} statusStyles={statusStyles} />
           <p className={cn("mt-1 text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
-            {order.price.toLocaleString("ru")} ₽
+            {priceLabel}
           </p>
         </div>
       </div>

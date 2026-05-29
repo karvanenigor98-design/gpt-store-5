@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 
 const POLL_MS = 15_000;
 
@@ -14,23 +15,24 @@ const POLL_MS = 15_000;
 export function useOrderLiveStatus(
   orderId: string,
   siteSlug: SiteSlug,
-  initialStatus: string,
+  initialStatus: string | null | undefined,
 ): string {
-  const [status, setStatus] = useState(initialStatus);
+  const [status, setStatus] = useState(() => coerceOrderStatus(initialStatus));
 
   useEffect(() => {
-    setStatus(initialStatus);
+    setStatus(coerceOrderStatus(initialStatus));
   }, [initialStatus, orderId]);
 
   useEffect(() => {
-    const supabase =
-      siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
+    const supabase = siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
     if (!supabase) return;
 
     let cancelled = false;
 
-    const apply = (next: string | undefined) => {
-      if (!cancelled && next) setStatus(next);
+    const apply = (next: unknown) => {
+      if (!cancelled && next != null && next !== "") {
+        setStatus(coerceOrderStatus(next));
+      }
     };
 
     const channel = supabase
@@ -63,5 +65,5 @@ export function useOrderLiveStatus(
     };
   }, [orderId, siteSlug]);
 
-  return status;
+  return coerceOrderStatus(status);
 }

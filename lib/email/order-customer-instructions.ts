@@ -1,4 +1,5 @@
 import type { SiteSlug } from "@/lib/sites";
+import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 
 const STATUS_RU: Record<string, string> = {
   pending: "Ожидает оплаты",
@@ -16,18 +17,19 @@ const STATUS_RU: Record<string, string> = {
   problem: "Проблема",
 };
 
-export function orderStatusLabelRu(status: string): string {
-  return STATUS_RU[status] ?? status;
+export function orderStatusLabelRu(status: string | null | undefined): string {
+  const s = coerceOrderStatus(status);
+  return STATUS_RU[s] ?? s;
 }
 
 /** Текст «что делать дальше» для писем и страницы заказа. */
 export function getOrderCustomerInstructionLines(
   siteSlug: SiteSlug,
-  status: string,
+  status: string | null | undefined,
   context: "created" | "updated" | "paid",
 ): string[] {
   const isSubs = siteSlug === "subs-store";
-  const s = status.trim().toLowerCase();
+  const s = coerceOrderStatus(status);
 
   if (context === "created" || s === "pending" || s === "awaiting_payment") {
     return [

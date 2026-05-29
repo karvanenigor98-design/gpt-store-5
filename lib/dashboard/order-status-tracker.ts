@@ -1,3 +1,9 @@
+/** Безопасная строка статуса (Realtime/БД могут отдать не string). */
+export function coerceOrderStatus(status: unknown): string {
+  if (status == null || status === "") return "pending";
+  return String(status).trim().toLowerCase() || "pending";
+}
+
 /** Шаги прогресса в кабинете (после оплаты): оплата → данные → активация → готово. */
 export type OrderTrackerStep =
   | "payment_received"
@@ -13,8 +19,8 @@ const AWAITING_DATA = new Set(["waiting_client", "awaiting_data"]);
 
 const PAYMENT_RECEIVED = new Set(["paid"]);
 
-function normalizeStatus(status: string | null | undefined): string {
-  return String(status ?? "pending").trim().toLowerCase();
+function normalizeStatus(status: string | null | undefined | unknown): string {
+  return coerceOrderStatus(status);
 }
 
 /** Любой статус БД → шаг трекера (GPT + Spotify / subs). */
@@ -35,7 +41,11 @@ export function orderStatusForTracker(status: string | null | undefined): OrderT
 /** Показывать трекер только после оплаты (не на «ожидает оплаты»). */
 export function shouldShowOrderStatusTracker(status: string | null | undefined): boolean {
   const s = normalizeStatus(status);
-  if (["pending", "awaiting_payment", "new", "pending_payment_setup"].includes(s)) {
+  if (
+    ["pending", "awaiting_payment", "new", "pending_payment_setup", "awaiting_operator"].includes(
+      s,
+    )
+  ) {
     return false;
   }
   return true;

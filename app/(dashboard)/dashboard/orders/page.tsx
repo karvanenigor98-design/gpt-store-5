@@ -9,7 +9,10 @@ import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { getSiteBySlug } from "@/lib/sites";
-import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
+import {
+  sanitizeCustomerOrderView,
+  type CustomerOrderView,
+} from "@/lib/dashboard/customer-order-view";
 import { loadCustomerOrdersWithFocus } from "@/lib/dashboard/load-customer-orders";
 import { isSubsStoreBackendConfigured } from "@/lib/supabase/subs-store-admin";
 import { cn } from "@/lib/utils";
@@ -33,8 +36,13 @@ const STATUS_LABELS_LIGHT: Record<string, { label: string; color: string }> = {
 };
 
 const STATUS_LABELS_SUBS: Record<string, { label: string; color: string }> = {
+  new: { label: "Новый", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
   awaiting_payment: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
   pending: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
+  pending_payment_setup: {
+    label: "Оплата в настройке",
+    color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30",
+  },
   activating: { label: "Активируется", color: "text-sky-200 bg-sky-500/15 border-sky-500/30" },
   waiting_client: { label: "Ожидает данных", color: "text-orange-200 bg-orange-500/15 border-orange-500/30" },
   active: { label: "Активен", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
@@ -96,8 +104,10 @@ export default async function OrdersPage({
       orderFocusId: orderFocus,
       sessionClient: supabase,
     });
-    orders = loaded.orders;
-    focusedOrder = loaded.focusedOrder;
+    orders = loaded.orders.map(sanitizeCustomerOrderView);
+    focusedOrder = loaded.focusedOrder
+      ? sanitizeCustomerOrderView(loaded.focusedOrder)
+      : undefined;
     orderFocusMissing = loaded.orderFocusMissing;
   } catch (err) {
     if (isRedirectError(err)) throw err;
@@ -186,7 +196,6 @@ export default async function OrdersPage({
       <CustomerOrdersSection
         siteSlug={siteSlug}
         orders={orders}
-        focusedOrder={focusedOrder}
         orderFocusId={orderFocus}
         statusStyles={STATUS_LABELS}
         primaryColor={primaryColor}
