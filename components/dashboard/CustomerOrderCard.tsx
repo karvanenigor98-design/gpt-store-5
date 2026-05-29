@@ -11,6 +11,7 @@ import {
   isOrderAwaitingPayment,
   type CustomerOrderView,
 } from "@/lib/dashboard/customer-order-view";
+import { shouldShowOrderStatusTracker } from "@/lib/dashboard/order-status-tracker";
 import { cn } from "@/lib/utils";
 
 type StatusStyle = { label: string; color: string };
@@ -40,9 +41,8 @@ export function CustomerOrderCard({
 }: Props) {
   const isSubs = siteSlug === "subs-store";
   const awaitingPay = isOrderAwaitingPayment(order.status);
-  const isInProgress =
-    awaitingPay ||
-    ["waiting_client", "activating", "processing", "paid"].includes(order.status);
+  const showTracker = shouldShowOrderStatusTracker(order.status);
+  const isInProgress = showTracker;
   const isActive = ["active", "activated", "completed"].includes(order.status);
   const isExpiredOrFailed = ["expired", "failed", "refunded", "problem"].includes(order.status);
 

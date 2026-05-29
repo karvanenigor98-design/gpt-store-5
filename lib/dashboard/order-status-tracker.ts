@@ -1,34 +1,38 @@
-/** Шаги прогресса в кабинете клиента (кружки на карточке заказа). */
-export type OrderTrackerStep = "pending" | "activating" | "waiting_client" | "active";
+/** Шаги прогресса в кабинете (после оплаты): оплата → данные → активация → готово. */
+export type OrderTrackerStep =
+  | "payment_received"
+  | "awaiting_data"
+  | "activation"
+  | "activated";
 
-const PAID_OR_WORK = new Set([
-  "paid",
-  "activating",
-  "processing",
-  "awaiting_operator",
-]);
+const ACTIVATED = new Set(["active", "activated", "completed"]);
 
-const NEEDS_CLIENT = new Set(["waiting_client", "awaiting_data"]);
+const ACTIVATION = new Set(["activating", "processing", "awaiting_operator"]);
 
-const DONE = new Set(["active", "activated", "completed"]);
+const AWAITING_DATA = new Set(["waiting_client", "awaiting_data"]);
 
-const AWAITING_PAY = new Set([
-  "pending",
-  "awaiting_payment",
-  "new",
-  "pending_payment_setup",
-]);
+const PAYMENT_RECEIVED = new Set(["paid"]);
 
 /** Любой статус БД → шаг трекера (GPT + Spotify / subs). */
 export function mapOrderStatusToTrackerStep(status: string): OrderTrackerStep {
   const s = status.trim().toLowerCase();
-  if (DONE.has(s)) return "active";
-  if (NEEDS_CLIENT.has(s)) return "waiting_client";
-  if (PAID_OR_WORK.has(s)) return "activating";
-  if (AWAITING_PAY.has(s)) return "pending";
-  return "pending";
+  if (ACTIVATED.has(s)) return "activated";
+  if (ACTIVATION.has(s)) return "activation";
+  if (AWAITING_DATA.has(s)) return "awaiting_data";
+  if (PAYMENT_RECEIVED.has(s)) return "payment_received";
+  // До оплаты или неизвестный — показываем первый шаг (оплата ещё не подтверждена)
+  return "payment_received";
 }
 
 export function orderStatusForTracker(status: string): OrderTrackerStep {
   return mapOrderStatusToTrackerStep(status);
+}
+
+/** Показывать трекер только после оплаты (не на «ожидает оплаты»). */
+export function shouldShowOrderStatusTracker(status: string): boolean {
+  const s = status.trim().toLowerCase();
+  if (["pending", "awaiting_payment", "new", "pending_payment_setup"].includes(s)) {
+    return false;
+  }
+  return true;
 }

@@ -20,10 +20,26 @@ interface StatusStep {
 }
 
 const STEPS: StatusStep[] = [
-  { key: "pending", label: "Ожидает оплаты", hint: "Ожидаем подтверждение оплаты" },
-  { key: "activating", label: "В работе", hint: "Наш специалист подключает вашу подписку" },
-  { key: "waiting_client", label: "Ожидание токена", hint: "Напишите нам ваш токен в чат" },
-  { key: "active", label: "Активировано", hint: "Подписка успешно активирована! Можете пользоваться" },
+  {
+    key: "payment_received",
+    label: "Оплата получена",
+    hint: "Платёж подтверждён.",
+  },
+  {
+    key: "awaiting_data",
+    label: "Ожидаем данные",
+    hint: "Специалист свяжется с вами для получения данных, необходимых для активации.",
+  },
+  {
+    key: "activation",
+    label: "Активация подписки",
+    hint: "Подключаем подписку к вашему аккаунту.",
+  },
+  {
+    key: "activated",
+    label: "Активировано",
+    hint: "Подписка успешно подключена.",
+  },
 ];
 
 function stepIndex(step: OrderTrackerStep): number {
@@ -98,7 +114,7 @@ export function OrderStatusTracker({
   }, [orderId, siteSlug]);
 
   useEffect(() => {
-    if (trackerStep !== "activating") {
+    if (trackerStep !== "activation") {
       setCountdown(null);
       return;
     }
@@ -296,7 +312,7 @@ export function OrderStatusTracker({
         </motion.div>
       )}
 
-      {trackerStep !== "active" && !isSubs && (
+      {trackerStep !== "activated" && !isSubs && (
         <button
           type="button"
           onClick={openChat}
@@ -305,7 +321,7 @@ export function OrderStatusTracker({
           Написать в поддержку
         </button>
       )}
-      {trackerStep !== "active" && isSubs && (
+      {trackerStep !== "activated" && isSubs && (
         <p className="mt-4 text-center text-xs text-gray-500">
           Чат с оператором открыт справа — напишите туда
         </p>
