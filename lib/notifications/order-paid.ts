@@ -129,7 +129,7 @@ export async function handleOrderPaidNotification(
 
     const staffTitle = isRenewal
       ? `Повторная оплата — ${brand}`
-      : `Новая оплата — ${brand}`;
+      : `Клиент оплатил заказ — ${brand}`;
 
     const staffMessage = isRenewal
       ? `Клиент ${clientEmail ?? "—"} продлил подписку: ${params.planName}, ${params.price} ₽.`

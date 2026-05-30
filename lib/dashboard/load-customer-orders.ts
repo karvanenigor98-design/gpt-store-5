@@ -145,7 +145,6 @@ async function loadGptCustomerOrders(
 ): Promise<CustomerOrderView[]> {
   const admin = createAdminClient();
   const siteId = await getSiteUUID("gpt-store");
-  const email = normalizeEmail(userEmail);
 
   let query = admin
     .from("orders")
@@ -164,6 +163,7 @@ async function loadGptCustomerOrders(
     unknown
   >[];
 
+  const email = normalizeEmail(userEmail);
   if (email) {
     let emailQuery = admin
       .from("orders")

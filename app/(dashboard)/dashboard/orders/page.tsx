@@ -16,7 +16,6 @@ import {
 } from "@/lib/dashboard/customer-order-view";
 import { loadCustomerOrdersWithFocus } from "@/lib/dashboard/load-customer-orders";
 import { isSubsStoreBackendConfigured } from "@/lib/supabase/subs-store-admin";
-import { reconcileUnpaidOrderPayment } from "@/lib/payments/reconcile-unpaid-order";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Мои заказы" };
@@ -25,7 +24,7 @@ export const dynamic = "force-dynamic";
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ site?: string; highlight?: string; order_id?: string; highlightOrder?: string }>;
+  searchParams: Promise<{ site?: string; highlight?: string; highlightOrder?: string; order_id?: string }>;
 }) {
   const params = await searchParams;
   const siteSlug: SiteSlug = await resolveCustomerSiteSlug({
@@ -33,7 +32,7 @@ export default async function OrdersPage({
     pathname: "/dashboard/orders",
   });
 
-  const orderFocus = params.highlightOrder ?? params.highlight ?? params.order_id;
+  const orderFocus = params.highlight ?? params.highlightOrder ?? params.order_id;
   const site = getSiteBySlug(siteSlug);
   const isSubs = siteSlug === "subs-store";
   const STATUS_LABELS = buildCustomerStatusStyles(siteSlug);
@@ -63,10 +62,6 @@ export default async function OrdersPage({
   let ordersLoadFailed = false;
 
   try {
-    if (orderFocus) {
-      await reconcileUnpaidOrderPayment({ siteSlug, orderId: orderFocus }).catch(() => undefined);
-    }
-
     const loaded = await loadCustomerOrdersWithFocus({
       siteSlug,
       userId: user.id,
