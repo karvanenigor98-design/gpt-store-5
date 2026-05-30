@@ -5,9 +5,9 @@ const BASE = process.env.BASE_URL || "https://gpt-store-5.vercel.app";
 const cases = [
   { name: "GPT home", url: `${BASE}/`, expect: [/GPT|ChatGPT/i], status: 200 },
   { name: "Spotify home", url: `${BASE}/spotify`, expect: [/Spotify|SPOTIFY/i], status: 200 },
-  { name: "GPT success", url: `${BASE}/checkout/success`, expect: [/Загрузка заказа|личный кабинет/i], status: 200 },
+  { name: "GPT success", url: `${BASE}/checkout/success`, expect: [/кабинет|Подтверждаем оплату/i], status: 200 },
   { name: "GPT fail", url: `${BASE}/checkout/fail`, expect: [/Оплата не прошла|Попробовать снова/i], status: 200, links: ["/checkout", "/dashboard/orders?site=gpt-store"] },
-  { name: "Spotify success", url: `${BASE}/checkout/success?site=subs-store`, expect: [/Загрузка заказа|subs-store/i], status: 200 },
+  { name: "Spotify success", url: `${BASE}/checkout/success?site=subs-store`, expect: [/кабинет|Подтверждаем оплату/i], status: 200 },
   { name: "Spotify fail", url: `${BASE}/checkout/fail?site=subs-store`, expect: [/Оплата не прошла|SPOTIFY/i], status: 200, links: ["/checkout/spotify", "site=subs-store"] },
   { name: "Webhook GET", url: `${BASE}/api/payments/pally/webhook`, expect: [], status: 405 },
 ];
