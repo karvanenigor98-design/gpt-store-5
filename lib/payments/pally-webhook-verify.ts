@@ -26,7 +26,8 @@ function signaturesMatch(received: string, expected: string): boolean {
 
 function collectPallySecrets(): string[] {
   const out: string[] = [];
-  for (const key of ["PALLY_WEBHOOK_SECRET", "PALLY_SECRET_KEY"] as const) {
+  // Webhook Pally = MD5(OutSum:InvId:API_TOKEN) — тот же PALLY_SECRET_KEY, не отдельный webhook secret.
+  for (const key of ["PALLY_SECRET_KEY", "PALLY_WEBHOOK_SECRET"] as const) {
     const value = process.env[key]?.trim();
     if (value) out.push(value);
   }
@@ -113,11 +114,35 @@ function expectedSignatures(params: {
   return strings.map(md5hex);
 }
 
+function verifyRobokassaStyle(
+  body: Record<string, unknown>,
+  receivedSign: string,
+): boolean {
+  const orderId = orderIdFromBody(body);
+  const outSum = outSumFromBody(body);
+  if (!orderId || !outSum) return false;
+
+  for (const secret of collectPallySecrets()) {
+    const primary = md5hex(`${outSum}:${orderId}:${secret}`);
+    if (signaturesMatch(receivedSign, primary)) return true;
+
+    const normalizedSum = outSum.replace(",", ".");
+    if (normalizedSum !== outSum) {
+      const alt = md5hex(`${normalizedSum}:${orderId}:${secret}`);
+      if (signaturesMatch(receivedSign, alt)) return true;
+    }
+  }
+
+  return false;
+}
+
 function verifyWithSecrets(
   body: Record<string, unknown>,
   receivedSign: string,
   site: PallyStoreSlug,
 ): boolean {
+  if (verifyRobokassaStyle(body, receivedSign)) return true;
+
   const orderId = orderIdFromBody(body);
   if (!orderId) return false;
 
@@ -126,7 +151,9 @@ function verifyWithSecrets(
   const secrets = collectPallySecrets();
   if (!secrets.length) return false;
 
-  for (const shopId of shopIds) {
+  const shopLoop = shopIds.length > 0 ? shopIds : [""];
+
+  for (const shopId of shopLoop) {
     for (const amount of amounts.length ? amounts : [""]) {
       for (const secret of secrets) {
         for (const expected of expectedSignatures({ shopId, orderId, amount, secret })) {
@@ -191,7 +218,7 @@ export async function confirmPallyWebhookViaApi(
   return false;
 }
 
-/** Проверка подписи webhook: bill/create + Robokassa-style OutSum:InvId:secret. */
+/** Проверка подписи webhook: GPT и Spotify shop_id (разные PALLY_SHOP_ID_*). */
 export function verifyPallyWebhook(
   body: Record<string, unknown>,
   receivedSign: string,
@@ -200,6 +227,9 @@ export function verifyPallyWebhook(
     if (process.env.PALLY_WEBHOOK_REQUIRE_SIGN === "true") return false;
     return true;
   }
+
+  // Pally JSON webhook: OutSum + InvId + SignatureValue (без shop_id в теле).
+  if (verifyRobokassaStyle(body, receivedSign)) return true;
 
   const hint = String(body.site_slug ?? body.site ?? "").toLowerCase();
   const sites: PallyStoreSlug[] =
