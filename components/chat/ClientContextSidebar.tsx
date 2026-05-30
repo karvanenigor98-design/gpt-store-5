@@ -3,7 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { ChatRoomListItem } from "@/types/chat-ui";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Loader2, MessageCircle, ShoppingBag } from "lucide-react";
+
+import { StaffOrderStatusSelect } from "@/components/admin/StaffOrderStatusSelect";
+import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
+import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
+import { staffNavHref } from "@/lib/admin/staffNavHref";
+
+type OrderRow = {
+  id: string;
+  status: string;
+  plan_id: string;
+  price: number;
+  created_at: string;
+};
 
 type Summary = {
   profile: {
@@ -19,10 +32,12 @@ type Summary = {
     client_stage: string | null;
     role: string;
   } | null;
+  site_slug?: "gpt-store" | "subs-store";
   effective_stage: string;
   has_active_subscription: boolean;
-  active_order: { id: string; status: string; plan_id: string; price: number } | null;
-  orders: { id: string; status: string; plan_id: string; price: number; created_at: string }[];
+  focus_order: OrderRow | null;
+  active_order: OrderRow | null;
+  orders: OrderRow[];
   hint?: string;
 };
 
@@ -37,9 +52,14 @@ const STAGE_LABEL: Record<string, string> = {
 interface Props {
   room: ChatRoomListItem | null;
   staffBasePath: string;
+  siteSlug?: "gpt-store" | "subs-store";
 }
 
-export function ClientContextSidebar({ room, staffBasePath }: Props) {
+function statusLabel(siteSlug: "gpt-store" | "subs-store", status: string): string {
+  return siteSlug === "subs-store" ? subsOrderStatusLabelRu(status) : gptOrderStatusLabelRu(status);
+}
+
+export function ClientContextSidebar({ room, staffBasePath, siteSlug = "gpt-store" }: Props) {
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -54,10 +74,15 @@ export function ClientContextSidebar({ room, staffBasePath }: Props) {
     setErr(null);
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/staff/client-summary?userId=${encodeURIComponent(room.client_id)}&email=${encodeURIComponent(room.client?.email ?? "")}&sessionId=${encodeURIComponent(room.id ?? "")}`,
-          { credentials: "include" }
-        );
+        const params = new URLSearchParams({
+          userId: room.client_id,
+          email: room.client?.email ?? "",
+          sessionId: room.id ?? "",
+          site: siteSlug,
+        });
+        const res = await fetch(`/api/staff/client-summary?${params.toString()}`, {
+          credentials: "include",
+        });
         const json = (await res.json()) as Summary & { error?: string };
         if (!res.ok) throw new Error(json.error ?? "Не удалось загрузить");
         if (!cancelled) setData(json);
@@ -73,7 +98,11 @@ export function ClientContextSidebar({ room, staffBasePath }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [room?.client_id]);
+  }, [room?.client_id, room?.client?.email, room?.id, siteSlug]);
+
+  const resolvedSite = data?.site_slug ?? siteSlug;
+  const focusOrder = data?.focus_order ?? data?.active_order ?? null;
+  const ordersHref = staffNavHref(`${staffBasePath}/orders`, resolvedSite);
 
   if (!room) {
     return (
@@ -103,66 +132,74 @@ export function ClientContextSidebar({ room, staffBasePath }: Props) {
           <div className="space-y-4">
             {data.profile ? (
               <>
-            <div>
-              <p className="text-xs text-gray-400">Email</p>
-              <p className="break-all text-gray-900">{data.profile.email ?? room.client?.email ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Имя</p>
-              <p className="text-gray-900">{data.profile.username ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Telegram</p>
-              <p className="text-gray-900">
-                {data.profile.telegram_username ? `@${data.profile.telegram_username}` : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Роль профиля</p>
-              <p className="text-gray-900">{data.profile.role}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">ID профиля</p>
-              <p className="break-all text-gray-900">{data.profile.id}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Этап</p>
-              <p className="font-medium text-gray-900">
-                {STAGE_LABEL[data.effective_stage] ?? data.effective_stage}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Подписка</p>
-              <p className="text-gray-900">
-                {data.has_active_subscription ? "Есть активная" : "Нет активной"}
-              </p>
-            </div>
-            {data.active_order && (
-              <div>
-                <p className="text-xs text-gray-400">Текущий заказ</p>
-                <p className="text-gray-900">
-                  {data.active_order.plan_id} · {data.active_order.status}
-                </p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs text-gray-400">Заказов всего</p>
-              <p className="text-gray-900">{data.orders.length}</p>
-            </div>
-            {data.profile.notes && (
-              <div>
-                <p className="text-xs text-gray-400">Заметка</p>
-                <p className="whitespace-pre-wrap text-gray-700">{data.profile.notes}</p>
-              </div>
-            )}
-            {data.profile.tags.length > 0 && (
-              <div>
-                <p className="text-xs text-gray-400">Теги</p>
-                <p className="text-gray-700">{data.profile.tags.join(", ")}</p>
-              </div>
-            )}
+                <div>
+                  <p className="text-xs text-gray-400">Email</p>
+                  <p className="break-all text-gray-900">{data.profile.email ?? room.client?.email ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Имя</p>
+                  <p className="text-gray-900">{data.profile.username ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Telegram</p>
+                  <p className="text-gray-900">
+                    {data.profile.telegram_username ? `@${data.profile.telegram_username}` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Этап</p>
+                  <p className="font-medium text-gray-900">
+                    {STAGE_LABEL[data.effective_stage] ?? data.effective_stage}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Подписка</p>
+                  <p className="text-gray-900">
+                    {data.has_active_subscription ? "Есть активная" : "Нет активной"}
+                  </p>
+                </div>
+                {focusOrder ? (
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Текущий заказ
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-gray-900">
+                      {focusOrder.plan_id} · {focusOrder.price.toLocaleString("ru")} ₽
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {statusLabel(resolvedSite, focusOrder.status)}
+                    </p>
+                    <div className="mt-3">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        Сменить статус
+                      </p>
+                      <StaffOrderStatusSelect
+                        orderId={focusOrder.id}
+                        initialStatus={focusOrder.status}
+                        siteSlug={resolvedSite}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                <div>
+                  <p className="text-xs text-gray-400">Заказов всего</p>
+                  <p className="text-gray-900">{data.orders.length}</p>
+                </div>
+                {data.profile.notes ? (
+                  <div>
+                    <p className="text-xs text-gray-400">Заметка</p>
+                    <p className="whitespace-pre-wrap text-gray-700">{data.profile.notes}</p>
+                  </div>
+                ) : null}
               </>
             ) : null}
+            <Link
+              href={ordersHref}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <ShoppingBag size={14} />
+              Все заказы клиента
+            </Link>
             <Link
               href={`${staffBasePath.replace(/\/$/, "")}/clients?highlight=${encodeURIComponent(room.client_id)}`}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"

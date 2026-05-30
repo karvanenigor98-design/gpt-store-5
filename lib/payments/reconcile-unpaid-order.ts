@@ -33,6 +33,20 @@ export async function reconcileUnpaidOrderPayment(params: {
       return { ok: true, applied: false, reason: "already_paid" };
     }
 
+    if (order.payment_status === "paid") {
+      const amount = Number(order.final_price) || 0;
+      const body: PallyWebhookPayload = {
+        order_id: orderId,
+        status: "paid",
+        amount,
+        site_slug: "subs-store",
+        payment_id: order.payment_external_id ?? undefined,
+      };
+      const result = await processPallyWebhook(body);
+      if (!result.ok) return { ok: false, error: result.error };
+      return { ok: true, applied: true, reason: "payment_status_paid_sync" };
+    }
+
     const amount = Number(order.final_price) || 0;
     let pallyStatus: string | null = null;
     if (!forcePaid) {

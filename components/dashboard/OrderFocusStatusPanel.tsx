@@ -1,7 +1,7 @@
 "use client";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
-import { orderStatusLabelRu } from "@/lib/email/order-customer-instructions";
+import { customerOrderStatusLabelRu } from "@/lib/dashboard/customer-order-status-display";
 import { getOrderCustomerInstructionLines } from "@/lib/email/order-customer-instructions";
 import { useOrderLiveStatus } from "@/lib/dashboard/use-order-live-status";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,8 @@ type Props = {
 
 /** Блок «Статус заказа» над списком — обновляется при смене в админке. */
 export function OrderFocusStatusPanel({ orderId, siteSlug, initialStatus, isSubs }: Props) {
-  const liveStatus = useOrderLiveStatus(orderId, siteSlug, initialStatus);
+  const live = useOrderLiveStatus(orderId, siteSlug, initialStatus);
+  const liveStatus = live.status;
   const lines = getOrderCustomerInstructionLines(siteSlug, liveStatus, "updated");
 
   return (
@@ -26,7 +27,7 @@ export function OrderFocusStatusPanel({ orderId, siteSlug, initialStatus, isSubs
       )}
     >
       <p className={cn("text-sm font-bold", isSubs ? "text-white" : "text-gray-900")}>
-        Статус заказа: {orderStatusLabelRu(liveStatus)}
+        Статус заказа: {customerOrderStatusLabelRu(siteSlug, liveStatus)}
       </p>
       <ul className={cn("mt-2 space-y-1 text-sm", isSubs ? "text-gray-300" : "text-gray-600")}>
         {lines.map((line, i) => (

@@ -41,11 +41,7 @@ export function orderStatusForTracker(status: string | null | undefined): OrderT
 /** Показывать трекер только после оплаты (не на «ожидает оплаты»). */
 export function shouldShowOrderStatusTracker(status: string | null | undefined): boolean {
   const s = normalizeStatus(status);
-  if (
-    ["pending", "awaiting_payment", "new", "pending_payment_setup", "awaiting_operator"].includes(
-      s,
-    )
-  ) {
+  if (["pending", "awaiting_payment", "new", "pending_payment_setup"].includes(s)) {
     return false;
   }
   return true;

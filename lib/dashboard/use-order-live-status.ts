@@ -7,63 +7,88 @@ import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 
-const POLL_MS = 15_000;
+const API_POLL_MS = 3000;
+
+export type OrderLiveStatusState = {
+  status: string;
+  paidLike: boolean;
+};
 
 /**
- * Живой статус заказа в кабинете клиента: Supabase Realtime + редкий poll (если realtime выключен в БД).
+ * Живой статус заказа: API poll (3s) + Realtime триггерит повторный poll.
  */
 export function useOrderLiveStatus(
   orderId: string,
   siteSlug: SiteSlug,
   initialStatus: string | null | undefined,
-): string {
-  const [status, setStatus] = useState(() => coerceOrderStatus(initialStatus));
+): OrderLiveStatusState {
+  const initial = coerceOrderStatus(initialStatus);
+  const [state, setState] = useState<OrderLiveStatusState>(() => ({
+    status: initial,
+    paidLike: !["pending", "awaiting_payment", "new", "pending_payment_setup"].includes(initial),
+  }));
 
   useEffect(() => {
-    setStatus(coerceOrderStatus(initialStatus));
+    const next = coerceOrderStatus(initialStatus);
+    setState((prev) => ({
+      ...prev,
+      status: next,
+    }));
   }, [initialStatus, orderId]);
 
   useEffect(() => {
-    const supabase = siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
-    if (!supabase) return;
-
     let cancelled = false;
 
-    const apply = (next: unknown) => {
-      if (!cancelled && next != null && next !== "") {
-        setStatus(coerceOrderStatus(next));
+    const pollApi = async () => {
+      try {
+        const res = await fetch(
+          `/api/dashboard/order-status?orderId=${encodeURIComponent(orderId)}&site=${encodeURIComponent(siteSlug)}`,
+          { credentials: "include", cache: "no-store" },
+        );
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          effectiveStatus?: string;
+          paidLike?: boolean;
+        };
+        if (data.effectiveStatus) {
+          setState({
+            status: coerceOrderStatus(data.effectiveStatus),
+            paidLike: Boolean(data.paidLike),
+          });
+        }
+      } catch {
+        /* retry on next tick */
       }
     };
+
+    void pollApi();
+    const apiTimer = window.setInterval(() => void pollApi(), API_POLL_MS);
+
+    const supabase = siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
+    if (!supabase) {
+      return () => {
+        cancelled = true;
+        window.clearInterval(apiTimer);
+      };
+    }
 
     const channel = supabase
       .channel(`order-live-${siteSlug}-${orderId}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
-        (payload) => {
-          apply((payload.new as { status?: string }).status);
+        () => {
+          void pollApi();
         },
       )
       .subscribe();
 
-    const poll = async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("status")
-        .eq("id", orderId)
-        .maybeSingle();
-      if (data?.status) apply(String(data.status));
-    };
-
-    void poll();
-    const timer = setInterval(() => void poll(), POLL_MS);
-
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      window.clearInterval(apiTimer);
       void supabase.removeChannel(channel);
     };
   }, [orderId, siteSlug]);
 
-  return coerceOrderStatus(status);
+  return state;
 }

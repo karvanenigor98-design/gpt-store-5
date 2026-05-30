@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, NextRequest } from "next/server";
 import { effectiveRoleFromProfile } from "@/lib/auth/superAdmin";
+import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
 import {
   isSiteUiLoggedOut,
   resolveSiteFromRequest,
@@ -247,7 +248,13 @@ export async function middleware(request: NextRequest) {
       .select("role")
       .eq("id", gptUser.id)
       .maybeSingle();
-    const role = effectiveRoleFromProfile(prof?.role ?? null, gptUser.email);
+    let role = effectiveRoleFromProfile(prof?.role ?? null, gptUser.email);
+    if (role === "client") {
+      const fromEnv = resolveRoleByEmail(gptUser.email);
+      if (fromEnv === "admin" || fromEnv === "operator") {
+        role = fromEnv;
+      }
+    }
 
     if (path.startsWith("/admin") && role === "operator") {
       const suffix = path.replace(/^\/admin/, "") || "";

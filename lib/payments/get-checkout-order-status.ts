@@ -1,10 +1,17 @@
+import {
+  isCustomerOrderPaidLike,
+  resolveCustomerOrderStatus,
+} from "@/lib/dashboard/resolve-customer-order-status";
+import { customerOrderStatusLabelRu } from "@/lib/dashboard/customer-order-status-display";
 import type { SiteSlug } from "@/lib/sites";
-import { isPaidLikeStatus } from "@/lib/orders/paid-like-status";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 export type CheckoutOrderPaymentState = {
   status: string;
+  paymentStatus?: string | null;
+  effectiveStatus: string;
+  displayStatus: string;
   paidLike: boolean;
 };
 
@@ -25,10 +32,25 @@ export async function getCheckoutOrderPaymentState(
     if (!order) return null;
 
     const status = String(order.status ?? "awaiting_payment");
-    const paidLike =
-      order.payment_status === "paid" || isPaidLikeStatus(status, "subs-store");
+    const paymentStatus = order.payment_status ?? null;
+    const effectiveStatus = resolveCustomerOrderStatus({
+      siteSlug: "subs-store",
+      status,
+      paymentStatus,
+    });
+    const paidLike = isCustomerOrderPaidLike({
+      siteSlug: "subs-store",
+      status,
+      paymentStatus,
+    });
 
-    return { status, paidLike };
+    return {
+      status,
+      paymentStatus,
+      effectiveStatus,
+      displayStatus: customerOrderStatusLabelRu("subs-store", effectiveStatus),
+      paidLike,
+    };
   }
 
   const admin = createAdminClient();
@@ -41,5 +63,16 @@ export async function getCheckoutOrderPaymentState(
   if (!order) return null;
 
   const status = String(order.status ?? "pending");
-  return { status, paidLike: isPaidLikeStatus(status, "gpt-store") };
+  const effectiveStatus = resolveCustomerOrderStatus({
+    siteSlug: "gpt-store",
+    status,
+  });
+  const paidLike = isCustomerOrderPaidLike({ siteSlug: "gpt-store", status });
+
+  return {
+    status,
+    effectiveStatus,
+    displayStatus: customerOrderStatusLabelRu("gpt-store", effectiveStatus),
+    paidLike,
+  };
 }

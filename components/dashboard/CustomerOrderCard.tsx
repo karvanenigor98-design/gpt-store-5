@@ -43,9 +43,10 @@ export function CustomerOrderCard({
   isNewest = false,
 }: Props) {
   const isSubs = siteSlug === "subs-store";
-  const liveStatus = useOrderLiveStatus(order.id, siteSlug, order.status);
+  const live = useOrderLiveStatus(order.id, siteSlug, order.status);
+  const liveStatus = live.status;
   const priceLabel = `${(Number(order.price) || 0).toLocaleString("ru")} ₽`;
-  const awaitingPay = isOrderAwaitingPayment(liveStatus);
+  const awaitingPay = !live.paidLike && isOrderAwaitingPayment(liveStatus);
   const showTracker = shouldShowOrderStatusTracker(liveStatus);
   const isInProgress = showTracker;
   const isActive = ["active", "activated", "completed"].includes(liveStatus);

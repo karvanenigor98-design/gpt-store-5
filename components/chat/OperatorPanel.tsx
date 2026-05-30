@@ -195,7 +195,11 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
               )}
             </div>
 
-            <ClientContextSidebar room={selectedRoom} staffBasePath={staffBase} />
+            <ClientContextSidebar
+              room={selectedRoom}
+              staffBasePath={staffBase}
+              siteSlug={siteSlug === "subs-store" ? "subs-store" : "gpt-store"}
+            />
           </div>
         </div>
       )}

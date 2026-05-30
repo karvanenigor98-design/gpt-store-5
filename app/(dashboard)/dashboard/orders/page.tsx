@@ -9,6 +9,7 @@ import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { getSiteBySlug } from "@/lib/sites";
+import { buildCustomerStatusStyles } from "@/lib/dashboard/customer-order-status-display";
 import {
   sanitizeCustomerOrderView,
   type CustomerOrderView,
@@ -19,43 +20,6 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Мои заказы" };
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS_LIGHT: Record<string, { label: string; color: string }> = {
-  awaiting_payment: { label: "Ожидает оплаты", color: "text-amber-600 bg-amber-50 border-amber-200" },
-  pending: { label: "Ожидает оплаты", color: "text-amber-600 bg-amber-50 border-amber-200" },
-  activating: { label: "Активируется", color: "text-blue-600 bg-blue-50 border-blue-200" },
-  waiting_client: { label: "Ожидает данных", color: "text-orange-600 bg-orange-50 border-orange-200" },
-  active: { label: "Активен", color: "text-green-600 bg-[#10a37f]/8 border-[#10a37f]/20" },
-  failed: { label: "Ошибка", color: "text-red-600 bg-red-50 border-red-200" },
-  expired: { label: "Истёк", color: "text-gray-500 bg-gray-50 border-gray-200" },
-  refunded: { label: "Возврат", color: "text-gray-500 bg-gray-50 border-gray-200" },
-  paid: { label: "Оплачен", color: "text-blue-600 bg-blue-50 border-blue-200" },
-  processing: { label: "В обработке", color: "text-blue-600 bg-blue-50 border-blue-200" },
-  awaiting_data: { label: "Ожидает данных", color: "text-orange-600 bg-orange-50 border-orange-200" },
-  activated: { label: "Активирован", color: "text-green-600 bg-green-50 border-green-200" },
-  completed: { label: "Завершён", color: "text-green-700 bg-green-50 border-green-200" },
-};
-
-const STATUS_LABELS_SUBS: Record<string, { label: string; color: string }> = {
-  new: { label: "Новый", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
-  awaiting_payment: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
-  pending: { label: "Ожидает оплаты", color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30" },
-  pending_payment_setup: {
-    label: "Оплата в настройке",
-    color: "text-yellow-200 bg-yellow-500/15 border-yellow-500/30",
-  },
-  activating: { label: "Активируется", color: "text-sky-200 bg-sky-500/15 border-sky-500/30" },
-  waiting_client: { label: "Ожидает данных", color: "text-orange-200 bg-orange-500/15 border-orange-500/30" },
-  active: { label: "Активен", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
-  failed: { label: "Ошибка", color: "text-red-200 bg-red-500/15 border-red-500/30" },
-  expired: { label: "Истёк", color: "text-gray-300 bg-white/10 border-white/15" },
-  refunded: { label: "Возврат", color: "text-gray-300 bg-white/10 border-white/15" },
-  paid: { label: "Оплачен", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
-  processing: { label: "В обработке", color: "text-sky-200 bg-sky-500/15 border-sky-500/30" },
-  awaiting_data: { label: "Ожидает данных", color: "text-orange-200 bg-orange-500/15 border-orange-500/30" },
-  activated: { label: "Активирован", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
-  completed: { label: "Завершён", color: "text-emerald-200 bg-emerald-500/20 border-emerald-500/30" },
-};
 
 export default async function OrdersPage({
   searchParams,
@@ -71,7 +35,7 @@ export default async function OrdersPage({
   const orderFocus = params.highlight ?? params.order_id;
   const site = getSiteBySlug(siteSlug);
   const isSubs = siteSlug === "subs-store";
-  const STATUS_LABELS = isSubs ? STATUS_LABELS_SUBS : STATUS_LABELS_LIGHT;
+  const STATUS_LABELS = buildCustomerStatusStyles(siteSlug);
   const chatHref = `/dashboard/chat?site=${siteSlug}`;
   const primaryColor = site.primaryColor;
   const returnPath = `/dashboard/orders?site=${siteSlug}${orderFocus ? `&order_id=${encodeURIComponent(orderFocus)}` : ""}`;

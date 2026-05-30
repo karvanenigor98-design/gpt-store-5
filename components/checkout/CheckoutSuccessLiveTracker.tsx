@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { useOrderLiveStatus } from "@/lib/dashboard/use-order-live-status";
 import { isOrderAwaitingPayment } from "@/lib/dashboard/customer-order-view";
-import { isPaidLikeStatus } from "@/lib/orders/paid-like-status";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 
 type Props = {
@@ -33,12 +32,13 @@ export function CheckoutSuccessLiveTracker({
   autoRedirectWhenPaid = false,
 }: Props) {
   const router = useRouter();
-  const liveStatus = useOrderLiveStatus(orderId, siteSlug, initialStatus);
+  const live = useOrderLiveStatus(orderId, siteSlug, initialStatus);
+  const liveStatus = live.status;
   const [confirming, setConfirming] = useState(false);
   const [confirmNote, setConfirmNote] = useState<string | null>(null);
 
-  const paidLike = isPaidLikeStatus(liveStatus, siteSlug);
-  const awaitingPay = isOrderAwaitingPayment(liveStatus);
+  const paidLike = live.paidLike;
+  const awaitingPay = !paidLike && isOrderAwaitingPayment(liveStatus);
 
   const orderDashboardHref = `${dashboardHref}${dashboardHref.includes("?") ? "&" : "?"}order_id=${encodeURIComponent(orderId)}`;
 

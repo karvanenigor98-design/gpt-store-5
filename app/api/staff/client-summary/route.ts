@@ -1,30 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
+import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 const STAGES = ["purchased", "waiting", "no_purchase", "needs_help", "other"] as const;
+
+const GPT_INACTIVE = new Set(["expired", "failed", "refunded"]);
+const SUBS_INACTIVE = new Set(["cancelled", "refund", "problem"]);
+
 function canonicalEmail(value: string | null | undefined): string {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function deriveStageFromOrders(
-  orders: { status: string }[]
+  orders: { status: string }[],
+  siteSlug: "gpt-store" | "subs-store",
 ): (typeof STAGES)[number] {
   if (!orders.length) return "no_purchase";
+  if (siteSlug === "subs-store") {
+    const hasActive = orders.some((o) => ["activated", "completed"].includes(o.status));
+    if (hasActive) return "purchased";
+    const waiting = orders.some((o) =>
+      ["awaiting_payment", "processing", "awaiting_data", "awaiting_operator", "paid"].includes(
+        o.status,
+      ),
+    );
+    if (waiting) return "waiting";
+    return "other";
+  }
   const hasActive = orders.some((o) => o.status === "active");
   if (hasActive) return "purchased";
   const waiting = orders.some((o) =>
-    ["pending", "paid", "activating", "waiting_client"].includes(o.status)
+    ["pending", "paid", "activating", "waiting_client"].includes(o.status),
   );
   if (waiting) return "waiting";
   return "other";
+}
+
+function pickFocusOrder<T extends { status: string; created_at: string }>(
+  list: T[],
+  siteSlug: "gpt-store" | "subs-store",
+): T | null {
+  if (!list.length) return null;
+  const inactive = siteSlug === "subs-store" ? SUBS_INACTIVE : GPT_INACTIVE;
+  const open = list.find((o) => !inactive.has(o.status));
+  return open ?? list[0] ?? null;
+}
+
+function statusLabel(siteSlug: "gpt-store" | "subs-store", status: string): string {
+  return siteSlug === "subs-store" ? subsOrderStatusLabelRu(status) : gptOrderStatusLabelRu(status);
 }
 
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId")?.trim();
   const email = req.nextUrl.searchParams.get("email")?.trim().toLowerCase() ?? "";
   const sessionId = req.nextUrl.searchParams.get("sessionId")?.trim() ?? "";
+  const siteParam = req.nextUrl.searchParams.get("site");
+  const siteSlug: "gpt-store" | "subs-store" =
+    siteParam === "subs-store" ? "subs-store" : "gpt-store";
+
   if (!userId && !email && !sessionId) {
     return NextResponse.json({ error: "Нужен userId, email или sessionId" }, { status: 400 });
   }
@@ -40,6 +77,106 @@ export async function GET(req: NextRequest) {
   const role = await resolveServerRole(user);
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
+  }
+
+  if (siteSlug === "subs-store") {
+    const subs = createSubsStoreAdminClient();
+    if (!subs) {
+      return NextResponse.json({ error: "Subs Store не подключён" }, { status: 503 });
+    }
+
+    let list: {
+      id: string;
+      status: string;
+      plan_id: string;
+      price: number;
+      created_at: string;
+    }[] = [];
+
+    if (userId) {
+      const { data: subsOrders } = await subs
+        .from("orders")
+        .select("id, status, tariff_id, final_price, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      list = (subsOrders ?? []).map((o) => ({
+        id: String(o.id),
+        status: String(o.status ?? "awaiting_payment"),
+        plan_id: String(o.tariff_id ?? "spotify"),
+        price: Number(o.final_price ?? 0),
+        created_at: String(o.created_at ?? new Date().toISOString()),
+      }));
+    } else if (email) {
+      const [{ data: byCustomer }, { data: byAccount }] = await Promise.all([
+        subs
+          .from("orders")
+          .select("id, status, tariff_id, final_price, created_at")
+          .ilike("customer_email", email)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        subs
+          .from("orders")
+          .select("id, status, tariff_id, final_price, created_at")
+          .ilike("account_email", email)
+          .order("created_at", { ascending: false })
+          .limit(30),
+      ]);
+      const byId = new Map<string, (typeof list)[number]>();
+      for (const o of [...(byCustomer ?? []), ...(byAccount ?? [])]) {
+        byId.set(String(o.id), {
+          id: String(o.id),
+          status: String(o.status ?? "awaiting_payment"),
+          plan_id: String(o.tariff_id ?? "spotify"),
+          price: Number(o.final_price ?? 0),
+          created_at: String(o.created_at ?? new Date().toISOString()),
+        });
+      }
+      list = [...byId.values()].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+    } else {
+      return NextResponse.json({
+        profile: null,
+        site_slug: siteSlug,
+        derived_stage: "no_purchase",
+        effective_stage: "no_purchase",
+        has_active_subscription: false,
+        focus_order: null,
+        active_order: null,
+        orders: [],
+        hint: "Для Subs Store укажите userId или email клиента",
+      });
+    }
+
+    const focusOrder = pickFocusOrder(list, siteSlug);
+    const derived = deriveStageFromOrders(list, siteSlug);
+    const hasActive = list.some((o) => ["activated", "completed"].includes(o.status));
+
+    return NextResponse.json({
+      profile: userId || email
+        ? {
+            id: userId || email,
+            email: email || null,
+            username: null,
+            telegram_id: null,
+            telegram_username: null,
+            created_at: new Date().toISOString(),
+            last_seen: null,
+            notes: null,
+            tags: [],
+            client_stage: null,
+            role: "client",
+          }
+        : null,
+      site_slug: siteSlug,
+      derived_stage: derived,
+      effective_stage: derived,
+      has_active_subscription: hasActive,
+      focus_order: focusOrder,
+      active_order: focusOrder,
+      orders: list,
+    });
   }
 
   const admin = createAdminClient();
@@ -61,26 +198,17 @@ export async function GET(req: NextRequest) {
   let pErr: Error | null = null;
 
   if (userId) {
-    const byId = await admin
-      .from("profiles")
-      .select(baseSelect)
-      .eq("id", userId)
-      .maybeSingle();
+    const byId = await admin.from("profiles").select(baseSelect).eq("id", userId).maybeSingle();
     profile = byId.data;
     pErr = byId.error;
   }
 
   if (!profile && email) {
-    const byEmail = await admin
-      .from("profiles")
-      .select(baseSelect)
-      .ilike("email", email)
-      .maybeSingle();
+    const byEmail = await admin.from("profiles").select(baseSelect).ilike("email", email).maybeSingle();
     profile = byEmail.data;
     pErr = pErr ?? byEmail.error;
   }
 
-  // Fallback 1: берём user_id прямо из chat_sessions.
   if (!profile && sessionId) {
     const { data: sessionRow } = await admin
       .from("chat_sessions")
@@ -98,7 +226,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fallback 2: для "кривых" email (mailru/mail.ru, gmailcom/gmail.com) ищем канонически.
   if (!profile && email) {
     const localPart = email.split("@")[0] ?? "";
     if (localPart) {
@@ -115,7 +242,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fallback 3: ищем последнего авторизованного клиента в сообщениях этого чата.
   if (!profile && sessionId) {
     const { data: lastClientMsg } = await admin
       .from("chat_messages")
@@ -141,9 +267,11 @@ export async function GET(req: NextRequest) {
   if (pErr || !profile) {
     return NextResponse.json({
       profile: null,
+      site_slug: siteSlug,
       derived_stage: "no_purchase",
       effective_stage: "no_purchase",
       has_active_subscription: false,
+      focus_order: null,
       active_order: null,
       orders: [],
       hint: "Профиль не удалось связать с этим чатом",
@@ -157,9 +285,16 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(30);
 
-  const list = orders ?? [];
-  const activeSub = list.find((o) => o.status === "active");
-  const derived = deriveStageFromOrders(list);
+  const list = (orders ?? []).map((o) => ({
+    id: String(o.id),
+    status: String(o.status),
+    plan_id: String(o.plan_id),
+    price: Number(o.price ?? 0),
+    created_at: String(o.created_at),
+  }));
+
+  const focusOrder = pickFocusOrder(list, siteSlug);
+  const derived = deriveStageFromOrders(list, siteSlug);
   const stage =
     profile.client_stage && STAGES.includes(profile.client_stage as (typeof STAGES)[number])
       ? profile.client_stage
@@ -179,10 +314,13 @@ export async function GET(req: NextRequest) {
       client_stage: profile.client_stage,
       role: profile.role ?? "client",
     },
+    site_slug: siteSlug,
     derived_stage: derived,
     effective_stage: stage,
-    has_active_subscription: Boolean(activeSub),
-    active_order: activeSub ?? null,
+    has_active_subscription: list.some((o) => o.status === "active"),
+    focus_order: focusOrder,
+    active_order: focusOrder,
     orders: list,
+    status_label: focusOrder ? statusLabel(siteSlug, focusOrder.status) : null,
   });
 }

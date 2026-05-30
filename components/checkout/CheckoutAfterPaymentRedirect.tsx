@@ -11,7 +11,8 @@ import {
 } from "@/lib/dashboard/customer-order-view";
 
 const POLL_MS = 1500;
-const MAX_WAIT_MS = 90_000;
+const MAX_ATTEMPTS = 5;
+const FALLBACK_WAIT_MS = 12_000;
 
 type Props = {
   orderId: string;
@@ -31,6 +32,7 @@ export function CheckoutAfterPaymentRedirect({ orderId, siteSlug }: Props) {
   useEffect(() => {
     let cancelled = false;
     const started = Date.now();
+    let attempts = 0;
 
     const goCabinet = (href: string, note: string) => {
       if (redirectedRef.current || cancelled) return;
@@ -41,6 +43,7 @@ export function CheckoutAfterPaymentRedirect({ orderId, siteSlug }: Props) {
 
     const tick = async () => {
       if (redirectedRef.current || cancelled) return;
+      attempts += 1;
 
       try {
         const res = await fetch("/api/payments/checkout-status", {
@@ -58,7 +61,7 @@ export function CheckoutAfterPaymentRedirect({ orderId, siteSlug }: Props) {
         /* retry */
       }
 
-      if (Date.now() - started >= MAX_WAIT_MS) {
+      if (attempts >= MAX_ATTEMPTS || Date.now() - started >= FALLBACK_WAIT_MS) {
         goCabinet(listHref, "Переходим в кабинет…");
       }
     };

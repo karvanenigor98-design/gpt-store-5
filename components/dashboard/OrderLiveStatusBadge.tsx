@@ -1,7 +1,9 @@
 "use client";
 
-import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
-import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
+import {
+  customerOrderStatusBadgeColor,
+  customerOrderStatusLabelRu,
+} from "@/lib/dashboard/customer-order-status-display";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 
 type StatusStyle = { label: string; color: string };
@@ -9,18 +11,18 @@ type StatusStyle = { label: string; color: string };
 type Props = {
   status: string;
   siteSlug: SiteSlug;
-  statusStyles: Record<string, StatusStyle>;
+  statusStyles?: Record<string, StatusStyle>;
 };
 
-/** Бейдж статуса (статус приходит снаружи — см. useOrderLiveStatus на карточке). */
+/** Бейдж статуса в кабинете клиента. */
 export function OrderLiveStatusBadge({ status, siteSlug, statusStyles }: Props) {
-  const label =
-    siteSlug === "subs-store" ? subsOrderStatusLabelRu(status) : gptOrderStatusLabelRu(status);
-
-  const style = statusStyles[status] ?? statusStyles.pending ?? statusStyles.awaiting_payment;
+  const label = customerOrderStatusLabelRu(siteSlug, status);
+  const variant = siteSlug === "subs-store" ? "subs" : "light";
+  const color =
+    statusStyles?.[status]?.color ?? customerOrderStatusBadgeColor(siteSlug, status, variant);
 
   return (
-    <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${style?.color ?? ""}`}>
+    <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${color}`}>
       {label}
     </span>
   );

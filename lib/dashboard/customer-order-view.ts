@@ -1,4 +1,5 @@
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { resolveCustomerOrderStatus } from "@/lib/dashboard/resolve-customer-order-status";
 import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 
 /** Единый вид заказа для кабинета (GPT + SPOTIFY / subs DB). */
@@ -37,7 +38,12 @@ export function normalizeSubsOrderRow(
   tariffTitle?: string | null,
   tariffSlug?: string | null,
 ): CustomerOrderView {
-  const status = String(row.status ?? "awaiting_payment");
+  const rawStatus = String(row.status ?? "awaiting_payment");
+  const status = resolveCustomerOrderStatus({
+    siteSlug: "subs-store",
+    status: rawStatus,
+    paymentStatus: (row.payment_status as string | null) ?? null,
+  });
   const slug = tariffSlug ?? String(row.tariff_id ?? "spotify");
   return {
     id: String(row.id),

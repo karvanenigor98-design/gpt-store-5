@@ -7,6 +7,11 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { UserRole } from "@/types/database";
 
+function roleFromEnvFallback(email: string | null | undefined): UserRole {
+  const fromEnv = resolveRoleByEmail(email);
+  return fromEnv === "admin" || fromEnv === "operator" ? fromEnv : "client";
+}
+
 export async function resolveServerRole(user: User | null): Promise<UserRole> {
   if (!user) return "client";
 
@@ -18,10 +23,18 @@ export async function resolveServerRole(user: User | null): Promise<UserRole> {
       .eq("id", user.id)
       .maybeSingle();
 
-    return effectiveRoleFromProfile(data?.role ?? null, user.email);
+    const fromProfile = effectiveRoleFromProfile(data?.role ?? null, user.email);
+    if (fromProfile === "admin" || fromProfile === "operator") {
+      return fromProfile;
+    }
   } catch {
-    return effectiveRoleFromProfile(null, user.email);
+    const fromProfile = effectiveRoleFromProfile(null, user.email);
+    if (fromProfile === "admin" || fromProfile === "operator") {
+      return fromProfile;
+    }
   }
+
+  return roleFromEnvFallback(user.email);
 }
 
 /** Роли в личном кабинете: GPT-профиль или Subs-профиль (разные UUID). */

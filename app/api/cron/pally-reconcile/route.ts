@@ -67,6 +67,27 @@ export async function GET(req: NextRequest) {
         details.push(`subs:${String(row.id).slice(0, 8)}`);
       }
     }
+
+    const { data: subsPaidDesync } = await subs
+      .from("orders")
+      .select("id,status,payment_status")
+      .eq("payment_status", "paid")
+      .in("status", ["awaiting_payment", "new"])
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    for (const row of subsPaidDesync ?? []) {
+      checked += 1;
+      const result = await reconcileUnpaidOrderPayment({
+        siteSlug: "subs-store",
+        orderId: String(row.id),
+      });
+      if (result.ok && result.applied) {
+        applied += 1;
+        details.push(`subs-sync:${String(row.id).slice(0, 8)}`);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, checked, applied, details });
