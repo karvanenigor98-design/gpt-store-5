@@ -1,10 +1,13 @@
 /**
  * Синхронизирует email-переменные из .env.local → Vercel (production + preview).
- * Usage: node scripts/sync-email-env-vercel.cjs [--dry-run]
+ * Usage: node scripts/sync-email-env-vercel.cjs [--dry-run] [--preview]
+ *
+ * EMAIL_PROVIDER на Vercel не задаётся — auto (Resend → SMTP fallback).
  */
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const { requireVercelToken } = require("./lib/vercel-token.cjs");
+const { deleteProjectEnv, syncProjectEnvs, listProjectEnv } = require("./lib/vercel-env-api.cjs");
 
 const ROOT = path.join(__dirname, "..");
 const ENV_FILE = path.join(ROOT, ".env.local");
@@ -12,7 +15,6 @@ const DRY = process.argv.includes("--dry-run");
 
 const KEYS = [
   "EMAIL_NOTIFICATIONS_ENABLED",
-  "EMAIL_PROVIDER",
   "SMTP_HOST",
   "SMTP_PORT",
   "SMTP_USER",
@@ -53,40 +55,40 @@ function parseEnvFile(filePath) {
   return out;
 }
 
-function runVercel(args, stdinValue) {
-  return spawnSync("npx", ["vercel", ...args], {
-    cwd: ROOT,
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    input: stdinValue,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-}
-
-function upsertEnv(name, value, environment) {
+async function upsertEnv(name, value, environment) {
   if (!value) {
     console.log(`  skip ${name} (${environment}): пусто в .env.local`);
     return { ok: true, skipped: true };
   }
+  return { ok: true, name, value };
+}
+
+async function removeAutoEmailProvider(environment, knownEnvs) {
   if (DRY) {
-    console.log(`  [dry-run] ${name} → ${environment} (len=${value.length})`);
-    return { ok: true, skipped: true };
+    console.log(`  [dry-run] remove EMAIL_PROVIDER → ${environment} (auto mode)`);
+    return { ok: true, envs: knownEnvs };
   }
-
-  const add = runVercel(
-    ["env", "add", name, environment, "--yes", "--force"],
-    value,
+  const r = await deleteProjectEnv("EMAIL_PROVIDER", environment, knownEnvs);
+  if (r.ok) {
+    console.log(`  ok EMAIL_PROVIDER removed → ${environment} (auto: Resend → SMTP)`);
+    const envs = (knownEnvs || []).filter((e) => e.key !== "EMAIL_PROVIDER");
+    return { ok: true, envs };
+  }
+  console.error(
+    `  FAIL EMAIL_PROVIDER remove → ${environment}:`,
+    r.status,
+    r.json?.error?.message || JSON.stringify(r.json).slice(0, 200),
   );
+  return { ok: false, envs: knownEnvs };
+}
 
-  const out = `${add.stdout ?? ""}${add.stderr ?? ""}`;
-  if (add.status === 0 || /already exists|Updated|overwritten/i.test(out)) {
-    console.log(`  ok ${name} → ${environment}`);
-    return { ok: true };
+if (!DRY) {
+  try {
+    requireVercelToken();
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
   }
-
-  console.error(`  FAIL ${name} → ${environment}:`, out.trim() || add.status);
-  return { ok: false };
 }
 
 const env = parseEnvFile(ENV_FILE);
@@ -102,17 +104,58 @@ const ENVIRONMENTS = process.argv.includes("--preview")
   ? ["production", "preview"]
   : ["production"];
 
-for (const environment of ENVIRONMENTS) {
-  console.log(`\n[${environment}]`);
-  for (const key of KEYS) {
-    const r = upsertEnv(key, env[key]?.trim() ?? "", environment);
-    if (!r.ok) failed += 1;
+(async () => {
+  for (const environment of ENVIRONMENTS) {
+    console.log(`\n[${environment}]`);
+
+    if (DRY) {
+      for (const key of KEYS) {
+        await upsertEnv(key, env[key]?.trim() ?? "", environment);
+      }
+      console.log(`  [dry-run] remove EMAIL_PROVIDER → ${environment}`);
+      continue;
+    }
+
+    const list = await listProjectEnv();
+    if (!list.ok) {
+      console.error("  FAIL list env:", list.status, list.json?.error?.message);
+      failed += 1;
+      continue;
+    }
+
+    let knownEnvs = list.json.envs || [];
+    const removeR = await removeAutoEmailProvider(environment, knownEnvs);
+    if (!removeR.ok) failed += 1;
+    else knownEnvs = removeR.envs || knownEnvs;
+
+    const batch = {};
+    for (const key of KEYS) {
+      const value = env[key]?.trim() ?? "";
+      if (!value) {
+        console.log(`  skip ${key} (${environment}): пусто в .env.local`);
+        continue;
+      }
+      batch[key] = value;
+    }
+
+    const syncR = await syncProjectEnvs(batch, environment);
+    for (const key of Object.keys(batch)) {
+      if (syncR.failed?.includes(key)) {
+        console.error(`  FAIL ${key} → ${environment}`);
+        failed += 1;
+      } else {
+        console.log(`  ok ${key} → ${environment}`);
+      }
+    }
   }
-}
 
-if (failed) {
-  console.error(`\nОшибок: ${failed}`);
+  if (failed) {
+    console.error(`\nОшибок: ${failed}`);
+    process.exit(1);
+  }
+
+  console.log("\nГотово. Redeploy: node scripts/vercel-redeploy-prod.cjs");
+})().catch((e) => {
+  console.error(e);
   process.exit(1);
-}
-
-console.log("\nГотово. Запусти redeploy: npx vercel --prod");
+});

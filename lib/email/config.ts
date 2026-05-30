@@ -22,18 +22,35 @@ export function isEmailNotificationsEnabled(): boolean {
   return !/^(0|false|no|off)$/i.test(raw);
 }
 
+export function hasSmtpConfigured(): boolean {
+  return Boolean(env("SMTP_HOST") && env("SMTP_USER") && env("SMTP_PASSWORD"));
+}
+
+export function hasResendConfigured(): boolean {
+  return Boolean(env("RESEND_API_KEY"));
+}
+
+export function hasAnyEmailProvider(): boolean {
+  return hasSmtpConfigured() || hasResendConfigured();
+}
+
+/** auto / пусто → Resend первым (доставка любому получателю), затем SMTP. */
 export function resolveEmailProvider(): EmailProvider {
   const explicit = env("EMAIL_PROVIDER")?.toLowerCase();
-  if (explicit === "smtp") return "smtp";
-  if (explicit === "resend") return "resend";
   if (explicit === "none" || explicit === "off") return "none";
+  if (explicit === "smtp") {
+    if (hasSmtpConfigured()) return "smtp";
+    if (hasResendConfigured()) return "resend";
+    return "none";
+  }
+  if (explicit === "resend") {
+    if (hasResendConfigured()) return "resend";
+    if (hasSmtpConfigured()) return "smtp";
+    return "none";
+  }
 
-  const smtpHost = env("SMTP_HOST");
-  const smtpUser = env("SMTP_USER");
-  const smtpPassword = env("SMTP_PASSWORD");
-  if (smtpHost && smtpUser && smtpPassword) return "smtp";
-
-  if (env("RESEND_API_KEY")) return "resend";
+  if (hasResendConfigured()) return "resend";
+  if (hasSmtpConfigured()) return "smtp";
   return "none";
 }
 
@@ -50,16 +67,20 @@ export function getEmailConfigStatus(): EmailConfigStatus {
     diagnostics.push("EMAIL_NOTIFICATIONS_ENABLED выключен");
   }
 
-  if (provider === "smtp") {
+  const smtpReady = hasSmtpConfigured();
+  const resendReady =
+    hasResendConfigured() && Boolean(env("RESEND_FROM_EMAIL") ?? env("SMTP_FROM_EMAIL"));
+
+  if (provider === "smtp" && smtpReady) {
     if (!env("SMTP_HOST")) missingEnv.push("SMTP_HOST");
     if (!env("SMTP_USER")) missingEnv.push("SMTP_USER");
     if (!env("SMTP_PASSWORD")) missingEnv.push("SMTP_PASSWORD");
-    if (!fromEmail) missingEnv.push("SMTP_FROM_EMAIL");
-    // SMTP_PORT опционален — по умолчанию 587 в send-email.ts
-  } else if (provider === "resend") {
+    // Mail.ru: From = SMTP_USER; RESEND_FROM / SMTP_FROM опционален
+  } else if (provider === "resend" && resendReady) {
     if (!env("RESEND_API_KEY")) missingEnv.push("RESEND_API_KEY");
     if (!fromEmail) missingEnv.push("RESEND_FROM_EMAIL");
-  } else {
+  } else if (!smtpReady && !resendReady) {
+    if (!hasResendConfigured() && !env("SMTP_HOST")) missingEnv.push("SMTP_HOST or RESEND_API_KEY");
     diagnostics.push("Email-провайдер не настроен (SMTP или RESEND_API_KEY)");
   }
 

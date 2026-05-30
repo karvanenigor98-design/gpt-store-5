@@ -7,6 +7,10 @@ import {
   handleOrderPaidNotification,
   isTransitionToPaidLike,
 } from "@/lib/notifications/order-paid";
+import {
+  resolveGptOrderCustomerEmail,
+  resolveSubsOrderCustomerEmail,
+} from "@/lib/email/resolve-order-customer-email";
 import { notifyCustomerOrderStatus, notifyPaymentStatus } from "@/lib/telegram/notifications";
 import type { OrderStatus } from "@/types/database";
 import type { SiteSlug } from "@/lib/sites";
@@ -137,15 +141,11 @@ async function processGptOrder(
 
   const planTitle = (order as { plan_name?: string | null }).plan_name?.trim() || order.plan_id;
 
-  let customerEmail: string | null = null;
-  if (order.user_id) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("id", order.user_id)
-      .maybeSingle();
-    customerEmail = profile?.email?.trim().toLowerCase() ?? null;
-  }
+  const customerEmail = await resolveGptOrderCustomerEmail({
+    supabase,
+    userId: order.user_id,
+    accountEmail: order.account_email,
+  });
 
   if (becamePaidLike && isNewEvent) {
     void handleOrderPaidNotification({
@@ -288,7 +288,11 @@ async function processSubsOrder(
     if (tariff?.title) planTitle = tariff.title;
   }
 
-  const customerEmail = order.customer_email?.trim().toLowerCase() ?? null;
+  const customerEmail = await resolveSubsOrderCustomerEmail({
+    subsAdmin: subs,
+    userId: order.user_id,
+    customerEmail: order.customer_email,
+  });
   const price = Number(order.final_price) || 0;
 
   if (becamePaidLike) {

@@ -13,9 +13,10 @@ import {
 } from "@/lib/email/settings";
 import { buildBrandedEmail } from "@/lib/email/templates/layout";
 import {
+  hasAnyEmailProvider,
   isEmailNotificationsEnabled,
-  resolveEmailProvider,
 } from "@/lib/email/config";
+import { normalizeCustomerEmail } from "@/lib/email/resolve-order-customer-email";
 import {
   notifyAdminEmailFailure,
   sendTransactionalEmail,
@@ -154,9 +155,9 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
   skipped: boolean;
   reason?: string;
 }> {
-  const email = params.recipientEmail?.trim().toLowerCase();
+  const email = normalizeCustomerEmail(params.recipientEmail);
   if (!email) {
-    return { sent: false, skipped: true, reason: "no_recipient" };
+    return { sent: false, skipped: true, reason: "invalid_recipient" };
   }
 
   if (!isEmailNotificationsEnabled()) {
@@ -229,9 +230,9 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
     relatedEntityId: params.relatedEntityId,
   });
 
-  if (resolveEmailProvider() === "none") {
-    await updateLogStatus(logId, "skipped", "smtp_not_configured");
-    return { sent: false, skipped: true, reason: "smtp_not_configured" };
+  if (!hasAnyEmailProvider()) {
+    await updateLogStatus(logId, "skipped", "email_provider_not_configured");
+    return { sent: false, skipped: true, reason: "email_provider_not_configured" };
   }
 
   const result = await sendTransactionalEmail(email, subject, branded.text, branded.html, {

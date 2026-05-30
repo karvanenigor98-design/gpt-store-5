@@ -4,6 +4,7 @@
  */
 
 import { dispatchSiteEmail, dispatchStaffSiteEmails } from "@/lib/email/dispatch";
+import { resolveOrderCustomerEmail } from "@/lib/email/resolve-order-customer-email";
 import {
   buildCustomerChatUrl,
   buildCustomerOrderUrl,
@@ -124,7 +125,10 @@ export async function handleOrderPaidNotification(
       params.isRenewal ??
       (await detectRenewal(params.siteSlug, params.customerUserId, params.orderId));
 
-    const clientEmail = params.customerEmail?.trim().toLowerCase() ?? null;
+    const clientEmail = resolveOrderCustomerEmail({
+      profileEmail: params.customerEmail,
+      accountEmail: params.accountEmail,
+    });
     const shortId = params.orderId.slice(0, 8);
 
     const staffTitle = isRenewal
@@ -185,6 +189,10 @@ export async function handleOrderPaidNotification(
       relatedEntityType: "order",
       relatedEntityId: params.orderId,
     });
+
+    if (!clientEmail) {
+      console.warn("[order-paid] no client email for order", params.orderId.slice(0, 8));
+    }
 
     if (clientEmail) {
       const clientLines = [
