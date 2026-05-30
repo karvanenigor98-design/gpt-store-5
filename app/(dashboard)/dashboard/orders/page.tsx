@@ -18,6 +18,7 @@ import { isSubsStoreBackendConfigured } from "@/lib/supabase/subs-store-admin";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Мои заказы" };
+export const dynamic = "force-dynamic";
 
 const STATUS_LABELS_LIGHT: Record<string, { label: string; color: string }> = {
   awaiting_payment: { label: "Ожидает оплаты", color: "text-amber-600 bg-amber-50 border-amber-200" },

@@ -138,6 +138,15 @@ export async function POST(request: NextRequest) {
       planLabel = created.tariffTitle;
       createdNew = true;
     }
+
+    if (subsUserId && subsAdmin) {
+      await subsAdmin
+        .from("orders")
+        .update({ user_id: subsUserId })
+        .eq("id", orderId)
+        .or(`user_id.is.null,user_id.neq.${subsUserId}`);
+    }
+
     const { getServerSiteOrigin } = await import("@/lib/app-url");
     const appUrl = getServerSiteOrigin();
     const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "subs-store");

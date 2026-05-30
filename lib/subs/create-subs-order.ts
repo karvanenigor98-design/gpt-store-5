@@ -132,6 +132,7 @@ export async function createSubsAwaitingPaymentOrder(
   });
 
   if (reusable?.id) {
+    const now = new Date().toISOString();
     const { error: updateErr } = await subs
       .from("orders")
       .update({
@@ -147,6 +148,8 @@ export async function createSubsAwaitingPaymentOrder(
         applied_discount_id: params.appliedDiscountId ?? null,
         customer_email: email,
         payment_provider: params.paymentProvider ?? "pally",
+        // Повторный checkout — поднимаем в списке и показываем актуальную дату в кабинете.
+        created_at: now,
       })
       .eq("id", reusable.id);
 

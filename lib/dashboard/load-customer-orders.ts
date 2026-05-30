@@ -201,54 +201,62 @@ async function loadGptCustomerOrders(
 }
 
 async function loadSubsCustomerOrders(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   userId: string,
   userEmail: string | null,
 ): Promise<CustomerOrderView[]> {
   const subsAdmin = createSubsStoreAdminClient();
   if (!subsAdmin) return [];
 
-  const { data: byUser } = await supabase
+  const email = normalizeEmail(userEmail);
+  const byId = new Map<string, Record<string, unknown>>();
+
+  const { data: byUserId } = await subsAdmin
     .from("orders")
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  let rawRows: Record<string, unknown>[] = (byUser ?? []) as Record<string, unknown>[];
+  for (const row of (byUserId ?? []) as Record<string, unknown>[]) {
+    byId.set(String(row.id), row);
+  }
 
-  const email = normalizeEmail(userEmail);
   if (email) {
     const [{ data: byCustomerEmail }, { data: byAccountEmail }] = await Promise.all([
       subsAdmin
         .from("orders")
         .select("*")
-        .eq("customer_email", email)
+        .ilike("customer_email", email)
         .order("created_at", { ascending: false })
         .limit(50),
       subsAdmin
         .from("orders")
         .select("*")
-        .eq("account_email", email)
+        .ilike("account_email", email)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
 
-    const emailRows = [...(byCustomerEmail ?? []), ...(byAccountEmail ?? [])] as Record<
+    for (const row of [...(byCustomerEmail ?? []), ...(byAccountEmail ?? [])] as Record<
       string,
       unknown
-    >[];
-    const byId = new Map<string, Record<string, unknown>>();
-    for (const row of [...rawRows, ...emailRows]) {
+    >[]) {
+      if (!orderOwnedByUser({ row, userId, userEmail: email })) continue;
       byId.set(String(row.id), row);
     }
-    rawRows = [...byId.values()];
 
-    const orphanIds = emailRows.filter((o) => !o.user_id).map((o) => String(o.id));
+    const orphanIds = [...byId.values()]
+      .filter((o) => !o.user_id && orderOwnedByUser({ row: o, userId, userEmail: email }))
+      .map((o) => String(o.id));
     if (orphanIds.length) {
       await subsAdmin.from("orders").update({ user_id: userId }).in("id", orphanIds);
     }
   }
+
+  const rawRows = [...byId.values()].filter((row) =>
+    orderOwnedByUser({ row, userId, userEmail: email || null }),
+  );
 
   if (!rawRows.length) return [];
 
