@@ -181,9 +181,7 @@ function buildPageDataFromSnapshot(
   const keywords = [...defaultKeywords];
 
   if (snapshot) {
-    const t = pickStr(snapshot.settings, "seoTitle");
     const d = pickStr(snapshot.settings, "seoDescription");
-    if (t) seoTitle = normalizeSpotifyStoreLabel(t);
     if (d) seoDescription = d;
 
     const support = pickStr(snapshot.settings, "supportUsername");
@@ -217,7 +215,7 @@ function buildPageDataFromSnapshot(
   payload.footer.brand = "SPOTIFY";
   payload.footer.brandAccent = "STORE";
 
-  seoTitle = normalizeSpotifyStoreLabel(seoTitle);
+  seoTitle = defaultSpotifySeoTitle();
   seoDescription = normalizeSpotifyStoreLabel(seoDescription);
 
   return {
