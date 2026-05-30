@@ -32,10 +32,12 @@ async function userOwnsOrder(
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("user_id")
+    .select("user_id,account_email")
     .eq("id", orderId)
     .maybeSingle();
-  return order?.user_id === userId;
+  if (!order) return false;
+  if (order.user_id === userId) return true;
+  return Boolean(email && order.account_email?.trim().toLowerCase() === email);
 }
 
 /** После success_url Pally: подтянуть оплату, если webhook задержался. */

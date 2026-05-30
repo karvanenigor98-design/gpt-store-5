@@ -116,7 +116,7 @@ export function CustomerOrdersSection({
               primaryColor={primaryColor}
               checkoutPath={checkoutPath}
               chatHref={chatHref}
-              payEmail={order.customer_email ?? payEmailFallback}
+              payEmail={order.account_email ?? order.customer_email ?? payEmailFallback}
               isHighlighted={Boolean(orderFocusId && orderFocusId === order.id)}
               isNewest={index === 0}
             />

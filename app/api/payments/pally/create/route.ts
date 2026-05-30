@@ -3,6 +3,7 @@
 import { resolveGptCheckoutPlan, upsertGptPendingOrder } from "@/lib/checkout/resolve-gpt-checkout";
 import { ensureGptProfile } from "@/lib/orders/create-gpt-order";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { appendCheckoutReturnCookie } from "@/lib/payments/checkout-return-cookie";
 import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
 import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
 import { insertGptCustomerNotification } from "@/lib/notifications/gpt-customer-notifications";
@@ -112,13 +113,17 @@ export async function POST(request: NextRequest) {
         detail,
       }).catch(() => {});
 
-      return NextResponse.json(
-        {
-          error: detail ?? "Не удалось создать ссылку на оплату",
-          orderId: order.id,
-          orderSaved: true,
-        },
-        { status: 503 },
+      return appendCheckoutReturnCookie(
+        NextResponse.json(
+          {
+            error: detail ?? "Не удалось создать ссылку на оплату",
+            orderId: order.id,
+            orderSaved: true,
+          },
+          { status: 503 },
+        ),
+        "gpt-store",
+        order.id,
       );
     }
 
@@ -146,7 +151,8 @@ export async function POST(request: NextRequest) {
       }).catch(() => {});
     }
 
-    return NextResponse.json({ paymentUrl: payment.paymentUrl, orderId: order.id });
+    const response = NextResponse.json({ paymentUrl: payment.paymentUrl, orderId: order.id });
+    return appendCheckoutReturnCookie(response, "gpt-store", order.id);
   } catch (err) {
     console.error("[Checkout] Ошибка:", err);
     return NextResponse.json(

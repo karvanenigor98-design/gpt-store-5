@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import { useOrderLiveStatus } from "@/lib/dashboard/use-order-live-status";
@@ -17,6 +18,8 @@ type Props = {
   activatedAt?: string | null;
   variant?: "light" | "subs";
   dashboardHref: string;
+  /** После подтверждения оплаты — редирект в кабинет на этот заказ. */
+  autoRedirectWhenPaid?: boolean;
 };
 
 export function CheckoutSuccessLiveTracker({
@@ -27,13 +30,26 @@ export function CheckoutSuccessLiveTracker({
   activatedAt,
   variant = "light",
   dashboardHref,
+  autoRedirectWhenPaid = false,
 }: Props) {
+  const router = useRouter();
   const liveStatus = useOrderLiveStatus(orderId, siteSlug, initialStatus);
   const [confirming, setConfirming] = useState(false);
   const [confirmNote, setConfirmNote] = useState<string | null>(null);
 
   const paidLike = isPaidLikeStatus(liveStatus, siteSlug);
   const awaitingPay = isOrderAwaitingPayment(liveStatus);
+
+  const orderDashboardHref = `${dashboardHref}${dashboardHref.includes("?") ? "&" : "?"}order_id=${encodeURIComponent(orderId)}`;
+
+  useEffect(() => {
+    if (paidLike && autoRedirectWhenPaid) {
+      const t = window.setTimeout(() => {
+        router.replace(orderDashboardHref);
+      }, 1500);
+      return () => window.clearTimeout(t);
+    }
+  }, [paidLike, autoRedirectWhenPaid, orderDashboardHref, router]);
 
   useEffect(() => {
     if (paidLike) return;
@@ -56,7 +72,7 @@ export function CheckoutSuccessLiveTracker({
           setConfirmNote("Оплата подтверждена — статус обновлён.");
         }
       } catch {
-        /* webhook may still arrive */
+        /* webhook may still arrive; server-side reconcile already ran */
       } finally {
         if (!cancelled) setConfirming(false);
       }
@@ -94,9 +110,13 @@ export function CheckoutSuccessLiveTracker({
         <p className="text-center text-sm font-medium text-[#1DB954]">{confirmNote}</p>
       ) : null}
 
+      {paidLike && autoRedirectWhenPaid ? (
+        <p className="text-center text-sm text-gray-500">Перенаправляем в личный кабинет…</p>
+      ) : null}
+
       {paidLike ? (
         <Link
-          href={`${dashboardHref}${dashboardHref.includes("?") ? "&" : "?"}order_id=${encodeURIComponent(orderId)}`}
+          href={orderDashboardHref}
           className={`block text-center text-sm font-semibold ${variant === "subs" ? "text-[#1DB954]" : "text-[#10a37f]"} hover:underline`}
         >
           Открыть заказ в личном кабинете →

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { appendCheckoutReturnCookie } from "@/lib/payments/checkout-return-cookie";
 import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
 import { isPallyConfigError } from "@/lib/payments/pally-env-hint";
 import { applyPromo, findPromo } from "@/lib/store-config";
@@ -165,13 +166,17 @@ export async function POST(request: NextRequest) {
           ? "Оплата временно недоступна. Заказ сохранён, оператор свяжется с вами."
           : detail ?? "Не удалось создать ссылку на оплату. Заказ сохранён, попробуйте позже.";
 
-      return NextResponse.json(
-        {
-          error: userMessage,
-          orderId,
-          orderSaved: true,
-        },
-        { status: 503 },
+      return appendCheckoutReturnCookie(
+        NextResponse.json(
+          {
+            error: userMessage,
+            orderId,
+            orderSaved: true,
+          },
+          { status: 503 },
+        ),
+        "subs-store",
+        orderId,
       );
     }
 
@@ -236,7 +241,8 @@ export async function POST(request: NextRequest) {
       }).catch(() => {});
     }
 
-    return NextResponse.json({ paymentUrl: payment.paymentUrl, orderId });
+    const response = NextResponse.json({ paymentUrl: payment.paymentUrl, orderId });
+    return appendCheckoutReturnCookie(response, "subs-store", orderId);
   } catch (err) {
     console.error("[Subs checkout]", err);
     return NextResponse.json(

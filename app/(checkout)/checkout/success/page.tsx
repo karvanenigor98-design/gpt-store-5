@@ -1,5 +1,7 @@
 ﻿import type { Metadata } from "next";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { CheckoutSuccessOrderRedirect } from "@/components/checkout/CheckoutSuccessOrderRedirect";
@@ -7,6 +9,14 @@ import { CheckoutSuccessLiveTracker } from "@/components/checkout/CheckoutSucces
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import {
+  CHECKOUT_RETURN_COOKIE,
+  parseCheckoutReturnCookieValue,
+} from "@/lib/payments/checkout-return-cookie";
+import { reconcileUnpaidOrderPayment } from "@/lib/payments/reconcile-unpaid-order";
+import { isPaidLikeStatus } from "@/lib/orders/paid-like-status";
+import { buildCustomerOrderFocusHref } from "@/lib/dashboard/customer-order-view";
 
 export const metadata: Metadata = { title: "Заказ создан" };
 
@@ -19,10 +29,31 @@ interface Props {
   }>;
 }
 
+async function resolveSuccessContext(params: {
+  order?: string;
+  orderId?: string;
+  order_id?: string;
+  site?: string;
+}): Promise<{ orderId: string | null; siteSlug: SiteSlug }> {
+  const fromQuery = params.order ?? params.orderId ?? params.order_id ?? null;
+  const siteFromQuery: SiteSlug = params.site === "subs-store" ? "subs-store" : "gpt-store";
+
+  if (fromQuery) {
+    return { orderId: fromQuery, siteSlug: siteFromQuery };
+  }
+
+  const jar = await cookies();
+  const parsed = parseCheckoutReturnCookieValue(jar.get(CHECKOUT_RETURN_COOKIE)?.value);
+  if (parsed) {
+    return parsed;
+  }
+
+  return { orderId: null, siteSlug: siteFromQuery };
+}
+
 export default async function CheckoutSuccessPage({ searchParams }: Props) {
   const params = await searchParams;
-  const orderId = params.order ?? params.orderId ?? params.order_id;
-  const siteParam = params.site;
+  const { orderId, siteSlug } = await resolveSuccessContext(params);
 
   if (!orderId) {
     return (
@@ -34,7 +65,10 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
           <p className="text-gray-500">Загрузка заказа…</p>
           <p className="mt-2 text-xs text-gray-400">
             Если страница не обновилась, откройте{" "}
-            <Link href="/dashboard" className="text-[#10a37f] hover:underline">
+            <Link
+              href={`/dashboard/orders?site=${siteSlug}`}
+              className="text-[#10a37f] hover:underline"
+            >
               личный кабинет
             </Link>
             .
@@ -44,13 +78,20 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
     );
   }
 
-  const preferSubs = siteParam === "subs-store";
+  const preferSubs = siteSlug === "subs-store";
+  const dashboardOrdersHref = buildCustomerOrderFocusHref(siteSlug, orderId);
 
   if (!preferSubs) {
+    await reconcileUnpaidOrderPayment({ siteSlug: "gpt-store", orderId }).catch(() => undefined);
+
     const supabase = await createClient();
     const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single();
 
     if (order) {
+      if (isPaidLikeStatus(String(order.status), "gpt-store")) {
+        redirect(dashboardOrdersHref);
+      }
+
       return (
         <div className="w-full max-w-lg space-y-5">
           <div className="text-center">
@@ -70,6 +111,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
             planId={order.plan_id}
             activatedAt={order.activated_at}
             dashboardHref="/dashboard/orders?site=gpt-store"
+            autoRedirectWhenPaid
           />
 
           {order.status === "waiting_client" && <TokenSafetyBlock compact={false} />}
@@ -80,16 +122,16 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
             </p>
             <p className="mt-1">
               Ваш чат открыт в кабинете в{" "}
-              <a
-                href={`${process.env.NEXT_PUBLIC_APP_URL ?? ""}/dashboard/chat`}
-                className="text-[#10a37f] hover:underline"
-              >
+              <Link href="/dashboard/chat?site=gpt-store" className="text-[#10a37f] hover:underline">
                 чате поддержки
-              </a>
+              </Link>
             </p>
           </div>
 
-          <Link href="/dashboard" className="block text-center text-sm text-gray-500 hover:text-gray-800">
+          <Link
+            href="/dashboard/orders?site=gpt-store"
+            className="block text-center text-sm text-gray-500 hover:text-gray-800"
+          >
             Перейти в личный кабинет →
           </Link>
         </div>
@@ -99,6 +141,8 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
 
   const subs = createSubsStoreAdminClient();
   if (subs) {
+    await reconcileUnpaidOrderPayment({ siteSlug: "subs-store", orderId }).catch(() => undefined);
+
     const { data: subsOrder } = await subs
       .from("orders")
       .select("id,status,payment_status,final_price,customer_email,tariff_id")
@@ -106,6 +150,14 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
       .maybeSingle();
 
     if (subsOrder) {
+      const isPaid =
+        subsOrder.payment_status === "paid" ||
+        isPaidLikeStatus(String(subsOrder.status), "subs-store");
+
+      if (isPaid) {
+        redirect(dashboardOrdersHref);
+      }
+
       let planName = "Spotify Premium";
       if (subsOrder.tariff_id) {
         const { data: tariff } = await subs
@@ -116,17 +168,8 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
         if (tariff?.title) planName = tariff.title;
       }
 
-      const isPaid =
-        subsOrder.payment_status === "paid" ||
-        ["paid", "processing", "awaiting_data", "activated", "completed"].includes(
-          String(subsOrder.status),
-        );
-
-      const statusLabel = isPaid
-        ? "В работе"
-        : subsOrder.status === "awaiting_payment"
-          ? "Ожидает оплаты"
-          : subsOrder.status;
+      const statusLabel =
+        subsOrder.status === "awaiting_payment" ? "Ожидает оплаты" : String(subsOrder.status);
 
       return (
         <div className="w-full max-w-lg space-y-5">
@@ -148,6 +191,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
             siteSlug="subs-store"
             variant="subs"
             dashboardHref="/dashboard/orders?site=subs-store"
+            autoRedirectWhenPaid
           />
 
           <div className="rounded-xl border border-black/[0.07] bg-gray-50 px-4 py-3 text-sm text-gray-600 space-y-1">
@@ -166,8 +210,15 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
           </div>
 
           <Link
-            href="/spotify"
+            href="/dashboard/orders?site=subs-store"
             className="block text-center text-sm text-[#1DB954] hover:underline"
+          >
+            Открыть заказы в кабинете →
+          </Link>
+
+          <Link
+            href="/spotify"
+            className="block text-center text-sm text-gray-500 hover:text-gray-800"
           >
             На главную SPOTIFY STORE →
           </Link>
@@ -179,9 +230,20 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
   return (
     <div className="text-center">
       <p className="text-gray-500">Заказ не найден или был удалён</p>
-      <Link href="/" className="mt-4 inline-block text-[#10a37f] hover:underline">
-        На главную
-      </Link>
+      <p className="mt-2 text-sm text-gray-400">
+        Проверьте, что вы вошли в кабинет того же магазина, где оформляли заказ.
+      </p>
+      <div className="mt-4 flex flex-wrap justify-center gap-3">
+        <Link href="/dashboard/orders?site=gpt-store" className="text-[#10a37f] hover:underline">
+          Кабинет GPT STORE
+        </Link>
+        <Link href="/dashboard/orders?site=subs-store" className="text-[#1DB954] hover:underline">
+          Кабинет SPOTIFY STORE
+        </Link>
+        <Link href="/" className="text-gray-500 hover:underline">
+          На главную
+        </Link>
+      </div>
     </div>
   );
 }

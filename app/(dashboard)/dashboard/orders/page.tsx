@@ -182,7 +182,9 @@ export default async function OrdersPage({
             Заказ не найден или относится к другому аккаунту
           </p>
           <p className={cn("mt-1 text-sm", isSubs ? "text-gray-400" : "text-gray-600")}>
-            Войдите тем же email, что указывали при оформлении заказа на Spotify STORE.
+            {isSubs
+              ? "Войдите тем же email, что указывали при оформлении заказа на SPOTIFY STORE."
+              : "Войдите тем же email, что указывали при оформлении заказа на GPT STORE."}
           </p>
           <Link
             href={chatHref}

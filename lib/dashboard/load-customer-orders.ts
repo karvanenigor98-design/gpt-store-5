@@ -129,9 +129,45 @@ async function loadGptCustomerOrders(
   }
 
   const { data: byUser } = await query;
-  const rows = filterOrdersBySite((byUser ?? []) as { product: string }[], "gpt-store");
+  let rawRows = filterOrdersBySite((byUser ?? []) as { product: string }[], "gpt-store") as Record<
+    string,
+    unknown
+  >[];
 
-  const normalized = rows.map((r) => normalizeGptOrderRow(r as Record<string, unknown>));
+  const email = normalizeEmail(userEmail);
+  if (email) {
+    let emailQuery = admin
+      .from("orders")
+      .select("*")
+      .eq("account_email", email)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (siteId) {
+      emailQuery = emailQuery.or(`site_id.eq.${siteId},site_id.is.null`) as typeof emailQuery;
+    }
+
+    const { data: byAccountEmail } = await emailQuery;
+    const emailRows = filterOrdersBySite(
+      (byAccountEmail ?? []) as { product: string }[],
+      "gpt-store",
+    ) as Record<string, unknown>[];
+
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const row of [...rawRows, ...emailRows]) {
+      byId.set(String(row.id), row);
+    }
+    rawRows = [...byId.values()];
+
+    const orphanIds = emailRows
+      .filter((o) => !o.user_id)
+      .map((o) => String(o.id));
+    if (orphanIds.length) {
+      await admin.from("orders").update({ user_id: userId }).in("id", orphanIds);
+    }
+  }
+
+  const normalized = rawRows.map((r) => normalizeGptOrderRow(r));
   return dedupeOrders(normalized);
 }
 
@@ -259,8 +295,13 @@ async function fetchCustomerOrderById(params: {
   const product = String(row.product ?? "");
   if (!isGptOrderProduct(product)) return null;
 
-  const owned = row.user_id === userId;
-  if (!owned) return null;
+  if (!orderOwnedByUser({ row: row as Record<string, unknown>, userId, userEmail })) {
+    return null;
+  }
+
+  if (!row.user_id && userId) {
+    await admin.from("orders").update({ user_id: userId }).eq("id", orderId);
+  }
 
   return normalizeGptOrderRow(row as Record<string, unknown>);
 }
