@@ -39,9 +39,9 @@ export function CheckoutPaymentWait({ orderId, siteSlug }: Props) {
       const url = sessionStorage.getItem(CHECKOUT_PAYMENT_URL_STORAGE_KEY);
       if (url) {
         paymentUrlRef.current = url;
-        const win = window.open(url, "_blank", "noopener,noreferrer");
-        setPaymentTabOpened(Boolean(win));
-        if (!win) setReopenHint(true);
+        sessionStorage.removeItem(CHECKOUT_PAYMENT_URL_STORAGE_KEY);
+        window.location.replace(url);
+        return;
       }
     } catch {
       setReopenHint(true);
@@ -92,7 +92,7 @@ export function CheckoutPaymentWait({ orderId, siteSlug }: Props) {
   function reopenPayment() {
     const url = paymentUrlRef.current;
     if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.location.assign(url);
       return;
     }
     setReopenHint(true);
