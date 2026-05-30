@@ -1,5 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, NextRequest } from "next/server";
+import {
+  buildSpotifyLinkPreviewHtml,
+  isLinkPreviewBot,
+} from "@/lib/brand/spotify-link-preview-html";
 import { effectiveRoleFromProfile } from "@/lib/auth/superAdmin";
 import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
 import {
@@ -26,6 +30,19 @@ function isGptPublicAuthConfigured(): boolean {
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+
+  if (path === "/spotify" || path === "/spotify/") {
+    const ua = request.headers.get("user-agent");
+    if (isLinkPreviewBot(ua)) {
+      return new NextResponse(buildSpotifyLinkPreviewHtml(request.nextUrl.origin), {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store, max-age=0, must-revalidate",
+        },
+      });
+    }
+  }
+
   const devPort = request.nextUrl.port || null;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-invoke-pathname", path);

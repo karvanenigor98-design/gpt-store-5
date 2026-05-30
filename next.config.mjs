@@ -59,6 +59,7 @@ const nextConfig = {
       { source: "/pricing", destination: "/", permanent: false },
       { source: "/subs", destination: "/spotify", permanent: false },
       { source: "/subs-store", destination: "/spotify", permanent: false },
+      { source: "/spotify-store", destination: "/spotify", permanent: false },
     ];
   },
 };

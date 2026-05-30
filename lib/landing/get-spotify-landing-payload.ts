@@ -201,7 +201,10 @@ function buildPageDataFromSnapshot(
     }
 
     if (snapshot.faq.length) {
-      payload.faq = snapshot.faq;
+      payload.faq = snapshot.faq.map((item) => ({
+        question: normalizeSpotifyStoreLabel(item.question),
+        answer: normalizeSpotifyStoreLabel(item.answer),
+      }));
     }
 
     const rawOverrides = snapshot.settings["spotify_landing_overrides"];

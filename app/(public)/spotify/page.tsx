@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { defaultSpotifySeoTitle, SPOTIFY_STORE_LINK_NAME } from "@/lib/brand/spotify-store-brand";
+import { defaultSpotifySeoTitle, normalizeSpotifyStoreLabel, SPOTIFY_STORE_LINK_NAME } from "@/lib/brand/spotify-store-brand";
+import { SPOTIFY_LINK_PREVIEW_DESCRIPTION } from "@/lib/brand/spotify-link-preview-html";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { buildSpotifyJsonLd, getSpotifyLandingPageData } from "@/lib/landing/get-spotify-landing-payload";
 import { SpotifyNav } from "@/components/spotify/SpotifyNav";
@@ -29,13 +30,15 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const { seo } = await getSpotifyLandingPageData();
   const title = defaultSpotifySeoTitle();
+  const description =
+    normalizeSpotifyStoreLabel(seo.description) || SPOTIFY_LINK_PREVIEW_DESCRIPTION;
   return {
     title: { absolute: title },
-    description: seo.description,
+    description,
     keywords: seo.keywords,
     openGraph: {
       title,
-      description: seo.description,
+      description,
       url: SPOTIFY_URL,
       siteName: SPOTIFY_STORE_LINK_NAME,
       locale: "ru_RU",
@@ -44,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title,
-      description: seo.description,
+      description,
     },
     alternates: { canonical: SPOTIFY_URL },
     robots: {
