@@ -37,6 +37,10 @@ export function resolveStaffAuthRedirect(role: UserRole, returnUrl: string | nul
     return "/operator";
   }
 
+  if (safe.startsWith("/admin") || safe.startsWith("/operator")) {
+    return "/dashboard?site=gpt-store";
+  }
+
   return resolvePostLoginPath(safe || "/dashboard?site=gpt-store", role);
 }
 

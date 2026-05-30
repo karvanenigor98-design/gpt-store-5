@@ -28,6 +28,61 @@ function isGptPublicAuthConfigured(): boolean {
   return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 }
 
+/** Supabase SSR: refreshed auth cookies must survive NextResponse.redirect. */
+function redirectPreservingCookies(target: URL, source: NextResponse): NextResponse {
+  const res = NextResponse.redirect(target);
+  source.cookies.getAll().forEach(({ name, value }) => {
+    res.cookies.set(name, value);
+  });
+  return res;
+}
+
+const CURRENT_SITE_COOKIE = {
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30,
+  sameSite: "lax" as const,
+  httpOnly: false,
+};
+
+function applyCurrentSiteCookie(
+  response: NextResponse,
+  path: string,
+  siteQuery: string | null,
+  request: NextRequest,
+  cookieSiteEarly: SiteSlug | undefined,
+  devPort: string | null,
+): void {
+  if (
+    (path.startsWith("/dashboard") || path.startsWith("/cabinet")) &&
+    (siteQuery === "subs-store" || siteQuery === "gpt-store")
+  ) {
+    response.cookies.set("current_site", siteQuery, CURRENT_SITE_COOKIE);
+    return;
+  }
+
+  if (path === "/" || path === "/gpt" || path === "/gpt-store" || path === "/chatgpt") {
+    response.cookies.set("current_site", "gpt-store", CURRENT_SITE_COOKIE);
+    return;
+  }
+
+  if (path.startsWith("/spotify") || path.startsWith("/checkout/spotify")) {
+    response.cookies.set("current_site", "subs-store", CURRENT_SITE_COOKIE);
+    return;
+  }
+
+  const inferredSite: SiteSlug | null = resolveAuthSiteContext({
+    siteDirect: request.nextUrl.searchParams.get("site"),
+    returnUrl: request.nextUrl.searchParams.get("returnUrl"),
+    cookieSite: cookieSiteEarly,
+    port: devPort,
+    pathname: path,
+  });
+
+  if (inferredSite) {
+    response.cookies.set("current_site", inferredSite, CURRENT_SITE_COOKIE);
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
@@ -153,6 +208,8 @@ export async function middleware(request: NextRequest) {
       !isSiteUiLoggedOut("subs-store", incoming.cookies)
   : Boolean(gptUser) && !isSiteUiLoggedOut("gpt-store", incoming.cookies);
 
+  applyCurrentSiteCookie(supabaseResponse, path, siteQuery, request, cookieSiteEarly, devPort);
+
   if (isProtected && !sessionUiActive) {
     const url = request.nextUrl.clone();
     const fullPath = path + (request.nextUrl.search || "");
@@ -167,7 +224,7 @@ export async function middleware(request: NextRequest) {
     url.search = "";
     url.searchParams.set("returnUrl", fullPath);
     url.searchParams.set("site", loginSite);
-    return NextResponse.redirect(url);
+    return redirectPreservingCookies(url, supabaseResponse);
   }
 
   if (isAuthPage && !canSwitchAccount) {
@@ -185,57 +242,14 @@ export async function middleware(request: NextRequest) {
       : Boolean(gptUser) && !isSiteUiLoggedOut("gpt-store", incoming.cookies);
 
     if (loggedInForThisSheet && siteForLogin === "subs-store") {
-      return NextResponse.redirect(new URL("/dashboard?site=subs-store", request.url));
+      return redirectPreservingCookies(new URL("/dashboard?site=subs-store", request.url), supabaseResponse);
     }
 
     if (loggedInForThisSheet && siteForLogin !== "subs-store" && gptUser) {
       const role = await resolveServerRole(gptUser);
       const returnUrl = request.nextUrl.searchParams.get("returnUrl");
       const target = resolveStaffAuthRedirect(role, returnUrl);
-      return NextResponse.redirect(new URL(target, request.url));
-    }
-  }
-
-  if (
-    (path.startsWith("/dashboard") || path.startsWith("/cabinet")) &&
-    (siteQuery === "subs-store" || siteQuery === "gpt-store")
-  ) {
-    supabaseResponse.cookies.set("current_site", siteQuery, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "lax",
-      httpOnly: false,
-    });
-  } else if (path === "/" || path === "/gpt" || path === "/gpt-store" || path === "/chatgpt") {
-    supabaseResponse.cookies.set("current_site", "gpt-store", {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "lax",
-      httpOnly: false,
-    });
-  } else if (path.startsWith("/spotify") || path.startsWith("/checkout/spotify")) {
-    supabaseResponse.cookies.set("current_site", "subs-store", {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "lax",
-      httpOnly: false,
-    });
-  } else {
-    const inferredSite: SiteSlug | null = resolveAuthSiteContext({
-      siteDirect: request.nextUrl.searchParams.get("site"),
-      returnUrl: request.nextUrl.searchParams.get("returnUrl"),
-      cookieSite: cookieSiteEarly,
-      port: devPort,
-      pathname: path,
-    });
-
-    if (inferredSite) {
-      supabaseResponse.cookies.set("current_site", inferredSite, {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30,
-        sameSite: "lax",
-        httpOnly: false,
-      });
+      return redirectPreservingCookies(new URL(target, request.url), supabaseResponse);
     }
   }
 
@@ -244,11 +258,17 @@ export async function middleware(request: NextRequest) {
 
     if (path.startsWith("/admin") && role === "operator") {
       const suffix = path.replace(/^\/admin/, "") || "";
-      return NextResponse.redirect(new URL(`/operator${suffix}${request.nextUrl.search}`, request.url));
+      return redirectPreservingCookies(
+        new URL(`/operator${suffix}${request.nextUrl.search}`, request.url),
+        supabaseResponse,
+      );
     }
     if (path.startsWith("/operator") && role === "admin") {
       const suffix = path.replace(/^\/operator/, "") || "";
-      return NextResponse.redirect(new URL(`/admin${suffix}${request.nextUrl.search}`, request.url));
+      return redirectPreservingCookies(
+        new URL(`/admin${suffix}${request.nextUrl.search}`, request.url),
+        supabaseResponse,
+      );
     }
   }
 

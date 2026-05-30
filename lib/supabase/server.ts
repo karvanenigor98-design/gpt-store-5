@@ -4,12 +4,14 @@ import { cookies } from "next/headers";
 
 import type { Database } from "@/types/database";
 import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
+import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
 export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
+  const supabaseUrl = getGptPublicSupabaseUrl();
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookieOptions: getAuthCookieOptions(),
@@ -34,7 +36,7 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
 // Административный клиент (обходит RLS) — только на сервере
 export function createAdminClient(): SupabaseClient<Database> {
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    getGptPublicSupabaseUrl(),
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   ) as SupabaseClient<Database>;
