@@ -4,24 +4,8 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
-import { SpotifyPromoPlayerCard } from "@/components/spotify/SpotifyPromoPlayerCard";
+import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
-
-function PlayerCard() {
-  const { heroPlayerPreview } = useSpotifyLanding();
-  return (
-    <SpotifyPromoPlayerCard
-      badge={heroPlayerPreview.cardBadge}
-      title={heroPlayerPreview.cardTitle}
-      subtitle={heroPlayerPreview.cardSubtitle}
-      fromLabel={heroPlayerPreview.fromLabel}
-      priceRub={heroPlayerPreview.priceRub}
-      featureChips={heroPlayerPreview.featureChips}
-      href="/checkout/spotify"
-      variant="glass"
-    />
-  );
-}
 
 export function SpotifyHero() {
   const { hero } = useSpotifyLanding();
@@ -134,6 +118,15 @@ export function SpotifyHero() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, duration: 0.6 }}
+              className="mt-6 md:hidden"
+            >
+              <HeroPromoOfferCard site="spotify" />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.6 }}
               className="mt-7 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4"
             >
@@ -187,7 +180,7 @@ export function SpotifyHero() {
             transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="hidden md:block"
           >
-            <PlayerCard />
+            <HeroPromoOfferCard site="spotify" layout="wide" />
           </motion.div>
         </div>
       </motion.div>

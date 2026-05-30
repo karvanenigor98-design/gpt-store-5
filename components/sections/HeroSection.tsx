@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { HERO_CONTENT } from "@/lib/chatgpt-data";
 import { fadeIn, fadeUp, staggerContainer, staggerFast } from "@/lib/motion-config";
+import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
 
 export function HeroSection() {
   const { scrollY } = useScroll();
@@ -25,9 +26,9 @@ export function HeroSection() {
           className="absolute inset-0"
           style={{
             background: `
-              radial-gradient(ellipse 80% 55% at 50% 0%, rgba(16,163,127,0.10) 0%, transparent 65%),
-              radial-gradient(ellipse 45% 35% at 90% 90%, rgba(26,86,219,0.07) 0%, transparent 55%),
-              rgba(255,255,255,0.78)
+              radial-gradient(ellipse 75% 55% at 50% 20%, rgba(16,163,127,0.07) 0%, transparent 68%),
+              radial-gradient(ellipse 50% 40% at 85% 90%, rgba(96,124,196,0.06) 0%, transparent 58%),
+              rgba(255,255,255,0.22)
             `,
           }}
         />
@@ -98,6 +99,10 @@ export function HeroSection() {
               </motion.li>
             ))}
           </motion.ul>
+
+          <motion.div variants={fadeUp} className="mt-6 w-full max-w-md">
+            <HeroPromoOfferCard site="gpt" />
+          </motion.div>
 
           {/* CTA */}
           <motion.div variants={fadeUp} className="mt-7 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row sm:gap-4">

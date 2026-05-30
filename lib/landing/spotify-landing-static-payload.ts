@@ -15,6 +15,7 @@ import {
   SPOTIFY_WHY_POINTS,
 } from "@/lib/content/spotify";
 
+import { applyHeroPromoDisplayToSpotifyPlans } from "@/lib/landing/hero-promo-landing-discount";
 import type { SpotifyLandingPayload } from "./spotify-landing-types";
 
 const HOW_ICON_KEYS = ["music", "credit_card", "shield", "headphones"] as const;
@@ -100,7 +101,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
       subtitle:
         "Индивидуальная, для двоих или семейная — отличаются срок и цена. Оплата в рублях, активация 10–15 минут.",
     },
-    plans: SPOTIFY_PLANS.map((p) => ({ ...p })),
+    plans: applyHeroPromoDisplayToSpotifyPlans(SPOTIFY_PLANS.map((p) => ({ ...p }))),
     projectsSection: {
       eyebrow: "Наши проекты",
       label: "Также от SPOTIFY STORE",

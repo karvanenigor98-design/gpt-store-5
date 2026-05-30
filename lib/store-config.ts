@@ -1,4 +1,5 @@
 import { CHATGPT_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
+import { applyHeroPromoDisplayToGptPlans } from "@/lib/landing/hero-promo-landing-discount";
 import type { LandingDiscount } from "@/lib/pricing-helpers";
 import { applyLandingDiscount, pickLandingDiscount } from "@/lib/pricing-helpers";
 import { fetchPromoCodesFromDb } from "@/lib/promocodes/db-promo";
@@ -154,12 +155,16 @@ function applyLandingDiscountsToPlans(plans: ExtendedPlan[], discounts: LandingD
   });
 }
 
+function finalizeGptStorePlans(plans: ExtendedPlan[], discounts: LandingDiscount[]): ExtendedPlan[] {
+  return applyHeroPromoDisplayToGptPlans(applyLandingDiscountsToPlans(plans, discounts));
+}
+
 export async function getStoreConfig(): Promise<StoreConfig> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !serviceKey) {
     return {
-      plans: DEFAULT_PLANS,
+      plans: finalizeGptStorePlans(DEFAULT_PLANS, []),
       promoCodes: [],
       landingSections: DEFAULT_SECTIONS,
       landingDiscounts: [],
@@ -205,14 +210,14 @@ export async function getStoreConfig(): Promise<StoreConfig> {
     const mergedPlans = normalizePlans(map.pricing_plans, availability);
 
     return {
-      plans: applyLandingDiscountsToPlans(mergedPlans, dbDiscounts),
+      plans: finalizeGptStorePlans(mergedPlans, dbDiscounts),
       promoCodes: mergePromoCodes(normalizePromoCodes(map.promo_codes), dbPromos),
       landingSections: normalizeSections(map.landing_sections),
       landingDiscounts: dbDiscounts,
     };
   } catch {
     return {
-      plans: DEFAULT_PLANS,
+      plans: finalizeGptStorePlans(DEFAULT_PLANS, []),
       promoCodes: [],
       landingSections: DEFAULT_SECTIONS,
       landingDiscounts: [],

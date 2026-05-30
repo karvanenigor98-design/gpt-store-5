@@ -4,6 +4,7 @@ import {
   inferDurationMonths,
   roundMarketingMonthly,
 } from "@/lib/spotify-plan-helpers";
+import { applyHeroPromoDisplayToSpotifyPlans } from "@/lib/landing/hero-promo-landing-discount";
 import {
   applyLandingDiscount,
   pickLandingDiscount,
@@ -226,6 +227,10 @@ export function applyLandingDiscountsToSpotifyPlans(
   });
 }
 
+function finalizeSpotifyStorePlans(plans: SpotifyPlan[], discounts: LandingDiscount[]): SpotifyPlan[] {
+  return applyHeroPromoDisplayToSpotifyPlans(applyLandingDiscountsToSpotifyPlans(plans, discounts));
+}
+
 function mapPromocodeRows(rows: PromocodeRow[]): PromoCode[] {
   const now = Date.now();
   return rows
@@ -312,7 +317,7 @@ async function loadFromSupabase(): Promise<SubsStoreConfig | null> {
     const promoCodes = promosRes.error ? [] : mapPromocodeRows((promosRes.data ?? []) as PromocodeRow[]);
 
     return {
-      plans: applyLandingDiscountsToSpotifyPlans(basePlans, landingDiscounts),
+      plans: finalizeSpotifyStorePlans(basePlans, landingDiscounts),
       landingDiscounts,
       promoCodes,
       source: "supabase",
@@ -328,7 +333,7 @@ export async function getSubsStoreConfig(): Promise<SubsStoreConfig> {
   if (fromDb) return fromDb;
 
   return {
-    plans: SPOTIFY_PLANS,
+    plans: finalizeSpotifyStorePlans(SPOTIFY_PLANS, []),
     landingDiscounts: [],
     promoCodes: [],
     source: "static",
