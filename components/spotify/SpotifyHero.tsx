@@ -135,14 +135,16 @@ export function SpotifyHero() {
                 onClick={scrollToSpotifyPricing}
                 whileHover={{ scale: 1.03, boxShadow: "0 6px 30px rgba(29,185,84,0.45)" }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white sm:w-auto sm:px-8 sm:py-4 sm:text-base"
+                className="shimmer-btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white sm:w-auto sm:px-8 sm:py-4 sm:text-base"
                 style={{
                   background: SPOTIFY_ACCENT,
                   boxShadow: "0 4px 20px rgba(29,185,84,0.35)",
                 }}
               >
-                {hero.primaryCta}
-                <ArrowRight size={17} />
+                <span className="relative z-[2] inline-flex items-center justify-center gap-2">
+                  {hero.primaryCta}
+                  <ArrowRight size={17} />
+                </span>
               </motion.button>
               <a
                 href="#pricing"

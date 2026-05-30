@@ -3,7 +3,6 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { HERO_CONTENT } from "@/lib/chatgpt-data";
-import { fadeIn, fadeUp, staggerContainer, staggerFast } from "@/lib/motion-config";
 import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
 
 export function HeroSection() {
@@ -31,15 +30,17 @@ export function HeroSection() {
       </motion.div>
 
       <motion.div className="relative z-10 w-full" style={{ y: contentY, opacity }}>
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-10 md:grid-cols-[1fr_auto] md:gap-8 lg:gap-12">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-8">
           <motion.div
-            initial={false}
-            animate="visible"
-            variants={staggerContainer}
-            className="flex flex-col items-center text-center md:items-start md:text-left"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center md:text-left"
           >
             <motion.div
-              variants={fadeIn}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.6 }}
               className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#10a37f]/20 bg-[#10a37f]/[0.07] px-4 py-2 text-sm text-[#10a37f]"
             >
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#10a37f]" />
@@ -47,7 +48,9 @@ export function HeroSection() {
             </motion.div>
 
             <motion.h1
-              variants={fadeUp}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.7 }}
               className="font-heading font-bold leading-tight tracking-tight text-gray-900"
             >
               <span className="block text-4xl md:text-5xl lg:text-6xl">{HERO_CONTENT.title}</span>
@@ -65,20 +68,26 @@ export function HeroSection() {
             </motion.h1>
 
             <motion.p
-              variants={fadeUp}
-              className="mt-5 max-w-xl text-sm text-gray-500 md:mt-6 md:max-w-lg md:text-lg"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.6 }}
+              className="mt-5 max-w-xl text-sm text-gray-500 md:mx-0 md:text-lg"
             >
               {HERO_CONTENT.subtitle}
             </motion.p>
 
             <motion.ul
-              variants={staggerFast}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
               className="mt-6 flex flex-wrap justify-center gap-2 md:justify-start md:gap-2.5"
             >
-              {HERO_CONTENT.trustBadges.map((item) => (
+              {HERO_CONTENT.trustBadges.map((item, i) => (
                 <motion.li
                   key={item}
-                  variants={fadeUp}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + i * 0.07 }}
                   className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.07] bg-white px-3 py-1.5 text-sm text-gray-600 shadow-sm"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#10a37f]" />
@@ -87,13 +96,20 @@ export function HeroSection() {
               ))}
             </motion.ul>
 
-            <motion.div variants={fadeUp} className="mt-6 w-full max-w-xs md:hidden">
-              <HeroPromoOfferCard site="gpt" layout="compact" />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, duration: 0.6 }}
+              className="mt-6 md:hidden"
+            >
+              <HeroPromoOfferCard site="gpt" />
             </motion.div>
 
             <motion.div
-              variants={fadeUp}
-              className="mt-7 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row sm:gap-4 md:items-start"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+              className="mt-7 flex w-full flex-col items-center gap-3 md:items-start sm:w-auto sm:flex-row sm:gap-4"
             >
               <motion.a
                 href="#pricing"
@@ -122,60 +138,25 @@ export function HeroSection() {
               </a>
             </motion.div>
 
-            <motion.p variants={fadeIn} className="mt-3 text-xs text-gray-400 md:mt-4 md:text-sm">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="mt-3 text-xs text-gray-400 md:mt-4 md:text-sm"
+            >
               {HERO_CONTENT.meta}
             </motion.p>
           </motion.div>
 
           <motion.div
-            variants={fadeUp}
-            initial={false}
-            animate="visible"
-            className="hidden shrink-0 md:block md:justify-self-end"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="hidden md:block"
           >
-            <HeroPromoOfferCard site="gpt" layout="side" />
+            <HeroPromoOfferCard site="gpt" layout="wide" />
           </motion.div>
         </div>
-
-        <motion.div
-          variants={fadeIn}
-          initial={false}
-          animate="visible"
-          className="mx-auto mt-16 hidden max-w-6xl flex-col items-center gap-2.5 md:flex"
-        >
-          <motion.div
-            className="relative flex h-11 w-7 items-start justify-center rounded-full border-2 p-1.5"
-            style={{
-              borderColor: "rgba(16,163,127,0.5)",
-              boxShadow: "0 0 16px rgba(16,163,127,0.18), inset 0 0 8px rgba(16,163,127,0.06)",
-            }}
-            animate={{ y: [0, 6, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <motion.div
-              className="h-2 w-1 rounded-full"
-              style={{ background: "linear-gradient(180deg, #10a37f 0%, #1a56db 100%)" }}
-              animate={{ y: [0, 14, 0], opacity: [1, 0.2, 1] }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-            />
-          </motion.div>
-          <div className="flex flex-col items-center gap-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="rounded-full"
-                style={{
-                  width: i === 0 ? 4 : i === 1 ? 3 : 2,
-                  height: i === 0 ? 4 : i === 1 ? 3 : 2,
-                  background:
-                    i === 0 ? "#10a37f" : i === 1 ? "rgba(16,163,127,0.6)" : "rgba(16,163,127,0.3)",
-                }}
-                animate={{ opacity: [0, 1, 0] }}
-                transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.2, ease: "easeInOut" }}
-              />
-            ))}
-          </div>
-        </motion.div>
       </motion.div>
     </section>
   );

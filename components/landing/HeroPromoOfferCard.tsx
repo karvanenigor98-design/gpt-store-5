@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 type HeroPromoOfferCardProps = {
   site: HeroPromoSiteKey;
   className?: string;
-  /** compact — по центру; side — узкая карточка сбоку; wide — Spotify desktop */
-  layout?: "compact" | "side" | "wide";
+  /** Spotify: широкая карточка как player card на desktop */
+  layout?: "compact" | "wide";
 };
 
 export function HeroPromoOfferCard({ site, className, layout = "compact" }: HeroPromoOfferCardProps) {
@@ -28,16 +28,13 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
   const accent = isGpt ? "#10a37f" : SPOTIFY_ACCENT;
   const countdownText = promoDaysLeftLabel(daysLeft, deadlineLabel);
   const wide = layout === "wide";
-  const side = layout === "side";
 
   return (
     <motion.div
       variants={fadeUp}
       className={cn(
         "relative w-full overflow-hidden rounded-2xl border text-left shadow-lg",
-        wide && "max-w-none rounded-3xl p-6 sm:p-8",
-        side && "max-w-[17rem] p-4 sm:max-w-xs sm:p-4",
-        !wide && !side && "mx-auto max-w-md p-4 sm:p-5",
+        wide ? "max-w-none rounded-3xl p-6 sm:p-8" : "mx-auto max-w-md p-4 sm:p-5",
         isGpt
           ? "border-[#10a37f]/25 bg-white/90 shadow-emerald-600/10 backdrop-blur-sm"
           : "border-white/10 bg-white/[0.05] shadow-black/40 backdrop-blur-xl",
@@ -61,27 +58,20 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
       />
 
       <div className="relative">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs",
-              side && "px-2 py-0.5 text-[10px]",
-            )}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
             style={{
               background: isGpt ? "rgba(16,163,127,0.1)" : "rgba(29,185,84,0.15)",
               color: accent,
               border: `1px solid ${isGpt ? "rgba(16,163,127,0.25)" : "rgba(29,185,84,0.35)"}`,
             }}
           >
-            <Flame className={cn("shrink-0", side ? "h-3 w-3" : "h-3.5 w-3.5")} aria-hidden />
+            <Flame className="h-3.5 w-3.5" aria-hidden />
             {promoTitle}
           </div>
           {offer.discountLabel ? (
             <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold sm:text-xs",
-                side && "px-1.5 py-0.5",
-              )}
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold"
               style={{
                 background: isGpt ? "#fef3c7" : "rgba(29,185,84,0.18)",
                 color: isGpt ? "#92400e" : accent,
@@ -93,42 +83,20 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
           ) : null}
         </div>
 
-        <p
-          className={cn(
-            "mt-3 font-heading font-bold",
-            isGpt ? "text-gray-900" : "text-white",
-            wide ? "mt-4 text-xl sm:text-2xl" : side ? "text-base" : "mt-4 text-lg",
-          )}
-        >
+        <p className={cn("mt-4 font-heading font-bold", isGpt ? "text-gray-900" : "text-white", wide ? "text-xl sm:text-2xl" : "text-lg")}>
           {offer.planName}
-          <span
-            className={cn(
-              "ml-1.5 font-semibold",
-              isGpt ? "text-gray-400" : "text-white/45",
-              side ? "text-sm" : "text-base",
-            )}
-          >
+          <span className={cn("ml-2 text-base font-semibold", isGpt ? "text-gray-400" : "text-white/45")}>
             / {offer.periodLabel}
           </span>
         </p>
 
-        <div className={cn("mt-2 flex flex-wrap items-end gap-1.5", !side && "mt-3 gap-2")}>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
           <span
-            className={cn(
-              "font-heading font-semibold line-through",
-              isGpt ? "text-gray-400" : "text-white/35",
-              side ? "text-sm" : "text-lg",
-            )}
+            className={cn("font-heading text-lg font-semibold line-through", isGpt ? "text-gray-400" : "text-white/35")}
           >
             {offer.originalPrice.toLocaleString("ru")} ₽
           </span>
-          <span
-            className={cn(
-              "font-heading font-bold",
-              isGpt ? "text-gray-900" : "text-white",
-              wide ? "text-4xl" : side ? "text-2xl" : "text-3xl",
-            )}
-          >
+          <span className={cn("font-heading font-bold", isGpt ? "text-gray-900" : "text-white", wide ? "text-4xl" : "text-3xl")}>
             {offer.salePrice.toLocaleString("ru")}{" "}
             <span style={{ color: accent }}>₽</span>
           </span>
@@ -136,20 +104,18 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
 
         <div
           className={cn(
-            "mt-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium",
-            side && "mt-2.5 text-[11px]",
+            "mt-4 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
             isGpt ? "bg-gray-50 text-gray-700" : "bg-black/30 text-white/80",
           )}
         >
-          <Clock3 className={cn("shrink-0", side ? "h-3.5 w-3.5" : "h-4 w-4")} style={{ color: accent }} aria-hidden />
+          <Clock3 className="h-4 w-4 shrink-0" style={{ color: accent }} aria-hidden />
           <span>{countdownText}</span>
         </div>
 
         <Link
           href={offer.checkoutHref}
           className={cn(
-            "shimmer-btn relative mt-3 inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl font-semibold text-white transition-opacity hover:opacity-90",
-            side ? "mt-2.5 px-3 py-2.5 text-xs" : "mt-4 px-5 py-3 text-sm",
+            "shimmer-btn relative mt-4 inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90",
             wide && "sm:text-base",
           )}
           style={{
@@ -159,7 +125,7 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
         >
           <span className="relative z-[2] inline-flex items-center justify-center gap-2">
             {offer.ctaLabel}
-            <ArrowRight size={side ? 14 : 16} />
+            <ArrowRight size={16} />
           </span>
         </Link>
       </div>
