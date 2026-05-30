@@ -5,7 +5,12 @@ import Link from "next/link";
 
 import { CustomerOrderCard } from "@/components/dashboard/CustomerOrderCard";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
-import { sanitizeCustomerOrderView, type CustomerOrderView } from "@/lib/dashboard/customer-order-view";
+import {
+  findPrimaryCustomerOrderId,
+  sanitizeCustomerOrderView,
+  sortCustomerOrdersForDisplay,
+  type CustomerOrderView,
+} from "@/lib/dashboard/customer-order-view";
 import { cn } from "@/lib/utils";
 
 type StatusStyle = { label: string; color: string };
@@ -78,7 +83,8 @@ export function CustomerOrdersSection({
   payEmailFallback,
   isSubs,
 }: Props) {
-  const safeOrders = orders.map(sanitizeCustomerOrderView);
+  const safeOrders = sortCustomerOrdersForDisplay(orders.map(sanitizeCustomerOrderView));
+  const primaryOrderId = findPrimaryCustomerOrderId(safeOrders);
 
   return (
     <OrdersCardsErrorBoundary chatHref={chatHref} isSubs={isSubs}>
@@ -107,7 +113,7 @@ export function CustomerOrdersSection({
         </div>
       ) : (
         <div className="space-y-4">
-          {safeOrders.map((order, index) => (
+          {safeOrders.map((order) => (
             <CustomerOrderCard
               key={order.id}
               order={order}
@@ -118,7 +124,7 @@ export function CustomerOrdersSection({
               chatHref={chatHref}
               payEmail={order.account_email ?? order.customer_email ?? payEmailFallback}
               isHighlighted={Boolean(orderFocusId && orderFocusId === order.id)}
-              isNewest={index === 0}
+              isPrimary={primaryOrderId !== null && order.id === primaryOrderId}
             />
           ))}
         </div>

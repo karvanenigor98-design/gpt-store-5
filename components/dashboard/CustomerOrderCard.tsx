@@ -9,8 +9,10 @@ import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { OrderLiveStatusBadge } from "@/components/dashboard/OrderLiveStatusBadge";
 import {
+  formatCustomerOrderDateRu,
   getCustomerOrderProductLabel,
   isOrderAwaitingPayment,
+  resolveCustomerOrderDisplayDateIso,
   type CustomerOrderView,
 } from "@/lib/dashboard/customer-order-view";
 import { shouldShowOrderStatusTracker } from "@/lib/dashboard/order-status-tracker";
@@ -28,7 +30,7 @@ type Props = {
   chatHref: string;
   payEmail: string;
   isHighlighted?: boolean;
-  isNewest?: boolean;
+  isPrimary?: boolean;
 };
 
 export function CustomerOrderCard({
@@ -40,7 +42,7 @@ export function CustomerOrderCard({
   chatHref,
   payEmail,
   isHighlighted = false,
-  isNewest = false,
+  isPrimary = false,
 }: Props) {
   const isSubs = siteSlug === "subs-store";
   const live = useOrderLiveStatus(order.id, siteSlug, order.status);
@@ -53,6 +55,8 @@ export function CustomerOrderCard({
   const isExpiredOrFailed = ["expired", "failed", "refunded", "problem", "cancelled"].includes(
     liveStatus,
   );
+  const displayDateIso = resolveCustomerOrderDisplayDateIso(order, live.paidLike, live.paidAt);
+  const displayDateLabel = formatCustomerOrderDateRu(displayDateIso);
 
   return (
     <div
@@ -60,23 +64,18 @@ export function CustomerOrderCard({
       className={cn(
         "scroll-mt-6 overflow-hidden rounded-2xl border shadow-sm transition-shadow",
         isSubs ? "bg-[#161616]" : "bg-white",
-        isNewest
+        isPrimary
           ? isSubs
-            ? "border-2 border-[#1DB954]/70 shadow-[0_0_24px_rgba(29,185,84,0.18)]"
-            : "border-2 border-[#10a37f]/55 shadow-[0_0_20px_rgba(16,163,127,0.12)]"
+            ? "border-2 border-[#1DB954] shadow-[0_0_28px_rgba(29,185,84,0.35)] ring-2 ring-[#1DB954]/45 ring-offset-2 ring-offset-[#0a0a0a]"
+            : "border-2 border-[#10a37f] shadow-[0_0_24px_rgba(16,163,127,0.28)] ring-2 ring-[#10a37f]/40 ring-offset-2 ring-offset-gray-50"
           : isSubs
             ? "border border-white/10"
             : "border border-black/[0.07]",
         isHighlighted &&
-          !isNewest &&
+          !isPrimary &&
           (isSubs
             ? "ring-2 ring-[#1DB954]/40 ring-offset-2 ring-offset-[#0a0a0a]"
             : "ring-2 ring-[#10a37f]/30 ring-offset-2 ring-offset-gray-50"),
-        isHighlighted &&
-          isNewest &&
-          (isSubs
-            ? "ring-2 ring-[#1DB954]/55 ring-offset-2 ring-offset-[#0a0a0a]"
-            : "ring-2 ring-[#10a37f]/45 ring-offset-2 ring-offset-gray-50"),
       )}
     >
       <div
@@ -90,11 +89,7 @@ export function CustomerOrderCard({
             {getCustomerOrderProductLabel(order)}
           </p>
           <p className={cn("mt-0.5 text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>
-            {new Date(order.created_at).toLocaleDateString("ru", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
+            {displayDateLabel}
           </p>
         </div>
         <div className="text-right">
@@ -124,7 +119,6 @@ export function CustomerOrderCard({
             planId={order.plan_id}
             activatedAt={order.activated_at}
             variant={isSubs ? "subs" : "light"}
-            chatHref={chatHref}
           />
         ) : null}
 
@@ -168,7 +162,7 @@ export function CustomerOrderCard({
           </div>
         ) : null}
 
-        {(isNewest || awaitingPay || isHighlighted) ? (
+        {isPrimary ? (
           <Link
             href={chatHref}
             className={cn(

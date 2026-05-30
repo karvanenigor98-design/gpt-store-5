@@ -10,6 +10,7 @@ export type CustomerOrderView = {
   price: number;
   status: string;
   created_at: string;
+  paid_at?: string | null;
   activated_at?: string | null;
   expires_at?: string | null;
   /** Email Spotify-аккаунта (если указан при оформлении). */
@@ -27,6 +28,7 @@ export function normalizeGptOrderRow(row: Record<string, unknown>): CustomerOrde
     price: Number(row.price ?? 0),
     status: String(row.status ?? "pending"),
     created_at: String(row.created_at ?? new Date().toISOString()),
+    paid_at: (row.paid_at as string | null) ?? null,
     activated_at: (row.activated_at as string | null) ?? null,
     expires_at: (row.expires_at as string | null) ?? null,
     account_email: (row.account_email as string | null) ?? null,
@@ -52,6 +54,7 @@ export function normalizeSubsOrderRow(
     price: Number(row.final_price ?? row.price ?? 0),
     status,
     created_at: String(row.created_at ?? new Date().toISOString()),
+    paid_at: (row.paid_at as string | null) ?? null,
     activated_at: (row.activated_at as string | null) ?? null,
     expires_at: (row.expires_at as string | null) ?? null,
     customer_email: (row.customer_email as string | null) ?? null,
@@ -76,6 +79,75 @@ export function isOrderAwaitingPayment(status: string | null | undefined): boole
   return s === "pending" || s === "awaiting_payment" || s === "new" || s === "pending_payment_setup";
 }
 
+const ACTIVATED_STATUSES = new Set(["active", "activated", "completed"]);
+const TERMINAL_STATUSES = new Set(["expired", "failed", "refunded", "problem", "cancelled"]);
+
+/** Заказ ещё не активирован (ожидает оплату, активацию и т.д.). */
+export function isCustomerOrderNotActivated(status: string | null | undefined): boolean {
+  const s = coerceOrderStatus(status);
+  return !ACTIVATED_STATUSES.has(s) && !TERMINAL_STATUSES.has(s);
+}
+
+function timestampMs(value: string | null | undefined): number {
+  if (!value) return 0;
+  const ms = new Date(value).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/** Последняя активность по заказу (создание, оплата, активация). */
+export function getCustomerOrderRecencyIso(order: CustomerOrderView): string {
+  const ms = Math.max(
+    timestampMs(order.created_at),
+    timestampMs(order.paid_at),
+    timestampMs(order.activated_at),
+  );
+  return ms > 0 ? new Date(ms).toISOString() : order.created_at;
+}
+
+export function resolveCustomerOrderDisplayDateIso(
+  order: CustomerOrderView,
+  paidLike: boolean,
+  livePaidAt?: string | null,
+): string {
+  if (paidLike) {
+    return livePaidAt ?? order.paid_at ?? order.created_at;
+  }
+  return order.created_at;
+}
+
+export function formatCustomerOrderDateRu(iso: string): string {
+  return new Date(iso).toLocaleDateString("ru", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function sortByNewest(orders: CustomerOrderView[]): CustomerOrderView[] {
+  return [...orders].sort(
+    (a, b) =>
+      timestampMs(getCustomerOrderRecencyIso(b)) - timestampMs(getCustomerOrderRecencyIso(a)),
+  );
+}
+
+/** Самый новый заказ, который ещё не активирован. */
+export function findPrimaryCustomerOrderId(orders: CustomerOrderView[]): string | null {
+  const primary = sortByNewest(orders).find((o) => isCustomerOrderNotActivated(o.status));
+  return primary?.id ?? null;
+}
+
+/** Главный (неактивированный) заказ — первым в списке. */
+export function sortCustomerOrdersForDisplay(orders: CustomerOrderView[]): CustomerOrderView[] {
+  const primaryId = findPrimaryCustomerOrderId(orders);
+  const sorted = sortByNewest(orders);
+  if (!primaryId) return sorted;
+  const idx = sorted.findIndex((o) => o.id === primaryId);
+  if (idx <= 0) return sorted;
+  const out = [...sorted];
+  const [primary] = out.splice(idx, 1);
+  return [primary, ...out];
+}
+
 /** Нормализация перед передачей в client components (RSC → props). */
 export function sanitizeCustomerOrderView(order: CustomerOrderView): CustomerOrderView {
   return {
@@ -86,6 +158,7 @@ export function sanitizeCustomerOrderView(order: CustomerOrderView): CustomerOrd
     price: Number(order.price) || 0,
     status: coerceOrderStatus(order.status),
     created_at: String(order.created_at ?? new Date().toISOString()),
+    paid_at: order.paid_at ?? null,
     activated_at: order.activated_at ?? null,
     expires_at: order.expires_at ?? null,
     account_email: order.account_email ?? null,

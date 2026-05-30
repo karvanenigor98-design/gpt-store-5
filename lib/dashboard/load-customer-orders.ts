@@ -7,6 +7,7 @@ import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { filterOrdersBySite, isSpotifyProduct } from "@/lib/sites";
 import {
+  getCustomerOrderRecencyIso,
   isOrderAwaitingPayment,
   normalizeGptOrderRow,
   normalizeSubsOrderRow,
@@ -36,7 +37,9 @@ function orderOwnedByUser(params: {
 
 function sortOrdersNewestFirst(orders: CustomerOrderView[]): CustomerOrderView[] {
   return [...orders].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    (a, b) =>
+      new Date(getCustomerOrderRecencyIso(b)).getTime() -
+      new Date(getCustomerOrderRecencyIso(a)).getTime(),
   );
 }
 

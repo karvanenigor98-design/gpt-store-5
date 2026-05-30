@@ -13,6 +13,7 @@ export type CheckoutOrderPaymentState = {
   effectiveStatus: string;
   displayStatus: string;
   paidLike: boolean;
+  paidAt?: string | null;
 };
 
 export async function getCheckoutOrderPaymentState(
@@ -25,7 +26,7 @@ export async function getCheckoutOrderPaymentState(
 
     const { data: order } = await subs
       .from("orders")
-      .select("status,payment_status")
+      .select("status,payment_status,paid_at")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -50,13 +51,14 @@ export async function getCheckoutOrderPaymentState(
       effectiveStatus,
       displayStatus: customerOrderStatusLabelRu("subs-store", effectiveStatus),
       paidLike,
+      paidAt: (order.paid_at as string | null) ?? null,
     };
   }
 
   const admin = createAdminClient();
   const { data: order } = await admin
     .from("orders")
-    .select("status")
+    .select("status,paid_at")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -74,5 +76,6 @@ export async function getCheckoutOrderPaymentState(
     effectiveStatus,
     displayStatus: customerOrderStatusLabelRu("gpt-store", effectiveStatus),
     paidLike,
+    paidAt: (order.paid_at as string | null) ?? null,
   };
 }

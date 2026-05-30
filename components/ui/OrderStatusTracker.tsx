@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Check, Clock, Circle } from "lucide-react";
 import {
@@ -59,8 +58,6 @@ interface Props {
   siteSlug: SiteSlug;
   planId?: string;
   activatedAt?: string | null;
-  onOpenChat?: () => void;
-  chatHref?: string;
   variant?: "light" | "subs";
 }
 
@@ -70,20 +67,14 @@ export function OrderStatusTracker({
   siteSlug,
   planId,
   activatedAt,
-  onOpenChat,
-  chatHref,
   variant = "light",
 }: Props) {
-  const router = useRouter();
   const [trackerStep, setTrackerStep] = useState<OrderTrackerStep>(() =>
     mapOrderStatusToTrackerStep(initialStatus),
   );
   const [countdown, setCountdown] = useState<string | null>(null);
   const isSubs = variant === "subs";
   const accent = isSubs ? "#1DB954" : "#10a37f";
-
-  const openChat =
-    onOpenChat ?? (() => router.push(chatHref ?? "/dashboard/chat"));
 
   useEffect(() => {
     setTrackerStep(mapOrderStatusToTrackerStep(initialStatus));
@@ -286,21 +277,6 @@ export function OrderStatusTracker({
             {countdown}
           </span>
         </motion.div>
-      )}
-
-      {trackerStep !== "activated" && !isSubs && (
-        <button
-          type="button"
-          onClick={openChat}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-black/[0.08] py-2.5 text-sm text-gray-600 transition-colors hover:border-[#10a37f]/40 hover:text-[#10a37f]"
-        >
-          Написать в поддержку
-        </button>
-      )}
-      {trackerStep !== "activated" && isSubs && (
-        <p className="mt-4 text-center text-xs text-gray-500">
-          Чат с оператором открыт справа — напишите туда
-        </p>
       )}
     </div>
   );

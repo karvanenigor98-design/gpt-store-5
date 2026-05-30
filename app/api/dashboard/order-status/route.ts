@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
         status: state.status,
         paymentStatus: state.paymentStatus,
       }),
+      paid_at: state.paidAt ?? null,
     });
   } catch (err) {
     console.error("[dashboard/order-status]", err);

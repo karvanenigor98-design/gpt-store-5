@@ -12,6 +12,7 @@ const API_POLL_MS = 3000;
 export type OrderLiveStatusState = {
   status: string;
   paidLike: boolean;
+  paidAt: string | null;
 };
 
 /**
@@ -26,6 +27,7 @@ export function useOrderLiveStatus(
   const [state, setState] = useState<OrderLiveStatusState>(() => ({
     status: initial,
     paidLike: !["pending", "awaiting_payment", "new", "pending_payment_setup"].includes(initial),
+    paidAt: null,
   }));
 
   useEffect(() => {
@@ -49,11 +51,13 @@ export function useOrderLiveStatus(
         const data = (await res.json()) as {
           effectiveStatus?: string;
           paidLike?: boolean;
+          paid_at?: string | null;
         };
         if (data.effectiveStatus) {
           setState({
             status: coerceOrderStatus(data.effectiveStatus),
             paidLike: Boolean(data.paidLike),
+            paidAt: data.paid_at ?? null,
           });
         }
       } catch {

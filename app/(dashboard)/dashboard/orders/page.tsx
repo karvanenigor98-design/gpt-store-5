@@ -172,16 +172,6 @@ export default async function OrdersPage({
         isSubs={isSubs}
       />
 
-      {!isSubs && (
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Link
-            href={chatHref}
-            className="flex items-center gap-2 rounded-xl border border-black/[0.08] px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            Написать в поддержку
-          </Link>
-        </div>
-      )}
     </div>
   );
 }
