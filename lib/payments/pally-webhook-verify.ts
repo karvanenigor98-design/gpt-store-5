@@ -171,21 +171,66 @@ function isPaidLikeWebhookStatus(body: Record<string, unknown>): boolean {
   return ["success", "paid", "completed", "1"].includes(status);
 }
 
-async function resolveOrderAmount(site: PallyStoreSlug, orderId: string): Promise<number | null> {
-  if (site === "subs-store") {
-    const subs = createSubsStoreAdminClient();
-    if (!subs) return null;
-    const { data } = await subs
+async function resolveOrderForWebhook(
+  orderId: string,
+): Promise<{ site: PallyStoreSlug; amount: number; status: string } | null> {
+  for (const site of ["gpt-store", "subs-store"] as const) {
+    if (site === "subs-store") {
+      const subs = createSubsStoreAdminClient();
+      if (!subs) continue;
+      const { data } = await subs
+        .from("orders")
+        .select("status,final_price")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (data) {
+        return {
+          site,
+          amount: Number(data.final_price) || 0,
+          status: String(data.status ?? ""),
+        };
+      }
+      continue;
+    }
+
+    const admin = createAdminClient();
+    const { data } = await admin
       .from("orders")
-      .select("final_price")
+      .select("status,price")
       .eq("id", orderId)
       .maybeSingle();
-    return data ? Number(data.final_price) || null : null;
+    if (data) {
+      return {
+        site,
+        amount: Number(data.price) || 0,
+        status: String(data.status ?? ""),
+      };
+    }
   }
+  return null;
+}
 
-  const admin = createAdminClient();
-  const { data } = await admin.from("orders").select("price").eq("id", orderId).maybeSingle();
-  return data ? Number(data.price) || null : null;
+function amountsRoughlyEqual(a: number, b: number): boolean {
+  return Math.abs(a - b) < 0.02;
+}
+
+/**
+ * Fallback: Pally шлёт SUCCESS + InvId + OutSum, bill/status API недоступен,
+ * а PALLY_SECRET_KEY на Vercel может не совпадать с ключом подписи в кабинете.
+ */
+export async function confirmPallyWebhookByOrderMatch(
+  body: Record<string, unknown>,
+): Promise<boolean> {
+  if (!isPaidLikeWebhookStatus(body)) return false;
+
+  const orderId = orderIdFromBody(body);
+  const outSum = Number(outSumFromBody(body).replace(",", "."));
+  if (!orderId || !outSum || Number.isNaN(outSum)) return false;
+
+  const order = await resolveOrderForWebhook(orderId);
+  if (!order) return false;
+
+  return amountsRoughlyEqual(order.amount, outSum);
 }
 
 /** Если подпись не сошлась — подтверждаем оплату через Pally bill/status по order_id. */
@@ -201,18 +246,16 @@ export async function confirmPallyWebhookViaApi(
     .map((value) => Number(value.replace(",", ".")))
     .filter((value) => !Number.isNaN(value) && value > 0);
 
-  for (const site of ["gpt-store", "subs-store"] as const) {
-    const dbAmount = await resolveOrderAmount(site, orderId);
-    if (dbAmount == null && webhookAmounts.length === 0) continue;
+  const order = await resolveOrderForWebhook(orderId);
+  if (!order) return false;
 
-    const amounts = new Set<number>();
-    if (dbAmount != null && dbAmount > 0) amounts.add(dbAmount);
-    for (const value of webhookAmounts) amounts.add(value);
+  const amounts = new Set<number>();
+  if (order.amount > 0) amounts.add(order.amount);
+  for (const value of webhookAmounts) amounts.add(value);
 
-    for (const amount of amounts) {
-      const status = await fetchPallyBillStatus({ site, orderId, amount });
-      if (status && mapPallyStatus(status) === "paid") return true;
-    }
+  for (const amount of amounts) {
+    const status = await fetchPallyBillStatus({ site: order.site, orderId, amount });
+    if (status && mapPallyStatus(status) === "paid") return true;
   }
 
   return false;

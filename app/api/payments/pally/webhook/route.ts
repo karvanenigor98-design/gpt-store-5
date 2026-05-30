@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import {
+  confirmPallyWebhookByOrderMatch,
   confirmPallyWebhookViaApi,
   verifyPallyWebhook,
 } from "@/lib/payments/pally-webhook-verify";
@@ -22,6 +23,15 @@ export async function POST(request: NextRequest) {
       if (signatureOk) {
         console.warn(
           "[Pally webhook] signature mismatch, confirmed via Pally API",
+          String(body.order_id ?? body.InvId ?? ""),
+        );
+      }
+    }
+    if (!signatureOk) {
+      signatureOk = await confirmPallyWebhookByOrderMatch(body);
+      if (signatureOk) {
+        console.warn(
+          "[Pally webhook] signature mismatch, accepted SUCCESS + order amount match",
           String(body.order_id ?? body.InvId ?? ""),
         );
       }
