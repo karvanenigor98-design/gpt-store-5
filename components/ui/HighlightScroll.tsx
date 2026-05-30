@@ -11,7 +11,8 @@ const RING: Record<Accent, string> = {
 
 export function HighlightScroll({ accent = "gpt", param = "highlight" }: { accent?: Accent; param?: string }) {
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get(param);
+    const qs = new URLSearchParams(window.location.search);
+    const id = qs.get(param) ?? qs.get("highlightOrder") ?? qs.get("order_id") ?? qs.get("highlight");
     if (!id) return;
 
     const timer = window.setTimeout(() => {

@@ -78,7 +78,7 @@ async function processGptOrder(
   const siteSlug: SiteSlug = "gpt-store";
   const prevStatus = String(order.status);
   const newStatus: OrderStatus =
-    internalStatus === "paid" ? "activating" : (internalStatus as OrderStatus);
+    internalStatus === "paid" ? "paid" : (internalStatus as OrderStatus);
 
   const idempotencyKey = `pally:${orderId}:${paymentId ?? pallyStatusKey(body)}`;
   const isNewEvent = await recordPaymentEvent({
@@ -231,7 +231,7 @@ async function processSubsOrder(
   const prevStatus = String(order.status);
   const newStatus =
     internalStatus === "paid"
-      ? "processing"
+      ? "paid"
       : internalStatus === "failed"
         ? "cancelled"
         : prevStatus;

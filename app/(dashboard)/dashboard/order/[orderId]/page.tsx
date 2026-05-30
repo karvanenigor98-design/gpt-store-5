@@ -21,5 +21,5 @@ export default async function CustomerOrderStatusRedirect({
     pathname: "/dashboard/order",
   });
 
-  redirect(`/dashboard/orders?site=${siteSlug}&order_id=${encodeURIComponent(orderId)}`);
+  redirect(`/dashboard/orders?site=${siteSlug}&highlightOrder=${encodeURIComponent(orderId)}`);
 }

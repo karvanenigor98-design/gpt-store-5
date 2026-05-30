@@ -20,7 +20,7 @@ export function resolveCustomerOrderStatus(params: {
 
   if (params.siteSlug === "subs-store") {
     if (paymentStatus === "paid" && UNPAID_STATUSES.has(raw)) {
-      return "processing";
+      return "paid";
     }
     if (isPaidLikeStatus(raw, "subs-store")) {
       return raw;
@@ -29,7 +29,7 @@ export function resolveCustomerOrderStatus(params: {
   }
 
   if (paymentStatus === "paid" && UNPAID_STATUSES.has(raw)) {
-    return "activating";
+    return "paid";
   }
 
   return raw;

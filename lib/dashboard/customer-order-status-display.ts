@@ -5,8 +5,8 @@ import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 const CUSTOMER_STATUS_LABELS: Record<SiteSlug, Record<string, string>> = {
   "gpt-store": {
     pending: "Ожидает оплаты",
-    paid: "В работе",
-    activating: "В работе",
+    paid: "Оплата получена",
+    activating: "Активация подписки",
     waiting_client: "Ожидаем данные",
     active: "Активировано",
     failed: "Ошибка",
@@ -17,16 +17,16 @@ const CUSTOMER_STATUS_LABELS: Record<SiteSlug, Record<string, string>> = {
     new: "Ожидает оплаты",
     awaiting_payment: "Ожидает оплаты",
     pending_payment_setup: "Ожидает оплаты",
-    paid: "В работе",
-    processing: "В работе",
-    awaiting_operator: "В работе",
+    paid: "Оплата получена",
+    processing: "Активация подписки",
+    awaiting_operator: "Активация подписки",
     awaiting_data: "Ожидаем данные",
     activated: "Активировано",
     completed: "Активировано",
     problem: "Проблема",
     refund: "Возврат",
     cancelled: "Отменён",
-    activating: "В работе",
+    activating: "Активация подписки",
   },
 };
 
@@ -49,10 +49,15 @@ export function customerOrderStatusBadgeColor(
       ? "text-orange-200 bg-orange-500/15 border-orange-500/30"
       : "text-orange-600 bg-orange-50 border-orange-200";
   }
-  if (["activating", "processing", "paid", "awaiting_operator"].includes(s)) {
+  if (["activating", "processing", "awaiting_operator"].includes(s)) {
     return isSubs
       ? "text-sky-200 bg-sky-500/15 border-sky-500/30"
       : "text-blue-600 bg-blue-50 border-blue-200";
+  }
+  if (["paid"].includes(s)) {
+    return isSubs
+      ? "text-emerald-200 bg-emerald-500/20 border-emerald-500/30"
+      : "text-green-600 bg-[#10a37f]/8 border-[#10a37f]/20";
   }
   if (["active", "activated", "completed"].includes(s)) {
     return isSubs

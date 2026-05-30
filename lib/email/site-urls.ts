@@ -42,7 +42,7 @@ export function buildCustomerChatUrl(siteSlug: SiteSlug, sessionOrThreadId: stri
 export function buildCustomerOrderUrl(siteSlug: SiteSlug, orderId: string): string {
   const base = resolveSiteCustomerAppOrigin(siteSlug);
   const siteQ = `site=${siteSlug}`;
-  return `${base}/dashboard/orders?${siteQ}&order_id=${encodeURIComponent(orderId)}`;
+  return `${base}/dashboard/orders?${siteQ}&highlightOrder=${encodeURIComponent(orderId)}`;
 }
 
 /** Legacy: письма до миграции вели на /dashboard/order/:id — оставляем для справки в redirect-странице. */

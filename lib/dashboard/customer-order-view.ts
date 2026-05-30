@@ -102,8 +102,6 @@ export function buildCustomerOrdersListHref(siteSlug: SiteSlug): string {
 }
 
 export function buildCustomerOrderFocusHref(siteSlug: SiteSlug, orderId: string): string {
-  if (siteSlug === "subs-store") {
-    return `/dashboard/orders?site=subs-store&order_id=${encodeURIComponent(orderId)}`;
-  }
-  return `/dashboard/orders?site=gpt-store&order_id=${encodeURIComponent(orderId)}`;
+  const siteQ = siteSlug === "subs-store" ? "site=subs-store" : "site=gpt-store";
+  return `/dashboard/orders?${siteQ}&highlightOrder=${encodeURIComponent(orderId)}`;
 }

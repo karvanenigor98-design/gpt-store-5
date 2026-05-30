@@ -53,7 +53,11 @@ export function CompletePaymentButton({
         orderId?: string;
       };
       if (!res.ok || !body.paymentUrl || !body.orderId) {
-        setError(body.error ?? "Не удалось открыть оплату");
+        const fallback =
+          res.status === 503
+            ? "Не удалось открыть оплату. Заказ сохранён, попробуйте позже или напишите в поддержку."
+            : "Не удалось открыть оплату. Заказ сохранён, попробуйте позже или напишите в поддержку.";
+        setError(body.error ?? fallback);
         return;
       }
       startCheckoutPaymentWait({

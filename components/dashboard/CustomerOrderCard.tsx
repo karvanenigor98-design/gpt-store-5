@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MessageCircle, RefreshCw } from "lucide-react";
 
 import { CompletePaymentButton } from "@/components/dashboard/CompletePaymentButton";
+import { ReviewSubmitForm } from "@/components/dashboard/ReviewSubmitForm";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -129,14 +130,17 @@ export function CustomerOrderCard({
         ) : null}
 
         {isActive && order.activated_at ? (
-          <OrderReceiptCard
-            product={order.product}
-            planId={order.plan_id}
-            price={order.price}
-            activatedAt={order.activated_at}
-            expiresAt={order.expires_at}
-            variant={isSubs ? "subs" : "light"}
-          />
+          <>
+            <OrderReceiptCard
+              product={order.product}
+              planId={order.plan_id}
+              price={order.price}
+              activatedAt={order.activated_at}
+              expiresAt={order.expires_at}
+              variant={isSubs ? "subs" : "light"}
+            />
+            <ReviewSubmitForm siteSlug={siteSlug} />
+          </>
         ) : null}
 
         {isExpiredOrFailed ? (
@@ -168,20 +172,18 @@ export function CustomerOrderCard({
           </div>
         ) : null}
 
-        {isNewest ? (
-          <Link
-            href={chatHref}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-colors",
-              isSubs
-                ? "border-[#1DB954]/40 text-[#1DB954] hover:bg-[#1DB954]/10"
-                : "border-[#10a37f]/35 text-[#10a37f] hover:bg-[#10a37f]/5",
-            )}
-          >
-            <MessageCircle size={16} />
-            Написать в поддержку
-          </Link>
-        ) : null}
+        <Link
+          href={chatHref}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-colors",
+            isSubs
+              ? "border-[#1DB954]/40 text-[#1DB954] hover:bg-[#1DB954]/10"
+              : "border-[#10a37f]/35 text-[#10a37f] hover:bg-[#10a37f]/5",
+          )}
+        >
+          <MessageCircle size={16} />
+          Написать в поддержку
+        </Link>
       </div>
     </div>
   );
