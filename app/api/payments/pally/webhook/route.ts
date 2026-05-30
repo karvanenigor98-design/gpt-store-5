@@ -12,8 +12,13 @@ export async function POST(request: NextRequest) {
       request.headers.get("x-sign") ??
       String(body.sign ?? "");
 
-    if (sign && !verifyPallyWebhook(body, sign)) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    if (!verifyPallyWebhook(body, sign)) {
+      const missing =
+        process.env.PALLY_WEBHOOK_REQUIRE_SIGN === "true" && !sign?.trim();
+      return NextResponse.json(
+        { error: missing ? "Missing signature" : "Invalid signature" },
+        { status: 400 },
+      );
     }
 
     const result = await processPallyWebhook(body);

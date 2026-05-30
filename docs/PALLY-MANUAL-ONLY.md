@@ -2,9 +2,11 @@
 
 ## Уже сделано автоматически
 
-- Код: отдельные `shop_id` для GPT (`PALLY_SHOP_ID`) и Spotify (`PALLY_SHOP_ID_SUBS`)
-- `.env.local`: shop id + secret + relay (локально)
-- Push в `main` → Vercel autodeploy (если был push)
+- **Баг оплаты:** Pally отдаёт `link_url`, код искал `payment_url` → исправлено (`73cffa0`)
+- Код: GPT → `PALLY_SHOP_ID`, Spotify → `PALLY_SHOP_ID_SUBS`
+- `.env.local`: оба shop id + secret + relay
+- Локальный тест: оба магазина создают счёт (`npm run` → `node scripts/test-pally-both-shops.cjs`)
+- Push в `main` → Vercel autodeploy
 
 ## Тебе нужно сделать (≈10 мин)
 
@@ -18,6 +20,8 @@
 | `PALLY_SHOP_ID_GPT` | то же |
 | `PALLY_SHOP_ID_SUBS` | `.env.local` |
 | `PALLY_SECRET_KEY` | `.env.local` |
+| `PALLY_WEBHOOK_SECRET` | `.env.local` |
+| `PALLY_WEBHOOK_REQUIRE_SIGN` | `true` (production) |
 | `PALLY_API_URL` | `https://pally.info/api/v1` |
 | `PALLY_TEST_MODE` | `false` |
 | `PALLY_RELAY_URL` | `.env.local` (если relay живой) |

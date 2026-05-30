@@ -7,7 +7,6 @@ import {
   resolveCustomerOrderStatus,
 } from "@/lib/dashboard/resolve-customer-order-status";
 import { getCheckoutOrderPaymentState } from "@/lib/payments/get-checkout-order-status";
-import { reconcileUnpaidOrderPayment } from "@/lib/payments/reconcile-unpaid-order";
 import { canAccessOrderStatus } from "@/lib/payments/order-status-access";
 
 export const maxDuration = 15;
@@ -27,8 +26,6 @@ export async function GET(request: NextRequest) {
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
-    await reconcileUnpaidOrderPayment({ siteSlug, orderId }).catch(() => undefined);
 
     const state = await getCheckoutOrderPaymentState(siteSlug, orderId);
     if (!state) {

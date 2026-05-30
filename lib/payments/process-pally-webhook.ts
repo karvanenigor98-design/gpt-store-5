@@ -91,11 +91,15 @@ async function processGptOrder(
     rawPayload: body,
   });
 
+  const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
+  const paidAtIso = becamePaidLike ? new Date().toISOString() : undefined;
+
   const { error: updateError } = await supabase
     .from("orders")
     .update({
       status: newStatus,
       ...(paymentId ? { payment_id: paymentId, pally_order_id: paymentId } : {}),
+      ...(paidAtIso ? { paid_at: paidAtIso } : {}),
     })
     .eq("id", orderId);
 
@@ -104,7 +108,6 @@ async function processGptOrder(
     return { ok: false, status: 500, error: "Order update failed" };
   }
 
-  const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
   if (!isNewEvent && becamePaidLike) {
     return { ok: true };
   }
@@ -253,12 +256,16 @@ async function processSubsOrder(
     rawPayload: body,
   });
 
+  const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
+  const paidAtIso = becamePaidLike ? new Date().toISOString() : undefined;
+
   const { error: updateError } = await subs
     .from("orders")
     .update({
       status: newStatus,
       payment_status: newPaymentStatus,
       ...(paymentId ? { payment_external_id: paymentId } : {}),
+      ...(paidAtIso ? { paid_at: paidAtIso } : {}),
     })
     .eq("id", orderId);
 
@@ -267,7 +274,6 @@ async function processSubsOrder(
     return { ok: false, status: 500, error: "Order update failed" };
   }
 
-  const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
   if (!isNewEvent && becamePaidLike) {
     return { ok: true };
   }

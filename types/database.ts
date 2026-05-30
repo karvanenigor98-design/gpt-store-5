@@ -81,6 +81,7 @@ export interface Database {
           account_email: string | null;
           token_received_at: string | null;
           activated_at: string | null;
+          paid_at: string | null;
           expires_at: string | null;
           created_at: string;
           meta: Json | null;
@@ -102,6 +103,7 @@ export interface Database {
           account_email?: string | null;
           token_received_at?: string | null;
           activated_at?: string | null;
+          paid_at?: string | null;
           expires_at?: string | null;
           created_at?: string;
           meta?: Json | null;

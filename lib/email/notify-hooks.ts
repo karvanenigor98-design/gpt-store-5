@@ -20,22 +20,6 @@ import {
   orderStatusLabelRu,
 } from "@/lib/email/order-customer-instructions";
 
-const STATUS_RU: Record<string, string> = {
-  pending: "Ожидает оплаты",
-  paid: "Оплачен",
-  activating: "В активации",
-  active: "Активирован",
-  failed: "Ошибка",
-  refunded: "Возврат",
-  waiting_client: "Ждём данные от клиента",
-  expired: "Истёк",
-  new: "Новый",
-  awaiting_payment: "Ожидает оплаты",
-  activated: "Активирован",
-  completed: "Завершён",
-  problem: "Проблема",
-};
-
 export async function emailCustomerChatReply(params: {
   siteSlug: SiteSlug;
   customerUserId: string;
