@@ -100,7 +100,7 @@ export function HeroSection() {
             ))}
           </motion.ul>
 
-          <motion.div variants={fadeUp} className="mt-6 w-full max-w-md">
+          <motion.div variants={fadeUp} className="mt-6 w-full max-w-md md:max-w-xl lg:max-w-2xl">
             <HeroPromoOfferCard site="gpt" />
           </motion.div>
 
@@ -114,14 +114,16 @@ export function HeroSection() {
               }}
               whileHover={{ scale: 1.03, boxShadow: "0 6px 24px rgba(16,163,127,0.40)" }}
               whileTap={{ scale: 0.98 }}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold text-white transition-shadow sm:w-auto sm:px-8 sm:py-4 sm:text-base"
+              className="shimmer-btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white transition-shadow sm:w-auto sm:px-8 sm:py-4 sm:text-base"
               style={{
                 background: "#10a37f",
                 boxShadow: "0 4px 16px rgba(16,163,127,0.30)",
               }}
             >
-              {HERO_CONTENT.primaryCta}
-              <ArrowRight size={17} />
+              <span className="relative z-[2] inline-flex items-center justify-center gap-2">
+                {HERO_CONTENT.primaryCta}
+                <ArrowRight size={17} />
+              </span>
             </motion.a>
             <a
               href="#how-it-works"
