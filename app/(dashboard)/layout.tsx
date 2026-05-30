@@ -81,7 +81,7 @@ export default async function DashboardLayout({
   const fallbackLandingPath = site.landingPath;
 
   return (
-    <div className={cn("flex min-h-screen", useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-transparent")}>
+    <div className={cn("flex min-h-screen", useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-gray-50")}>
       {/* Dark Sidebar */}
       <aside className="hidden w-60 flex-col bg-[#111827] md:flex">
         <div className="border-b border-white/10 px-4 py-5">
@@ -167,7 +167,7 @@ export default async function DashboardLayout({
         <main
           className={cn(
             "min-w-0 flex-1 overflow-y-auto p-4 md:p-6 lg:p-8",
-            useDarkCabinetShell && "bg-[#0a0a0a]",
+            useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-gray-50",
           )}
         >
           <Suspense fallback={null}>

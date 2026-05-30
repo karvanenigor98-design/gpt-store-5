@@ -17,6 +17,7 @@ import { Ticker } from "@/components/sections/Ticker";
 import { TokenSafetySection } from "@/components/sections/TokenSafetySection";
 import { WhyCheaperSection } from "@/components/sections/WhyCheaperSection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
+import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
 import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
@@ -51,13 +52,16 @@ export default async function HomePage() {
 
   return (
     <>
-      <div className="min-h-screen bg-white">
+      <div className="relative min-h-screen bg-white">
+        <LandingAnimatedBackground />
         <ChatGptLandingNav />
-        <main className="pt-0">
-          <HeroSection />
-          <AnimateSection>
-            <Ticker />
-          </AnimateSection>
+        <main className="relative z-[1] pt-0">
+          <div className="relative z-[1] bg-white">
+            <HeroSection />
+            <AnimateSection>
+              <Ticker />
+            </AnimateSection>
+          </div>
           <AnimateSection delay={0.05}>
             <HowItWorksSection />
           </AnimateSection>

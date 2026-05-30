@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getMetadataBase } from "@/lib/app-url";
-import { AnimatedBackground } from "@/components/ui/AnimatedBackground";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
@@ -44,8 +43,7 @@ export default function RootLayout({
       className={cn(unbounded.variable, golos.variable)}
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-transparent font-sans text-foreground antialiased">
-        <AnimatedBackground />
+      <body className="min-h-screen bg-white font-sans text-foreground antialiased">
         <div className="relative" style={{ zIndex: 1 }}>
           <Suspense fallback={null}>
             <ReferralCapture />

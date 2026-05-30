@@ -1,191 +1,244 @@
-'use client'
+"use client";
 
-import { useEffect, useRef, useState } from 'react'
-import { useReducedMotion } from 'framer-motion'
+import { useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "framer-motion";
 
 interface WaveStream {
-  yBase: number       // 0-1 relative to canvas height
-  amplitude: number   // 0-1 relative to canvas height
-  frequency: number   // wave frequency
-  phase: number       // initial phase offset
-  speed: number       // animation speed
-  color: string       // rgba color base
-  dotSpacing: number  // px between dot columns
-  spread: number      // vertical spread of dot cloud in px
-  dotRadius: number   // base dot radius
-  dotOpacity: number  // max dot opacity
-  dotCount: number    // dots per column
-  solid?: boolean     // draw solid line instead of dots
-  lineWidth?: number
-  opacityScale?: number
+  yBase: number;
+  amplitude: number;
+  frequency: number;
+  phase: number;
+  speed: number;
+  color: string;
+  dotSpacing: number;
+  spread: number;
+  dotRadius: number;
+  dotOpacity: number;
+  dotCount: number;
+  shimmerSpeed?: number;
+  shimmerScale?: number;
 }
 
+const LANDING_WAVE_ANCHOR_ID = "how-it-works";
+
 function WaveParticleCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const rafRef = useRef<number>(0)
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
     const resize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-    }
-    resize()
-    window.addEventListener('resize', resize)
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
 
-    // Predefined noise offsets so dots don't flicker
-    const noiseCache: number[][] = []
-    for (let i = 0; i < 2000; i++) {
-      noiseCache.push(
-        Array.from({ length: 12 }, () => (Math.random() - 0.5) * 2)
-      )
+    const noiseCache: number[][] = [];
+    for (let i = 0; i < 2400; i++) {
+      noiseCache.push(Array.from({ length: 16 }, () => (Math.random() - 0.5) * 2));
     }
 
     const streams: WaveStream[] = [
-      // Main green particle wave
       {
-        yBase: 0.46, amplitude: 0.16, frequency: 0.0055, phase: 0,
-        speed: 0.0006, color: '16,163,127',
-        dotSpacing: 9, spread: 44, dotRadius: 1.8, dotOpacity: 0.6, dotCount: 8, opacityScale: 1.2,
+        yBase: 0.47,
+        amplitude: 0.13,
+        frequency: 0.0041,
+        phase: 0,
+        speed: 0.00052,
+        color: "16,163,127",
+        dotSpacing: 6,
+        spread: 58,
+        dotRadius: 1.75,
+        dotOpacity: 0.78,
+        dotCount: 16,
+        shimmerSpeed: 0.045,
+        shimmerScale: 0.28,
       },
-      // Wide soft green band
       {
-        yBase: 0.50, amplitude: 0.14, frequency: 0.006, phase: Math.PI * 0.9,
-        speed: 0.0005, color: '16,163,127',
-        dotSpacing: 10, spread: 64, dotRadius: 1.5, dotOpacity: 0.35, dotCount: 10, opacityScale: 1.15,
+        yBase: 0.47,
+        amplitude: 0.13,
+        frequency: 0.0041,
+        phase: 0,
+        speed: 0.00052,
+        color: "64,210,190",
+        dotSpacing: 8,
+        spread: 82,
+        dotRadius: 1.25,
+        dotOpacity: 0.32,
+        dotCount: 11,
+        shimmerSpeed: 0.038,
+        shimmerScale: 0.22,
       },
-      // Blue particle wave
       {
-        yBase: 0.58, amplitude: 0.16, frequency: 0.0048, phase: Math.PI * 1.6,
-        speed: 0.00045, color: '26,86,219',
-        dotSpacing: 10, spread: 48, dotRadius: 1.8, dotOpacity: 0.48, dotCount: 9, opacityScale: 1.2,
+        yBase: 0.57,
+        amplitude: 0.12,
+        frequency: 0.0036,
+        phase: Math.PI * 1.15,
+        speed: 0.0004,
+        color: "96,124,196",
+        dotSpacing: 6,
+        spread: 56,
+        dotRadius: 1.7,
+        dotOpacity: 0.72,
+        dotCount: 15,
+        shimmerSpeed: 0.042,
+        shimmerScale: 0.26,
       },
-      // Cyan thin wave
       {
-        yBase: 0.54, amplitude: 0.11, frequency: 0.0075, phase: Math.PI * 0.4,
-        speed: 0.0007, color: '77,217,224',
-        dotSpacing: 8, spread: 30, dotRadius: 1.4, dotOpacity: 0.42, dotCount: 6, opacityScale: 1.1,
+        yBase: 0.57,
+        amplitude: 0.12,
+        frequency: 0.0036,
+        phase: Math.PI * 1.15,
+        speed: 0.0004,
+        color: "26,86,219",
+        dotSpacing: 9,
+        spread: 76,
+        dotRadius: 1.2,
+        dotOpacity: 0.3,
+        dotCount: 10,
+        shimmerSpeed: 0.035,
+        shimmerScale: 0.2,
       },
-      // Fine blue band
       {
-        yBase: 0.62, amplitude: 0.11, frequency: 0.005, phase: Math.PI * 1.1,
-        speed: 0.0004, color: '26,86,219',
-        dotSpacing: 11, spread: 34, dotRadius: 1.3, dotOpacity: 0.32, dotCount: 7, opacityScale: 1.1,
+        yBase: 0.52,
+        amplitude: 0.085,
+        frequency: 0.0062,
+        phase: Math.PI * 0.62,
+        speed: 0.00058,
+        color: "45,198,181",
+        dotSpacing: 7,
+        spread: 34,
+        dotRadius: 1.35,
+        dotOpacity: 0.42,
+        dotCount: 7,
+        shimmerSpeed: 0.05,
+        shimmerScale: 0.24,
       },
-      // Solid green line 1
       {
-        yBase: 0.47, amplitude: 0.14, frequency: 0.0055, phase: 0.3,
-        speed: 0.0006, color: '16,163,127',
-        dotSpacing: 1, spread: 0, dotRadius: 0, dotOpacity: 0, dotCount: 0,
-        solid: true, lineWidth: 1.8,
+        yBase: 0.54,
+        amplitude: 0.09,
+        frequency: 0.0051,
+        phase: Math.PI * 1.85,
+        speed: 0.00048,
+        color: "140,160,220",
+        dotSpacing: 8,
+        spread: 38,
+        dotRadius: 1.25,
+        dotOpacity: 0.34,
+        dotCount: 6,
+        shimmerSpeed: 0.04,
+        shimmerScale: 0.2,
       },
-      // Solid blue line
-      {
-        yBase: 0.59, amplitude: 0.15, frequency: 0.0048, phase: Math.PI * 1.5,
-        speed: 0.00045, color: '26,86,219',
-        dotSpacing: 1, spread: 0, dotRadius: 0, dotOpacity: 0, dotCount: 0,
-        solid: true, lineWidth: 1.4,
-      },
-    ]
+    ];
 
-    let t = 0
+    let t = 0;
 
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      const H = canvas.height
-      const W = canvas.width
+      const H = canvas.height;
+      const W = canvas.width;
+      ctx.clearRect(0, 0, W, H);
 
       streams.forEach((s) => {
-        const yBase = s.yBase * H
-        const amp = s.amplitude * H
-        const phaseAnim = s.phase + t * s.speed * Math.PI * 2
+        const yBase = s.yBase * H;
+        const amp = s.amplitude * H;
+        const phaseAnim = s.phase + t * s.speed * Math.PI * 2;
+        const cols = Math.ceil(W / s.dotSpacing) + 1;
 
-        if (s.solid) {
-          // Smooth solid curve
-          ctx.beginPath()
-          ctx.strokeStyle = `rgba(${s.color},0.65)`
-          ctx.lineWidth = s.lineWidth ?? 1.5
-          ctx.lineJoin = 'round'
-          for (let x = 0; x <= W; x += 3) {
-            const y = yBase + amp * Math.sin(s.frequency * x + phaseAnim)
-            if (x === 0) ctx.moveTo(x, y)
-            else ctx.lineTo(x, y)
-          }
-          ctx.stroke()
-          return
-        }
-
-        // Particle cloud around wave path
-        const cols = Math.ceil(W / s.dotSpacing)
         for (let ci = 0; ci < cols; ci++) {
-          const x = ci * s.dotSpacing
-          const centerY = yBase + amp * Math.sin(s.frequency * x + phaseAnim)
-
-          const noise = noiseCache[ci % noiseCache.length]
+          const x = ci * s.dotSpacing;
+          const centerY = yBase + amp * Math.sin(s.frequency * x + phaseAnim);
+          const noise = noiseCache[ci % noiseCache.length];
 
           for (let di = 0; di < s.dotCount; di++) {
-            // Gaussian-ish distribution: most dots near center
-            const n = noise[di % noise.length]
-            const yOffset = n * s.spread
-            const distRatio = Math.abs(yOffset) / s.spread
-            // Opacity falls off away from center
-            const opacityFactor = Math.max(0, 1 - distRatio * distRatio * 1.4)
-            const finalOpacity = s.dotOpacity * opacityFactor * (s.opacityScale ?? 1)
+            const n = noise[di % noise.length];
+            const yOffset = n * s.spread;
+            const distRatio = Math.abs(yOffset) / s.spread;
+            const opacityFactor = Math.max(0, 1 - distRatio * distRatio * 1.35);
+            const shimmer =
+              1 -
+              (s.shimmerScale ?? 0.2) +
+              (s.shimmerScale ?? 0.2) *
+                (0.5 +
+                  0.5 *
+                    Math.sin(
+                      t * (s.shimmerSpeed ?? 0.04) + x * 0.011 + di * 0.65 + s.phase,
+                    ));
+            const finalOpacity = s.dotOpacity * opacityFactor * shimmer;
 
-            if (finalOpacity < 0.02) continue
+            if (finalOpacity < 0.015) continue;
 
-            // Slight x jitter
-            const xJitter = (noise[(di + 2) % noise.length] * s.dotSpacing * 0.3)
+            const xJitter = noise[(di + 3) % noise.length] * s.dotSpacing * 0.35;
+            const xDrift = Math.sin(t * 0.0018 + ci * 0.08 + di) * 1.2;
 
-            ctx.beginPath()
-            ctx.arc(x + xJitter, centerY + yOffset, s.dotRadius, 0, Math.PI * 2)
-            ctx.fillStyle = `rgba(${s.color},${finalOpacity})`
-            ctx.fill()
+            ctx.beginPath();
+            ctx.arc(x + xJitter + xDrift, centerY + yOffset, s.dotRadius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${s.color},${finalOpacity})`;
+            ctx.fill();
           }
         }
-      })
+      });
 
-      t++
-      rafRef.current = requestAnimationFrame(draw)
-    }
+      t++;
+      rafRef.current = requestAnimationFrame(draw);
+    };
 
-    rafRef.current = requestAnimationFrame(draw)
+    rafRef.current = requestAnimationFrame(draw);
     return () => {
-      cancelAnimationFrame(rafRef.current)
-      window.removeEventListener('resize', resize)
-    }
-  }, [])
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ opacity: 0.88 }}
-    />
-  )
+  return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />;
 }
 
-export function AnimatedBackground() {
-  const shouldReduce = useReducedMotion()
-  const [mounted, setMounted] = useState(false)
+/** Волна только на GPT-лендинге — от блока «Как это работает» и ниже. */
+export function LandingAnimatedBackground() {
+  const shouldReduce = useReducedMotion();
+  const [topPx, setTopPx] = useState<number | null>(null);
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    const measure = () => {
+      const anchor = document.getElementById(LANDING_WAVE_ANCHOR_ID);
+      if (!anchor) return;
+      setTopPx(Math.max(0, anchor.getBoundingClientRect().top + window.scrollY));
+    };
 
-  if (!mounted || shouldReduce) return null
+    measure();
+    const raf = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    window.addEventListener("load", measure);
+
+    const anchor = document.getElementById(LANDING_WAVE_ANCHOR_ID);
+    const observer =
+      anchor ?
+        new ResizeObserver(measure)
+      : null;
+    observer?.observe(anchor);
+    if (document.body) observer?.observe(document.body);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("load", measure);
+      observer?.disconnect();
+    };
+  }, []);
+
+  if (shouldReduce || topPx === null) return null;
 
   return (
     <div
       aria-hidden="true"
-      className="fixed inset-0 overflow-hidden pointer-events-none"
-      style={{ zIndex: 0 }}
+      className="pointer-events-none fixed inset-x-0 bottom-0 overflow-hidden"
+      style={{ zIndex: 0, top: topPx, background: "#ffffff" }}
     >
       <WaveParticleCanvas />
     </div>
-  )
+  );
 }
