@@ -376,11 +376,19 @@ function pallyStatusKey(body: PallyWebhookPayload): string {
   return String(body.status ?? "unknown");
 }
 
+function readPallyStatus(body: PallyWebhookPayload): string {
+  return String(body.status ?? "");
+}
+
+function readOrderId(body: PallyWebhookPayload): string {
+  return String(body.order_id ?? body.orderId ?? "");
+}
+
 export async function processPallyWebhook(
   body: PallyWebhookPayload,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const orderId = String(body.order_id ?? body.orderId ?? "");
-  const pallyStatus = String(body.status ?? "");
+  const orderId = readOrderId(body);
+  const pallyStatus = readPallyStatus(body);
   if (!orderId) {
     return { ok: false, status: 400, error: "Нет order_id" };
   }

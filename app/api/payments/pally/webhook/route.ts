@@ -1,11 +1,12 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import { verifyPallyWebhook } from "@/lib/payments/pally";
+import { parsePallyWebhookRequestBody } from "@/lib/payments/pally-webhook-body";
 import { processPallyWebhook } from "@/lib/payments/process-pally-webhook";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as Record<string, unknown>;
+    const body = await parsePallyWebhookRequestBody(request);
 
     const sign =
       request.headers.get("x-pally-sign") ??
