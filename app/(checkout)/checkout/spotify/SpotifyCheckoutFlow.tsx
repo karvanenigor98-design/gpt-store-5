@@ -8,7 +8,6 @@ import { SPOTIFY_PLANS, SPOTIFY_ACCENT, SPOTIFY_GLOW, type SpotifyPlan } from "@
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
-import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
 
 const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
 
@@ -168,12 +167,8 @@ export function SpotifyCheckoutFlow() {
         setPayError("Не удалось привязать заказ к оплате. Попробуйте снова.");
         return;
       }
-      startCheckoutPaymentWait({
-        orderId: json.orderId,
-        siteSlug: "subs-store",
-        paymentUrl: json.paymentUrl,
-        router,
-      });
+      window.location.assign(json.paymentUrl);
+      return;
     } catch {
       setPayError("Ошибка сети. Попробуйте снова.");
     } finally {

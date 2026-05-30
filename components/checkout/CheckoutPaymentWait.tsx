@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2 } from "lucide-react";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { redirectToCheckoutPayment } from "@/lib/checkout/resume-checkout-payment";
 import { buildCustomerOrderFocusHref } from "@/lib/dashboard/customer-order-view";
-import { CHECKOUT_PAYMENT_URL_STORAGE_KEY } from "@/lib/checkout/start-payment-wait";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 3000;
@@ -24,29 +24,22 @@ export function CheckoutPaymentWait({ orderId, siteSlug }: Props) {
   const dashboardHref = buildCustomerOrderFocusHref(siteSlug, orderId);
   const ordersHref = isSubs ? "/dashboard/orders?site=subs-store" : "/dashboard/orders?site=gpt-store";
 
-  const [checking, setChecking] = useState(true);
   const [paidLike, setPaidLike] = useState(false);
-  const [paymentTabOpened, setPaymentTabOpened] = useState(false);
-  const [reopenHint, setReopenHint] = useState(false);
-  const openedRef = useRef(false);
-  const paymentUrlRef = useRef<string | null>(null);
+  const [redirectFailed, setRedirectFailed] = useState(false);
+  const [redirecting, setRedirecting] = useState(true);
+  const payAttemptRef = useRef(false);
 
   useEffect(() => {
-    if (openedRef.current) return;
-    openedRef.current = true;
+    if (payAttemptRef.current) return;
+    payAttemptRef.current = true;
 
-    try {
-      const url = sessionStorage.getItem(CHECKOUT_PAYMENT_URL_STORAGE_KEY);
-      if (url) {
-        paymentUrlRef.current = url;
-        sessionStorage.removeItem(CHECKOUT_PAYMENT_URL_STORAGE_KEY);
-        window.location.replace(url);
-        return;
+    void redirectToCheckoutPayment(orderId, siteSlug).then((ok) => {
+      if (!ok) {
+        setRedirecting(false);
+        setRedirectFailed(true);
       }
-    } catch {
-      setReopenHint(true);
-    }
-  }, []);
+    });
+  }, [orderId, siteSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,25 +52,15 @@ export function CheckoutPaymentWait({ orderId, siteSlug }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId, site: siteSlug }),
         });
-        const data = (await res.json().catch(() => ({}))) as {
-          paidLike?: boolean;
-          status?: string;
-        };
+        const data = (await res.json().catch(() => ({}))) as { paidLike?: boolean };
         if (cancelled) return;
         if (data.paidLike) {
           setPaidLike(true);
-          setChecking(false);
-          try {
-            sessionStorage.removeItem(CHECKOUT_PAYMENT_URL_STORAGE_KEY);
-          } catch {
-            /* ignore */
-          }
-          window.setTimeout(() => router.replace(dashboardHref), 1200);
+          setRedirecting(false);
+          window.setTimeout(() => router.replace(dashboardHref), 800);
         }
       } catch {
-        /* retry on next tick */
-      } finally {
-        if (!cancelled && !paidLike) setChecking(true);
+        /* retry */
       }
     };
 
@@ -87,15 +70,16 @@ export function CheckoutPaymentWait({ orderId, siteSlug }: Props) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [orderId, siteSlug, dashboardHref, router, paidLike]);
+  }, [orderId, siteSlug, dashboardHref, router]);
 
-  function reopenPayment() {
-    const url = paymentUrlRef.current;
-    if (url) {
-      window.location.assign(url);
-      return;
+  async function retryPayment() {
+    setRedirectFailed(false);
+    setRedirecting(true);
+    const ok = await redirectToCheckoutPayment(orderId, siteSlug);
+    if (!ok) {
+      setRedirecting(false);
+      setRedirectFailed(true);
     }
-    setReopenHint(true);
   }
 
   return (
@@ -122,41 +106,38 @@ export function CheckoutPaymentWait({ orderId, siteSlug }: Props) {
 
       <div>
         <h1 className={cn("font-heading text-2xl font-bold", isSubs ? "text-white" : "text-gray-900")}>
-          {paidLike ? "Оплата получена!" : "Ожидаем оплату"}
+          {paidLike ? "Оплата получена!" : redirecting ? "Переход на оплату…" : "Ожидаем оплату"}
         </h1>
         <p className={cn("mt-2 text-sm", isSubs ? "text-gray-400" : "text-gray-500")}>
           {paidLike
             ? "Перенаправляем в личный кабинет…"
-            : paymentTabOpened
-              ? "Оплатите в открытой вкладке Pally. Можно сканировать QR с телефона — этот экран обновится сам."
-              : "Откройте страницу оплаты и завершите платёж. После оплаты с телефона вы автоматически попадёте в кабинет."}
+            : redirecting
+              ? "Открываем страницу выбора способа оплаты Pally…"
+              : "Завершите платёж на стороне Pally. После оплаты вы попадёте в кабинет."}
         </p>
       </div>
 
-      {!paidLike ? (
+      {!paidLike && redirectFailed ? (
         <div className="space-y-3">
-          {reopenHint ? (
-            <p className={cn("text-xs", isSubs ? "text-amber-200/90" : "text-amber-700")}>
-              Браузер заблокировал новую вкладку — разрешите всплывающие окна или нажмите кнопку ниже.
-            </p>
-          ) : null}
+          <p className={cn("text-xs", isSubs ? "text-amber-200/90" : "text-amber-700")}>
+            Не удалось автоматически открыть оплату. Нажмите кнопку ниже.
+          </p>
           <button
             type="button"
-            onClick={reopenPayment}
-            className={cn(
-              "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90",
-            )}
+            onClick={() => void retryPayment()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ backgroundColor: accent }}
           >
             <ExternalLink size={16} />
             Открыть оплату
           </button>
-          {checking ? (
-            <p className={cn("text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>
-              Проверяем статус оплаты…
-            </p>
-          ) : null}
         </div>
+      ) : null}
+
+      {!paidLike && redirecting ? (
+        <p className={cn("text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>
+          Проверяем статус оплаты…
+        </p>
       ) : null}
 
       <Link
