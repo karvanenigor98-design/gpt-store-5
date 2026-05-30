@@ -81,7 +81,7 @@ export default async function DashboardLayout({
   const fallbackLandingPath = site.landingPath;
 
   return (
-    <div className={cn("flex min-h-screen", useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-gray-50")}>
+    <div className={cn("flex min-h-screen", useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-transparent")}>
       {/* Dark Sidebar */}
       <aside className="hidden w-60 flex-col bg-[#111827] md:flex">
         <div className="border-b border-white/10 px-4 py-5">
@@ -132,7 +132,7 @@ export default async function DashboardLayout({
           <header
             className={cn(
               "hidden h-14 items-center justify-end border-b px-6 md:flex",
-              isSubsShell ? "border-white/10 bg-[#111111]" : "border-gray-200 bg-white",
+              isSubsShell ? "border-white/10 bg-[#111111]" : "border-gray-200 bg-white/75 backdrop-blur-md",
             )}
           >
             <ClientNotificationsBar siteSlug={siteSlug} />
@@ -142,7 +142,7 @@ export default async function DashboardLayout({
         <header
           className={cn(
             "flex h-14 items-center justify-between px-4 md:hidden",
-            useDarkCabinetShell ? "border-b border-white/10 bg-[#111111]" : "border-b border-gray-200 bg-white"
+            useDarkCabinetShell ? "border-b border-white/10 bg-[#111111]" : "border-b border-gray-200 bg-white/75 backdrop-blur-md"
           )}
         >
           <Suspense

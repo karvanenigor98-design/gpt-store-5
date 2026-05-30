@@ -16,7 +16,7 @@ export function Ticker() {
   const repeated = [...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS];
 
   return (
-    <div className="relative overflow-hidden border-y border-black/[0.06] bg-gray-50 py-3.5">
+    <div className="relative overflow-hidden border-y border-black/[0.06] bg-white/50 py-3.5 backdrop-blur-sm">
       <div className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-24"
         style={{ background: "linear-gradient(to right, #f9fafb, transparent)" }} />
       <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-24"

@@ -14,7 +14,7 @@ export function RussiaSection() {
           whileInView="visible"
           viewport={{ once: true, margin: "-80px" }}
           variants={fadeUp}
-          className="rounded-2xl border border-black/[0.08] bg-gray-50 p-6 md:p-8"
+          className="rounded-2xl border border-black/[0.08] bg-white/60 p-6 backdrop-blur-sm md:p-8"
         >
           <span className="inline-flex items-center rounded-full border border-[#10a37f]/20 bg-[#10a37f]/8 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-[#10a37f]">
             География

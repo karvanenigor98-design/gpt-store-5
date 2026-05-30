@@ -15,7 +15,7 @@ export default function PublicError({
   }, [error]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 text-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-transparent px-4 text-center">
       <p className="font-heading mb-2 text-xl font-bold text-gray-900">Не удалось загрузить страницу</p>
       <p className="mb-6 max-w-md text-sm text-gray-500">
         Попробуйте обновить страницу. Если ошибка повторяется — откройте главную и зайдите снова.

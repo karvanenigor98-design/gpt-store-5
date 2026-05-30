@@ -13,8 +13,8 @@ export default function PrivacyPage() {
   const reviewsChannelUrl = process.env.NEXT_PUBLIC_TELEGRAM_REVIEWS_URL;
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <header className="flex h-14 items-center border-b border-black/[0.06] px-6">
+    <div className="flex min-h-screen flex-col bg-transparent">
+      <header className="flex h-14 items-center border-b border-black/[0.06] bg-white/75 px-6 backdrop-blur-md">
         <Link href="/" className="font-heading text-sm font-semibold text-gray-900 hover:text-[#10a37f]">
           GPT STORE
         </Link>

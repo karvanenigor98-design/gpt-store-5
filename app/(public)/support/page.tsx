@@ -386,7 +386,9 @@ export default function SupportPage() {
   const showQuickReplies = messages.length <= 1;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50">
+    <div
+      className={`flex h-screen w-full overflow-hidden ${isSubsStore ? "bg-[#0a0a0a]" : "bg-transparent"}`}
+    >
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-20 bg-black/40 lg:hidden"
@@ -442,7 +444,7 @@ export default function SupportPage() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 lg:hidden">
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-white/75 px-4 py-3 backdrop-blur-md lg:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -487,7 +489,7 @@ export default function SupportPage() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${isSubsStore ? "bg-white" : "bg-white/88 backdrop-blur-md"}`}>
             <>
               {latestOrder && (
                 <div className="border-b border-gray-100 bg-[#10a37f]/5 px-4 py-3">
@@ -586,7 +588,7 @@ export default function SupportPage() {
         </div>
       </div>
 
-      <aside className="hidden w-72 flex-col overflow-y-auto border-l border-gray-200 bg-white xl:flex">
+      <aside className={`hidden w-72 flex-col overflow-y-auto border-l border-gray-200 xl:flex ${isSubsStore ? "bg-white" : "bg-white/85 backdrop-blur-md"}`}>
         <div className="border-b border-gray-100 px-4 py-4">
           <p className="text-sm font-semibold text-gray-900">Частые вопросы</p>
           <p className="mt-0.5 text-xs text-gray-400">Нажмите вопрос чтобы отправить его в чат</p>

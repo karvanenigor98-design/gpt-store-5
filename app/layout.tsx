@@ -44,7 +44,7 @@ export default function RootLayout({
       className={cn(unbounded.variable, golos.variable)}
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
+      <body className="min-h-screen bg-transparent font-sans text-foreground antialiased">
         <AnimatedBackground />
         <div className="relative" style={{ zIndex: 1 }}>
           <Suspense fallback={null}>

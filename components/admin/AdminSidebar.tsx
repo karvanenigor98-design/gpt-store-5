@@ -54,7 +54,7 @@ export function AdminSidebar() {
   const badges = useStaffNavBadges(site);
 
   return (
-    <aside className="hidden w-56 flex-col border-r border-black/[0.06] bg-white md:flex">
+    <aside className="hidden w-56 flex-col border-r border-black/[0.06] bg-white/85 backdrop-blur-md md:flex">
       <div className="flex h-14 items-center border-b border-black/[0.06] px-4">
         <Link
           href={withSiteQuery("/admin", site)}
