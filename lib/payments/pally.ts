@@ -101,22 +101,42 @@ function buildSign(shopId: string, secretKey: string, orderId: string, amount: n
   return crypto.createHash("md5").update(signString).digest("hex");
 }
 
+function sanitizePallyBillBody(body: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...body };
+  // Pally: если передать payment_method — показывается только один способ оплаты.
+  delete out.payment_method;
+  delete out.paymentMethod;
+  return out;
+}
+
 function resolvePaymentUrl(data: Record<string, unknown>): string {
   const nested =
     data.data && typeof data.data === "object" && !Array.isArray(data.data)
       ? (data.data as Record<string, unknown>)
       : null;
 
-  const candidates = [
-    data.link_url,
+  /** Страница выбора (СБП + карта). link_url — прямой deeplink на один метод. */
+  const pageUrls = [
     data.link_page_url,
+    nested?.link_page_url,
+    data.page_url,
+    nested?.page_url,
+    data.payment_page_url,
+    nested?.payment_page_url,
+  ];
+
+  for (const value of pageUrls) {
+    if (typeof value === "string" && value.startsWith("http")) return value;
+  }
+
+  const directUrls = [
+    data.link_url,
     data.payment_url,
     data.url,
     data.redirect_url,
     data.link,
     data.bill_url,
     nested?.link_url,
-    nested?.link_page_url,
     nested?.payment_url,
     nested?.url,
     nested?.link,
@@ -124,7 +144,7 @@ function resolvePaymentUrl(data: Record<string, unknown>): string {
     nested?.redirect_url,
   ];
 
-  for (const value of candidates) {
+  for (const value of directUrls) {
     if (typeof value === "string" && value.startsWith("http")) return value;
   }
 
@@ -181,7 +201,7 @@ async function postBillCreate(
       Authorization: `Bearer ${secretKey}`,
       "User-Agent": "GPT-STORE/1.0",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(sanitizePallyBillBody(body)),
   });
 
   const text = await response.text();

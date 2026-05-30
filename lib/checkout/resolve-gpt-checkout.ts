@@ -60,6 +60,44 @@ export async function resolveGptCheckoutPlan(
 
 type Admin = SupabaseClient<Database>;
 
+const GPT_UNPAID_STATUS_FILTER = "status.eq.pending,status.eq.awaiting_payment";
+
+async function findReusableGptOrder(
+  admin: Admin,
+  input: {
+    userId: string;
+    planId: string;
+    accountEmail: string;
+    existingOrderId?: string | null;
+  },
+): Promise<Database["public"]["Tables"]["orders"]["Row"] | null> {
+  const email = input.accountEmail.trim().toLowerCase();
+
+  if (input.existingOrderId) {
+    const { data: byId } = await admin
+      .from("orders")
+      .select("*")
+      .eq("id", input.existingOrderId)
+      .eq("user_id", input.userId)
+      .or(GPT_UNPAID_STATUS_FILTER)
+      .maybeSingle();
+    if (byId) return byId;
+  }
+
+  const { data: byMatch } = await admin
+    .from("orders")
+    .select("*")
+    .eq("user_id", input.userId)
+    .eq("plan_id", input.planId)
+    .ilike("account_email", email)
+    .or(GPT_UNPAID_STATUS_FILTER)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return byMatch ?? null;
+}
+
 export async function upsertGptPendingOrder(
   admin: Admin,
   input: {
@@ -77,35 +115,33 @@ export async function upsertGptPendingOrder(
   const email = input.accountEmail.trim();
   const product = plan.productId ?? "chatgpt-plus";
 
-  if (input.existingOrderId) {
-    const { data: existing, error: fetchErr } = await admin
+  const existing = await findReusableGptOrder(admin, {
+    userId: input.userId,
+    planId: plan.id,
+    accountEmail: email,
+    existingOrderId: input.existingOrderId,
+  });
+
+  if (existing) {
+    const { data: updated, error: updateErr } = await admin
       .from("orders")
-      .select("*")
-      .eq("id", input.existingOrderId)
-      .eq("user_id", input.userId)
-      .eq("status", "pending")
-      .maybeSingle();
+      .update({
+        product,
+        plan_id: plan.id,
+        price: finalPrice,
+        account_email: email,
+        meta,
+        payment_provider: "pally",
+        status: "pending",
+      })
+      .eq("id", existing.id)
+      .select()
+      .single();
 
-    if (!fetchErr && existing) {
-      const { data: updated, error: updateErr } = await admin
-        .from("orders")
-        .update({
-          product,
-          plan_id: plan.id,
-          price: finalPrice,
-          account_email: email,
-          meta,
-          payment_provider: "pally",
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
-
-      if (updateErr) {
-        return { order: null, error: updateErr.message, created: false };
-      }
-      return { order: updated, error: null, created: false };
+    if (updateErr) {
+      return { order: null, error: updateErr.message, created: false };
     }
+    return { order: updated, error: null, created: false };
   }
 
   const { order, error } = await createGptStoreOrder(admin, {

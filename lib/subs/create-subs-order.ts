@@ -51,8 +51,49 @@ export async function resolveSubsUserIdByEmail(
   return null;
 }
 
+const SUBS_UNPAID_STATUSES = ["awaiting_payment", "pending", "new"] as const;
+
+export async function findReusableSubsAwaitingOrder(
+  subs: SubsStoreAdminClient,
+  input: {
+    tariffId: string;
+    customerEmail: string;
+    userId?: string | null;
+    existingOrderId?: string | null;
+  },
+): Promise<{ id: string; tariff_id: string | null } | null> {
+  const email = input.customerEmail.trim().toLowerCase();
+  if (!email) return null;
+
+  if (input.existingOrderId) {
+    const { data: byId } = await subs
+      .from("orders")
+      .select("id,tariff_id")
+      .eq("id", input.existingOrderId)
+      .in("status", [...SUBS_UNPAID_STATUSES])
+      .maybeSingle();
+    if (byId?.id) return byId;
+  }
+
+  let query = subs
+    .from("orders")
+    .select("id,tariff_id")
+    .eq("tariff_id", input.tariffId)
+    .ilike("customer_email", email)
+    .in("status", [...SUBS_UNPAID_STATUSES])
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (input.userId) {
+    query = query.or(`user_id.eq.${input.userId},user_id.is.null`) as typeof query;
+  }
+
+  const { data: byMatch } = await query.maybeSingle();
+  return byMatch?.id ? byMatch : null;
+}
+
 export async function createSubsAwaitingPaymentOrder(
-  params: CreateSubsAwaitingPaymentOrderParams,
+  params: CreateSubsAwaitingPaymentOrderParams & { existingOrderId?: string | null },
 ): Promise<CreateSubsAwaitingPaymentOrderResult> {
   const subs = createSubsStoreAdminClient();
   if (!subs) {
@@ -81,6 +122,40 @@ export async function createSubsAwaitingPaymentOrder(
   let userId = params.userId ?? null;
   if (!userId) {
     userId = await resolveSubsUserIdByEmail(subs, email);
+  }
+
+  const reusable = await findReusableSubsAwaitingOrder(subs, {
+    tariffId: tariff.id,
+    customerEmail: email,
+    userId,
+    existingOrderId: params.existingOrderId,
+  });
+
+  if (reusable?.id) {
+    const { error: updateErr } = await subs
+      .from("orders")
+      .update({
+        user_id: userId,
+        status: "awaiting_payment",
+        payment_status: "pending",
+        base_price: basePrice,
+        final_price: finalPrice,
+        discount_amount: params.discountAmount ?? Math.max(0, basePrice - finalPrice),
+        promocode_discount: params.promocodeDiscount ?? 0,
+        promocode_id: params.promocodeId ?? null,
+        promocode_code: params.promocodeCode ?? null,
+        applied_discount_id: params.appliedDiscountId ?? null,
+        customer_email: email,
+        payment_provider: params.paymentProvider ?? "pally",
+      })
+      .eq("id", reusable.id);
+
+    if (updateErr) {
+      console.error("[create-subs-order] reuse update:", updateErr.message);
+      return { ok: false, error: "Не удалось обновить заказ в Subs Store." };
+    }
+
+    return { ok: true, orderId: reusable.id, tariffTitle: tariff.title };
   }
 
   const { data: order, error: insertErr } = await subs

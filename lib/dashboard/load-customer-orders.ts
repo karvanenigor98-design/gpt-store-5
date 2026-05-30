@@ -7,6 +7,7 @@ import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { filterOrdersBySite, isSpotifyProduct } from "@/lib/sites";
 import {
+  isOrderAwaitingPayment,
   normalizeGptOrderRow,
   normalizeSubsOrderRow,
   type CustomerOrderView,
@@ -33,15 +34,43 @@ function orderOwnedByUser(params: {
   return orderEmails(row).includes(email);
 }
 
+function sortOrdersNewestFirst(orders: CustomerOrderView[]): CustomerOrderView[] {
+  return [...orders].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+}
+
 function dedupeOrders(orders: CustomerOrderView[]): CustomerOrderView[] {
   const seen = new Set<string>();
   const out: CustomerOrderView[] = [];
-  for (const o of orders) {
+  for (const o of sortOrdersNewestFirst(orders)) {
     if (seen.has(o.id)) continue;
     seen.add(o.id);
     out.push(o);
   }
   return out;
+}
+
+/** Один неоплаченный заказ на тариф+email — старые дубли скрываем в кабинете. */
+function collapseDuplicateUnpaidOrders(orders: CustomerOrderView[]): CustomerOrderView[] {
+  const seenUnpaid = new Set<string>();
+  const out: CustomerOrderView[] = [];
+
+  for (const order of sortOrdersNewestFirst(orders)) {
+    if (isOrderAwaitingPayment(order.status)) {
+      const email = normalizeEmail(order.account_email ?? order.customer_email);
+      const key = `${order.plan_id}:${email}`;
+      if (seenUnpaid.has(key)) continue;
+      seenUnpaid.add(key);
+    }
+    out.push(order);
+  }
+
+  return out;
+}
+
+function finalizeCustomerOrders(orders: CustomerOrderView[]): CustomerOrderView[] {
+  return collapseDuplicateUnpaidOrders(dedupeOrders(orders));
 }
 
 function isGptOrderProduct(product: string): boolean {
@@ -98,7 +127,7 @@ export async function loadCustomerOrdersWithFocus(params: {
       orderId: focusId,
     });
     if (fetched) {
-      orders = dedupeOrders([fetched, ...orders]);
+      orders = finalizeCustomerOrders([fetched, ...orders]);
       focusedOrder = fetched;
     }
   }
@@ -168,7 +197,7 @@ async function loadGptCustomerOrders(
   }
 
   const normalized = rawRows.map((r) => normalizeGptOrderRow(r));
-  return dedupeOrders(normalized);
+  return finalizeCustomerOrders(normalized);
 }
 
 async function loadSubsCustomerOrders(
@@ -238,7 +267,7 @@ async function loadSubsCustomerOrders(
     }
   }
 
-  return dedupeOrders(
+  return finalizeCustomerOrders(
     rawRows.map((row) => {
       const tid = row.tariff_id ? String(row.tariff_id) : null;
       return normalizeSubsOrderRow(
