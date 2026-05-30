@@ -209,24 +209,23 @@ export function LandingAnimatedBackground() {
       setTopPx(Math.max(0, anchor.getBoundingClientRect().top + window.scrollY));
     };
 
+    const anchor = document.getElementById(LANDING_WAVE_ANCHOR_ID);
+    if (!anchor) return;
+
     measure();
     const raf = window.requestAnimationFrame(measure);
     window.addEventListener("resize", measure);
     window.addEventListener("load", measure);
 
-    const anchor = document.getElementById(LANDING_WAVE_ANCHOR_ID);
-    const observer =
-      anchor ?
-        new ResizeObserver(measure)
-      : null;
-    observer?.observe(anchor);
-    if (document.body) observer?.observe(document.body);
+    const observer = new ResizeObserver(measure);
+    observer.observe(anchor);
+    observer.observe(document.body);
 
     return () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", measure);
       window.removeEventListener("load", measure);
-      observer?.disconnect();
+      observer.disconnect();
     };
   }, []);
 
