@@ -1,6 +1,9 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
-import { verifyPallyWebhook } from "@/lib/payments/pally";
+import {
+  confirmPallyWebhookViaApi,
+  verifyPallyWebhook,
+} from "@/lib/payments/pally-webhook-verify";
 import { parsePallyWebhookRequestBody } from "@/lib/payments/pally-webhook-body";
 import { processPallyWebhook } from "@/lib/payments/process-pally-webhook";
 
@@ -11,9 +14,20 @@ export async function POST(request: NextRequest) {
     const sign =
       request.headers.get("x-pally-sign") ??
       request.headers.get("x-sign") ??
-      String(body.sign ?? "");
+      String(body.sign ?? body.SignatureValue ?? "");
 
-    if (!verifyPallyWebhook(body, sign)) {
+    let signatureOk = verifyPallyWebhook(body, sign);
+    if (!signatureOk) {
+      signatureOk = await confirmPallyWebhookViaApi(body);
+      if (signatureOk) {
+        console.warn(
+          "[Pally webhook] signature mismatch, confirmed via Pally API",
+          String(body.order_id ?? body.InvId ?? ""),
+        );
+      }
+    }
+
+    if (!signatureOk) {
       const missing =
         process.env.PALLY_WEBHOOK_REQUIRE_SIGN === "true" && !sign?.trim();
       return NextResponse.json(

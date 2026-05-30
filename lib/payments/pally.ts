@@ -311,48 +311,6 @@ export async function createPallyPayment(
   );
 }
 
-function verifyPallyWebhookForShop(
-  body: Record<string, unknown>,
-  receivedSign: string,
-  site: PallyStoreSlug,
-): boolean {
-  const { shopId, secretKey } = getPallyConfig(site);
-  if (!shopId || !secretKey || !receivedSign) return false;
-
-  const orderId = String(body.order_id ?? body.orderId ?? "");
-  const amount = Number(body.amount ?? 0);
-  if (!orderId) return false;
-
-  const signString = `${shopId}:${orderId}:${amount}:${secretKey}`;
-  const expectedSign = crypto.createHash("md5").update(signString).digest("hex");
-
-  if (receivedSign.length !== expectedSign.length) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(receivedSign), Buffer.from(expectedSign));
-  } catch {
-    return receivedSign === expectedSign;
-  }
-}
-
-/** Проверка подписи webhook: GPT и Spotify shop_id (разные PALLY_SHOP_ID_*). */
-export function verifyPallyWebhook(
-  body: Record<string, unknown>,
-  receivedSign: string,
-): boolean {
-  if (!receivedSign?.trim()) {
-    if (process.env.PALLY_WEBHOOK_REQUIRE_SIGN === "true") return false;
-    return true;
-  }
-
-  const hint = String(body.site_slug ?? body.site ?? "").toLowerCase();
-  const sites: PallyStoreSlug[] =
-    hint.includes("subs") || hint.includes("spotify")
-      ? ["subs-store", "gpt-store"]
-      : ["gpt-store", "subs-store"];
-
-  return sites.some((site) => verifyPallyWebhookForShop(body, receivedSign, site));
-}
-
 async function postPallyJson(
   apiUrl: string,
   path: string,
@@ -386,25 +344,33 @@ export async function fetchPallyBillStatus(params: {
   const config = getPallyConfig(params.site);
   if (!config.shopId || !config.secretKey) return null;
 
-  const sign = buildSign(config.shopId, config.secretKey, params.orderId, params.amount);
-  const payload = {
-    shop_id: config.shopId,
-    order_id: params.orderId,
-    amount: params.amount,
-    sign,
-  };
+  const amountCandidates = new Set<number>();
+  if (params.amount > 0) {
+    amountCandidates.add(params.amount);
+    amountCandidates.add(Math.round(params.amount * 100) / 100);
+  }
 
-  for (const apiUrl of config.apiUrls) {
-    for (const path of ["/bill/status", "/bill/info"]) {
-      const { ok, data } = await postPallyJson(apiUrl, path, config.secretKey, payload);
-      if (!ok) continue;
-      const raw = String(data.status ?? data.payment_status ?? "").toLowerCase();
-      if (raw) return raw;
-      const nested =
-        data.data && typeof data.data === "object" && !Array.isArray(data.data)
-          ? (data.data as Record<string, unknown>)
-          : null;
-      if (nested?.status) return String(nested.status).toLowerCase();
+  for (const amount of amountCandidates) {
+    const sign = buildSign(config.shopId, config.secretKey, params.orderId, amount);
+    const payload = {
+      shop_id: config.shopId,
+      order_id: params.orderId,
+      amount,
+      sign,
+    };
+
+    for (const apiUrl of config.apiUrls) {
+      for (const path of ["/bill/status", "/bill/info"]) {
+        const { ok, data } = await postPallyJson(apiUrl, path, config.secretKey, payload);
+        if (!ok) continue;
+        const raw = String(data.status ?? data.payment_status ?? "").toLowerCase();
+        if (raw) return raw;
+        const nested =
+          data.data && typeof data.data === "object" && !Array.isArray(data.data)
+            ? (data.data as Record<string, unknown>)
+            : null;
+        if (nested?.status) return String(nested.status).toLowerCase();
+      }
     }
   }
 

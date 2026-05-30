@@ -21,6 +21,7 @@ export function normalizePallyWebhookPayload(raw: Record<string, unknown>): Reco
   const amount = pick("amount", "OutSum", "out_sum", "outsum", "sum", "Sum");
   const sign = pick("sign", "Sign", "SignatureValue", "signature", "signature_value");
   const paymentId = pick("payment_id", "PaymentId", "id", "transaction_id", "TrsId");
+  const shopId = pick("shop_id", "shopId", "ShopId", "merchant_id", "MerchantId");
 
   return {
     ...raw,
@@ -29,6 +30,7 @@ export function normalizePallyWebhookPayload(raw: Record<string, unknown>): Reco
     ...(amount != null ? { amount } : {}),
     ...(sign != null ? { sign } : {}),
     ...(paymentId != null ? { payment_id: paymentId } : {}),
+    ...(shopId != null ? { shop_id: shopId } : {}),
   };
 }
 
