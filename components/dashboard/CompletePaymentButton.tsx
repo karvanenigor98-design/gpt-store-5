@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CreditCard, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
 
 type SiteSlug = "gpt-store" | "subs-store";
 
@@ -21,6 +23,7 @@ export function CompletePaymentButton({
   accountEmail,
   variant = siteSlug === "subs-store" ? "subs" : "gpt",
 }: Props) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isSubs = variant === "subs";
@@ -47,12 +50,18 @@ export function CompletePaymentButton({
       const body = (await res.json().catch(() => ({}))) as {
         paymentUrl?: string;
         error?: string;
+        orderId?: string;
       };
-      if (!res.ok || !body.paymentUrl) {
+      if (!res.ok || !body.paymentUrl || !body.orderId) {
         setError(body.error ?? "Не удалось открыть оплату");
         return;
       }
-      window.location.href = body.paymentUrl;
+      startCheckoutPaymentWait({
+        orderId: body.orderId,
+        siteSlug,
+        paymentUrl: body.paymentUrl,
+        router,
+      });
     } catch {
       setError("Ошибка сети. Попробуйте ещё раз.");
     } finally {

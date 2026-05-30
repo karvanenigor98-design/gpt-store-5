@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -11,12 +11,14 @@ import { checkoutStep2Schema, type CheckoutStep2Input } from "@/lib/validations"
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
+import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
 
 const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
 
 const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
 
 export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [step, setStep] = useState(1);
@@ -152,7 +154,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
         }
       }
 
-      if (!res.ok || !json.paymentUrl) {
+      if (!res.ok || !json.paymentUrl || !json.orderId) {
         const base = formatPallyCheckoutError(json.error ?? "Платёжная ссылка недоступна");
         if (json.orderSaved && !/заказ сохранён/i.test(base)) {
           setError(`${base} Заказ сохранён в админке — повторите оплату.`);
@@ -162,7 +164,12 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
         return;
       }
 
-      window.location.href = json.paymentUrl;
+      startCheckoutPaymentWait({
+        orderId: json.orderId,
+        siteSlug: "gpt-store",
+        paymentUrl: json.paymentUrl,
+        router,
+      });
     } catch {
       setError("Произошла ошибка. Попробуйте ещё раз.");
     } finally {

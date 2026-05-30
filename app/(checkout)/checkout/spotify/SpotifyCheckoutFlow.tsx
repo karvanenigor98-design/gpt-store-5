@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { SPOTIFY_PLANS, SPOTIFY_ACCENT, SPOTIFY_GLOW, type SpotifyPlan } from "@/lib/content/spotify";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
+import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
 
 const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
 
@@ -15,6 +16,7 @@ const ACCOUNT_DATA_HINT =
   "После оплаты оператор уточнит данные, которые нужны именно для вашего варианта подключения. Обычно это email от Spotify-аккаунта, а в отдельных случаях может потребоваться временный доступ для активации.";
 
 export function SpotifyCheckoutFlow() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const planIdFromUrl = searchParams.get("plan");
   const [step, setStep] = useState(1);
@@ -162,7 +164,16 @@ export function SpotifyCheckoutFlow() {
         );
         return;
       }
-      window.location.href = json.paymentUrl;
+      if (!json.orderId) {
+        setPayError("Не удалось привязать заказ к оплате. Попробуйте снова.");
+        return;
+      }
+      startCheckoutPaymentWait({
+        orderId: json.orderId,
+        siteSlug: "subs-store",
+        paymentUrl: json.paymentUrl,
+        router,
+      });
     } catch {
       setPayError("Ошибка сети. Попробуйте снова.");
     } finally {
