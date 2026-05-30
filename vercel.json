@@ -3,15 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "regions": ["fra1"],
-  "crons": [
-    {
-      "path": "/api/cron/pally-reconcile",
-      "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/cron/unpaid-order-reminders",
-      "schedule": "*/15 * * * *"
-    }
-  ]
+  "regions": ["fra1"]
 }
