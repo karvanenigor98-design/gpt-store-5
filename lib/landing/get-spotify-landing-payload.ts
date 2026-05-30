@@ -217,6 +217,9 @@ function buildPageDataFromSnapshot(
   payload.footer.brand = "SPOTIFY";
   payload.footer.brandAccent = "STORE";
 
+  seoTitle = normalizeSpotifyStoreLabel(seoTitle);
+  seoDescription = normalizeSpotifyStoreLabel(seoDescription);
+
   return {
     payload,
     seo: { title: seoTitle, description: seoDescription, keywords },

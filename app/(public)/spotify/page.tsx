@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SPOTIFY_STORE_LINK_NAME } from "@/lib/brand/spotify-store-brand";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { buildSpotifyJsonLd, getSpotifyLandingPageData } from "@/lib/landing/get-spotify-landing-payload";
 import { SpotifyNav } from "@/components/spotify/SpotifyNav";
@@ -28,14 +29,14 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const { seo } = await getSpotifyLandingPageData();
   return {
-    title: seo.title,
+    title: { absolute: seo.title },
     description: seo.description,
     keywords: seo.keywords,
     openGraph: {
       title: seo.title,
       description: seo.description,
       url: SPOTIFY_URL,
-      siteName: "SPOTIFY STORE",
+      siteName: SPOTIFY_STORE_LINK_NAME,
       locale: "ru_RU",
       type: "website",
     },
