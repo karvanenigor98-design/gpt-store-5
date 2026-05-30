@@ -39,13 +39,6 @@ export function SpotifyReviews() {
     [reviews],
   );
 
-  const avgRating = useMemo(() => {
-    const rated = published.filter((r) => r.rating && r.rating > 0);
-    if (!rated.length) return null;
-    const sum = rated.reduce((acc, r) => acc + (r.rating ?? 0), 0);
-    return (sum / rated.length).toFixed(1);
-  }, [published]);
-
   return (
     <section
       id="reviews"
@@ -72,11 +65,6 @@ export function SpotifyReviews() {
           <p className="max-w-2xl text-lg" style={{ color: "rgba(255,255,255,0.5)" }}>
             {sec.subtitle}
           </p>
-          {avgRating && (
-            <p className="text-sm font-medium" style={{ color: SPOTIFY_ACCENT }}>
-              Средняя оценка {avgRating} / 5 · {published.length} отзывов
-            </p>
-          )}
         </motion.div>
 
         <div className="mx-auto max-w-3xl">
