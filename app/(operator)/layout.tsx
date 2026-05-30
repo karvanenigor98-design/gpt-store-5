@@ -1,27 +1,17 @@
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { headers } from "next/headers";
+
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { OperatorSidebar } from "@/components/admin/OperatorSidebar";
+import { requireStaffPanel } from "@/lib/auth/staff-access";
 
 export default async function OperatorLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const headersList = await headers();
+  const pathname = headersList.get("x-invoke-pathname") ?? "/operator";
+  const search = headersList.get("x-invoke-search") ?? "";
+  const returnPath = `${pathname}${search}`;
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  const role = await resolveServerRole(user);
-  if (role === "admin") {
-    redirect("/admin");
-  }
-  if (role !== "operator") {
-    redirect("/dashboard");
-  }
+  await requireStaffPanel("operator", returnPath);
 
   return (
     <div className="flex min-h-screen bg-transparent">

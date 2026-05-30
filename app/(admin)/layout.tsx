@@ -1,29 +1,21 @@
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { headers } from "next/headers";
+
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { requireStaffPanel } from "@/lib/auth/staff-access";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const headersList = await headers();
+  const pathname = headersList.get("x-invoke-pathname") ?? "/admin";
+  const search = headersList.get("x-invoke-search") ?? "";
+  const returnPath = `${pathname}${search}`;
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  const role = await resolveServerRole(user);
-  if (role === "operator") {
-    redirect("/operator");
-  }
-  if (role !== "admin") {
-    redirect("/dashboard");
-  }
+  await requireStaffPanel("admin", returnPath);
 
   return (
     <div className="flex min-h-screen bg-transparent">

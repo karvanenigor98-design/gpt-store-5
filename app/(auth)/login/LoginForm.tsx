@@ -94,6 +94,7 @@ export function LoginForm() {
       const loginBody = (await loginRes.json().catch(() => ({}))) as {
         error?: string;
         path?: string;
+        role?: UserRole;
       };
 
       if (!loginRes.ok) {
@@ -105,10 +106,14 @@ export function LoginForm() {
       }
 
       document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
+      const role: UserRole =
+        loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
+          ? loginBody.role
+          : "client";
       const target =
         typeof loginBody.path === "string" && loginBody.path.startsWith("/")
           ? loginBody.path
-          : resolvePostLoginPath(effectiveReturnUrl, "client");
+          : resolvePostLoginPath(effectiveReturnUrl, role);
       router.push(target);
       router.refresh();
       return;

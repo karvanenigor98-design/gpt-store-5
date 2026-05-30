@@ -4,8 +4,8 @@ import {
   buildSpotifyLinkPreviewHtml,
   isLinkPreviewBot,
 } from "@/lib/brand/spotify-link-preview-html";
-import { effectiveRoleFromProfile } from "@/lib/auth/superAdmin";
-import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
+import { resolveStaffAuthRedirect } from "@/lib/auth/staff-access";
+import { resolveServerRole } from "@/lib/auth/server-role";
 import {
   isSiteUiLoggedOut,
   resolveSiteFromRequest,
@@ -188,31 +188,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard?site=subs-store", request.url));
     }
 
-    if (loggedInForThisSheet && siteForLogin !== "subs-store" && gptUser && gptSb) {
-      const authUser = gptUser;
-      const { data: prof } = await gptSb
-        .from("profiles")
-        .select("role")
-        .eq("id", authUser.id)
-        .maybeSingle();
-      const role = effectiveRoleFromProfile(prof?.role ?? null, authUser.email);
-      if (role === "admin") {
-        return NextResponse.redirect(new URL("/admin", request.url));
-      }
-      if (role === "operator") {
-        return NextResponse.redirect(new URL("/operator", request.url));
-      }
-
-      const loginSite = resolveAuthSiteContext({
-        siteDirect: request.nextUrl.searchParams.get("site"),
-        returnUrl: request.nextUrl.searchParams.get("returnUrl"),
-        cookieSite: cookieSiteEarly,
-        port: devPort,
-        pathname: path,
-      });
-      const dashboardTarget =
-        loginSite === "subs-store" ? "/dashboard?site=subs-store" : "/dashboard?site=gpt-store";
-      return NextResponse.redirect(new URL(dashboardTarget, request.url));
+    if (loggedInForThisSheet && siteForLogin !== "subs-store" && gptUser) {
+      const role = await resolveServerRole(gptUser);
+      const returnUrl = request.nextUrl.searchParams.get("returnUrl");
+      const target = resolveStaffAuthRedirect(role, returnUrl);
+      return NextResponse.redirect(new URL(target, request.url));
     }
   }
 
@@ -259,19 +239,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (gptUser && gptSb && (path.startsWith("/admin") || path.startsWith("/operator"))) {
-    const { data: prof } = await gptSb
-      .from("profiles")
-      .select("role")
-      .eq("id", gptUser.id)
-      .maybeSingle();
-    let role = effectiveRoleFromProfile(prof?.role ?? null, gptUser.email);
-    if (role === "client") {
-      const fromEnv = resolveRoleByEmail(gptUser.email);
-      if (fromEnv === "admin" || fromEnv === "operator") {
-        role = fromEnv;
-      }
-    }
+  if (gptUser && (path.startsWith("/admin") || path.startsWith("/operator"))) {
+    const role = await resolveServerRole(gptUser);
 
     if (path.startsWith("/admin") && role === "operator") {
       const suffix = path.replace(/^\/admin/, "") || "";

@@ -103,7 +103,9 @@ export async function POST(request: NextRequest) {
   }
 
   const role = await syncProfileRoleForUser(authData.user.id, authData.user.email ?? null);
-  await upsertSiteMembership(authData.user.id, "gpt-store", "customer").catch(() => undefined);
+  const membershipRole: "customer" | "operator" | "admin" =
+    role === "admin" || role === "operator" ? role : "customer";
+  await upsertSiteMembership(authData.user.id, "gpt-store", membershipRole).catch(() => undefined);
 
   const path = resolvePostLoginPath(effectiveReturnUrl, role);
   const res = NextResponse.json({ ok: true, path, role });
