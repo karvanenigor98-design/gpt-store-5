@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
-import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient, tryCreateClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,10 @@ export const dynamic = "force-dynamic";
  * GET — какие сайты видит текущий пользователь в общей админке (GPT STORE shell).
  */
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) {
+    return NextResponse.json({ sites: ["gpt-store"] as const });
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -23,7 +26,10 @@ export async function GET() {
     return NextResponse.json({ sites: ["gpt-store"] as const });
   }
 
-  const gptAdmin = createAdminClient();
+  const gptAdmin = tryCreateAdminClient();
+  if (!gptAdmin) {
+    return NextResponse.json({ sites: ["gpt-store"] as const });
+  }
   const sites = await listAccessibleAdminSiteSlugs(user, gptAdmin, role);
   return NextResponse.json({ sites });
 }

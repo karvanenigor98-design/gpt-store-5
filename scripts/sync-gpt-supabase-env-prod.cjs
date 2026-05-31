@@ -62,6 +62,10 @@ async function main() {
       console.error(`Missing ${key} in .env.local`);
       process.exit(1);
     }
+    if (key.includes("KEY") && !/^eyJ[A-Za-z0-9_-]+\./.test(local[key].trim())) {
+      console.error(`${key} in .env.local does not look like a Supabase JWT`);
+      process.exit(1);
+    }
   }
 
   const list = await api(token, "GET", `/v9/projects/${PROJECT}/env?teamId=${TEAM}`);

@@ -6,20 +6,28 @@ import type { Database } from "@/types/database";
 import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
 import {
   getGptPublicSupabaseUrl,
+  isValidSupabaseProjectUrl,
   supabaseUrlConfigHint,
 } from "@/lib/supabase/validate-project-url";
 
+function isLikelySupabaseJwt(key: string | null | undefined): boolean {
+  const k = key?.trim() ?? "";
+  return k.length >= 100 && k.length <= 400 && /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(k);
+}
+
 function gptServerCredentials(): { url: string; anon: string } | null {
+  if (!isValidSupabaseProjectUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)) return null;
   const url = getGptPublicSupabaseUrl();
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  if (!url || !anon) return null;
+  if (!url || !isLikelySupabaseJwt(anon)) return null;
   return { url, anon };
 }
 
 function gptAdminCredentials(): { url: string; serviceKey: string } | null {
+  if (!isValidSupabaseProjectUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)) return null;
   const url = getGptPublicSupabaseUrl();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  if (!url || !serviceKey) return null;
+  if (!url || !isLikelySupabaseJwt(serviceKey)) return null;
   return { url, serviceKey };
 }
 

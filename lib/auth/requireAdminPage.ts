@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { resolveServerRole } from "@/lib/auth/server-role";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
 
 /**
@@ -10,7 +10,10 @@ import type { UserRole } from "@/types/database";
 export async function requireAdminPage(): Promise<{
   role: "admin";
 }> {
-  const supabase = await createClient();
+  const supabase = await tryCreateClient();
+  if (!supabase) {
+    redirect("/login?returnUrl=%2Fadmin&site=gpt-store&reason=supabase_env_missing");
+  }
   await supabase.auth.getSession();
   const {
     data: { user },

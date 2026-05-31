@@ -47,13 +47,17 @@ export function resolveStaffAuthRedirect(role: UserRole, returnUrl: string | nul
 }
 
 export async function getGptStaffSessionUser(): Promise<User | null> {
-  const supabase = await tryCreateClient();
-  if (!supabase) return null;
-  await supabase.auth.getSession();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  try {
+    const supabase = await tryCreateClient();
+    if (!supabase) return null;
+    await supabase.auth.getSession();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 /** Guard для /admin и /operator layouts — единая логика роли и login redirect. */

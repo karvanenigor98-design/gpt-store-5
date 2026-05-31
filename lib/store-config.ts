@@ -3,7 +3,7 @@ import { applyHeroPromoDisplayToGptPlans } from "@/lib/landing/hero-promo-landin
 import type { LandingDiscount } from "@/lib/pricing-helpers";
 import { applyLandingDiscount, pickLandingDiscount } from "@/lib/pricing-helpers";
 import { fetchPromoCodesFromDb } from "@/lib/promocodes/db-promo";
-import { createAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 
 export type PromoCode = {
   code: string;
@@ -172,7 +172,15 @@ export async function getStoreConfig(): Promise<StoreConfig> {
   }
 
   try {
-    const supabase = createAdminClient();
+    const supabase = tryCreateAdminClient();
+    if (!supabase) {
+      return {
+        plans: finalizeGptStorePlans(DEFAULT_PLANS, []),
+        promoCodes: [],
+        landingSections: DEFAULT_SECTIONS,
+        landingDiscounts: [],
+      };
+    }
     const { data } = await supabase
       .from("site_settings")
       .select("key, value")

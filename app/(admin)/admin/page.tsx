@@ -28,6 +28,7 @@ export default async function AdminOverviewPage({
   let totalClients: number;
   let unreadClientMsgs: number;
   let revenueFootnote: string;
+  let statsLoadFailed = false;
 
   if (siteSlug === "subs-store") {
     const subsAdmin = createSubsStoreAdminClient();
@@ -141,6 +142,7 @@ export default async function AdminOverviewPage({
         .eq("is_read", false);
     }
 
+    try {
     const [
       ov,
       totalOrdersResp,
@@ -169,6 +171,26 @@ export default async function AdminOverviewPage({
     pendingReviews = pendingReviewsResp.count ?? 0;
     totalClients = totalClientsCount;
     unreadClientMsgs = unreadClientMsgsResp.count ?? 0;
+    } catch (err) {
+      console.error("[admin/page] stats load failed", err);
+      statsLoadFailed = true;
+      overview = {
+        todayYmd: "",
+        revenueToday: 0,
+        revenue7d: 0,
+        revenueMonth: 0,
+        revenueAll: 0,
+        ordersToday: 0,
+        newClientsToday: 0,
+      };
+      totalOrders = 0;
+      pendingOrders = 0;
+      activeOrders = 0;
+      openChats = 0;
+      pendingReviews = 0;
+      totalClients = 0;
+      unreadClientMsgs = 0;
+    }
     revenueFootnote =
       "Выручка суммирует заказы со статусами оплата получена и далее по цепочке активации. Учёт по дате создания заказа в базе; точный учёт — у платёжного провайдера.";
   }
@@ -190,6 +212,14 @@ export default async function AdminOverviewPage({
           {site.brandName}
         </span>
       </h1>
+
+      {statsLoadFailed ? (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Не удалось загрузить часть метрик. Проверьте{" "}
+          <code className="rounded bg-white px-1">SUPABASE_SERVICE_ROLE_KEY</code> на Vercel (~219 символов JWT) и
+          перезапустите деплой.
+        </div>
+      ) : null}
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Сегодня</h2>
       <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3">
