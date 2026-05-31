@@ -1,7 +1,7 @@
 ﻿import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { selectProfileByIdFlexible } from "@/lib/admin/selectProfilesFlexible";
-import { createAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
@@ -44,15 +44,17 @@ export default async function ProfilePage({
       createdAt = (profile?.created_at as string) ?? createdAt;
     }
   } else {
-    const admin = createAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("username, telegram_username, email, created_at")
-      .eq("id", user.id)
-      .maybeSingle();
-    username = profile?.username ?? "";
-    telegram_username = profile?.telegram_username ?? "";
-    createdAt = profile?.created_at ?? createdAt;
+    const admin = tryCreateAdminClient();
+    if (admin) {
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("username, telegram_username, email, created_at")
+        .eq("id", user.id)
+        .maybeSingle();
+      username = profile?.username ?? "";
+      telegram_username = profile?.telegram_username ?? "";
+      createdAt = profile?.created_at ?? createdAt;
+    }
   }
 
   return (

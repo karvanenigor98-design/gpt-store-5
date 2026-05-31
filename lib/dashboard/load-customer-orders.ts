@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
-import { createAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -146,8 +146,9 @@ async function loadGptCustomerOrders(
   userId: string,
   userEmail: string | null,
 ): Promise<CustomerOrderView[]> {
-  try {
-    const admin = createAdminClient();
+  const admin = tryCreateAdminClient();
+  if (!admin) return [];
+
   const siteId = await getSiteUUID("gpt-store");
 
   let query = admin
@@ -204,9 +205,6 @@ async function loadGptCustomerOrders(
     .filter((row) => orderOwnedByUser({ row, userId, userEmail: email || null }))
     .map((r) => normalizeGptOrderRow(r));
   return finalizeCustomerOrders(normalized);
-  } catch {
-    return [];
-  }
 }
 
 async function loadSubsCustomerOrders(
@@ -334,7 +332,9 @@ async function fetchCustomerOrderById(params: {
     return normalizeSubsOrderRow(row as Record<string, unknown>, tariffTitle, tariffSlug);
   }
 
-  const admin = createAdminClient();
+  const admin = tryCreateAdminClient();
+  if (!admin) return null;
+
   const { data: row } = await admin.from("orders").select("*").eq("id", orderId).maybeSingle();
   if (!row) return null;
 

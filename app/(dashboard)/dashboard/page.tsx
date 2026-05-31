@@ -1,4 +1,4 @@
-﻿import { createAdminClient } from "@/lib/supabase/server";
+﻿import { tryCreateAdminClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { DashboardClient } from "./DashboardClient";
 import { getSiteBySlug } from "@/lib/sites";
@@ -66,13 +66,15 @@ export default async function DashboardPage({
         .eq("user_id", user.id);
       chatsCount = count ?? 0;
     } else {
-      const admin = createAdminClient();
-      const { data: prof } = await admin
-        .from("profiles")
-        .select("username, email, created_at")
-        .eq("id", user.id)
-        .maybeSingle();
-      profile = prof;
+      const admin = tryCreateAdminClient();
+      if (admin) {
+        const { data: prof } = await admin
+          .from("profiles")
+          .select("username, email, created_at")
+          .eq("id", user.id)
+          .maybeSingle();
+        profile = prof;
+      }
 
       const siteId = await getSiteUUID(siteSlug);
       let chatsCountQuery = supabase

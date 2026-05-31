@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { tryCreateClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { getOrdersLastSeenAt } from "@/lib/admin/orders-last-seen";
 import { STAFF_NAV_BADGES_REFRESH } from "@/lib/admin/staff-nav-badges-client";
 
@@ -17,7 +17,7 @@ const POLL_MS = 5000;
 
 export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNavBadges {
   const [badges, setBadges] = useState<StaffNavBadges>(EMPTY);
-  const supabase = useMemo(() => tryCreateClient(), []);
+  const supabase = useMemo(() => createClient(), []);
 
   const reload = useCallback(async () => {
     try {
@@ -51,7 +51,7 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
   }, [reload]);
 
   useEffect(() => {
-    if (siteSlug !== "gpt-store" || !supabase) return;
+    if (siteSlug !== "gpt-store") return;
 
     const channel = supabase
       .channel(`staff-nav-badges-${siteSlug}`)

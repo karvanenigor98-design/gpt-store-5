@@ -8,7 +8,7 @@ import { resolveCabinetServerRole } from "@/lib/auth/server-role";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { getOrCreateClientOperatorSession } from "@/lib/chat/operatorSession";
 import { getOrCreateSubsCustomerSupportThread } from "@/lib/chat/subs-support-thread";
-import { createAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { getSiteBySlug } from "@/lib/sites";
@@ -126,7 +126,17 @@ export default async function DashboardChatPage({
     );
   }
 
-  const admin = createAdminClient();
+  const admin = tryCreateAdminClient();
+  if (!admin) {
+    return (
+      <div className="flex min-h-[calc(100dvh-7rem)] w-full items-center justify-center px-4 text-center text-gray-500 md:min-h-[calc(100vh-7rem)]">
+        Не удалось открыть чат: на сервере не настроен Supabase (проверьте{" "}
+        <code className="text-xs">NEXT_PUBLIC_SUPABASE_URL</code> и{" "}
+        <code className="text-xs">SUPABASE_SERVICE_ROLE_KEY</code> на Vercel).
+      </div>
+    );
+  }
+
   const { data: profileRow } = await admin
     .from("profiles")
     .select("id, email, username, telegram_id, telegram_username, role, created_at, last_seen")

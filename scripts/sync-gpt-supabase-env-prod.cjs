@@ -76,11 +76,11 @@ async function main() {
       await api(token, "DELETE", `/v9/projects/${PROJECT}/env/${entry.id}?teamId=${TEAM}`);
     }
 
-    console.log(`CREATE ${key} → production,preview (encrypted)`);
+    console.log(`CREATE ${key} → production,preview (${key.startsWith("NEXT_PUBLIC_") ? "plain" : "encrypted"})`);
     const created = await api(token, "POST", `/v10/projects/${PROJECT}/env?teamId=${TEAM}`, {
       key,
       value: local[key].trim(),
-      type: "encrypted",
+      type: key.startsWith("NEXT_PUBLIC_") ? "plain" : "encrypted",
       target: ["production", "preview"],
     });
     console.log(`  ok id=${created.id || created.created?.[0]?.id || "?"}`);

@@ -18,10 +18,6 @@ export async function resolveServerRole(user: User | null): Promise<UserRole> {
   try {
     const admin = tryCreateAdminClient();
     if (!admin) {
-      const fromProfile = effectiveRoleFromProfile(null, user.email);
-      if (fromProfile === "admin" || fromProfile === "operator") {
-        return fromProfile;
-      }
       return roleFromEnvFallback(user.email);
     }
     const { data } = await admin

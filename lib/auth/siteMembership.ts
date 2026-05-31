@@ -5,7 +5,7 @@
  * Gracefully degrades if the table doesn't exist yet (migration not applied).
  */
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 
 export type SiteMembershipRole = "customer" | "operator" | "admin";
 
@@ -21,7 +21,8 @@ export async function upsertSiteMembership(
 ): Promise<void> {
   if (!userId || !siteSlug) return;
   try {
-    const admin = createAdminClient();
+    const admin = tryCreateAdminClient();
+    if (!admin) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (admin.from("site_memberships") as any).upsert(
       { user_id: userId, site_slug: siteSlug, role },
@@ -54,7 +55,8 @@ export async function hasSiteMembership(
 
   // Прочие сайты: проверка membership, с fail-open при ошибках БД
   try {
-    const admin = createAdminClient();
+    const admin = tryCreateAdminClient();
+    if (!admin) return true;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (admin.from("site_memberships") as any)
       .select("id")
