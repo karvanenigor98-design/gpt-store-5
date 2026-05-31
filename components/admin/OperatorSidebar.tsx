@@ -1,39 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
+import { useUrlSiteSlug } from "@/lib/client/useUrlSiteSlug";
 import { OPERATOR_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { getSiteBySlug } from "@/lib/sites";
 import { staffNavHref } from "@/lib/admin/staffNavHref";
 import { cn } from "@/lib/utils";
 
-function resolveSite(raw: string | null): "gpt-store" | "subs-store" {
-  return raw === "subs-store" ? "subs-store" : "gpt-store";
-}
-
 export function OperatorSidebar() {
-  const sp = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const siteSlug = resolveSite(sp.get("site"));
+  const siteSlug = useUrlSiteSlug("gpt-store");
   const site = getSiteBySlug(siteSlug);
   const accent = site.primaryColor;
   const badges = useStaffNavBadges(siteSlug);
 
   useEffect(() => {
-    const urlSite = sp.get("site");
+    const urlSite = new URLSearchParams(window.location.search).get("site");
     if (urlSite === "gpt-store" || urlSite === "subs-store") return;
     const saved = getAdminSelectedSiteSlug();
     if (saved !== "gpt-store" && saved !== "subs-store") return;
-    const q = new URLSearchParams(sp.toString());
+    const q = new URLSearchParams(window.location.search);
     q.set("site", saved);
     const qs = q.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
-  }, [sp, pathname, router]);
+  }, [pathname, router]);
 
   return (
     <aside className="hidden w-56 flex-col border-r border-black/[0.06] bg-white/85 backdrop-blur-md md:flex">

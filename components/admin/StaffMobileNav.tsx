@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
+import { useUrlSiteSlug } from "@/lib/client/useUrlSiteSlug";
 import { getSiteBySlug } from "@/lib/sites";
 import { staffNavHref } from "@/lib/admin/staffNavHref";
 import type { StaffNavItem } from "@/lib/admin/staff-nav-config";
@@ -14,10 +15,6 @@ type StaffMobileNavProps = {
   panelRoot: "/admin" | "/operator";
 };
 
-function resolveSite(raw: string | null): "gpt-store" | "subs-store" {
-  return raw === "subs-store" ? "subs-store" : "gpt-store";
-}
-
 function isNavActive(pathname: string, href: string, panelRoot: "/admin" | "/operator"): boolean {
   if (href === panelRoot) return pathname === panelRoot;
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -25,8 +22,7 @@ function isNavActive(pathname: string, href: string, panelRoot: "/admin" | "/ope
 
 export function StaffMobileNav({ items, panelRoot }: StaffMobileNavProps) {
   const pathname = usePathname();
-  const sp = useSearchParams();
-  const siteSlug = resolveSite(sp.get("site"));
+  const siteSlug = useUrlSiteSlug("gpt-store");
   const site = getSiteBySlug(siteSlug);
   const accent = site.primaryColor;
   const badges = useStaffNavBadges(siteSlug);

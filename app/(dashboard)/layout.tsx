@@ -102,7 +102,7 @@ export default async function DashboardLayout({
           </Suspense>
         </div>
 
-        <Suspense fallback={<nav className="flex flex-1 flex-col gap-0.5 px-3 py-4" aria-hidden />}>
+        <Suspense fallback={<nav className="hidden flex-1 md:flex" aria-hidden />}>
           <DashboardNav defaultSiteSlug={siteSlug} />
         </Suspense>
 

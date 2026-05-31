@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
+import { useUrlSiteSlug } from "@/lib/client/useUrlSiteSlug";
 import { ADMIN_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { getSiteBySlug } from "@/lib/sites";
 import { cn } from "@/lib/utils";
@@ -16,9 +17,7 @@ function withSiteQuery(path: string, site: string | null): string {
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const sp = useSearchParams();
-  const raw = sp.get("site");
-  const site = raw === "subs-store" || raw === "gpt-store" ? raw : "gpt-store";
+  const site = useUrlSiteSlug("gpt-store");
   const siteDef = getSiteBySlug(site);
   const accent = siteDef.primaryColor;
   const badges = useStaffNavBadges(site);

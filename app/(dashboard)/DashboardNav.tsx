@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LayoutDashboard, ShoppingBag, MessageCircle, User, Star } from 'lucide-react'
-import { useSafePathname } from '@/lib/client/useSafePathname'
+import { usePathname } from 'next/navigation'
 import { getSiteBySlug, type SiteSlug } from '@/lib/sites'
 
 export const DASHBOARD_NAV_ITEMS = [
@@ -24,7 +24,7 @@ function resolveSiteSlug(defaultSiteSlug?: SiteSlug): SiteSlug {
 }
 
 export function DashboardNav({ defaultSiteSlug }: NavProps) {
-  const pathname = useSafePathname()
+  const pathname = usePathname()
   const siteSlug = resolveSiteSlug(defaultSiteSlug)
   const site = getSiteBySlug(siteSlug)
   const siteQuery = `?site=${siteSlug}`
@@ -64,7 +64,7 @@ export function DashboardNav({ defaultSiteSlug }: NavProps) {
 }
 
 export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
-  const pathname = useSafePathname()
+  const pathname = usePathname()
   const siteSlug = resolveSiteSlug(defaultSiteSlug)
   const site = getSiteBySlug(siteSlug)
   const siteQuery = `?site=${siteSlug}`

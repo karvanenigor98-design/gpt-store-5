@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 const COOKIE_NAME = "gs_referral_code";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
@@ -17,12 +17,12 @@ function readRefCookie(): string | null {
 
 /** Сохраняет ?ref= из URL и привязывает после входа в кабинет. */
 export function ReferralCapture({ siteSlug }: { siteSlug?: "gpt-store" | "subs-store" }) {
-  const sp = useSearchParams();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const fromUrl = sp.get("ref")?.trim();
+    const fromUrl = new URLSearchParams(window.location.search).get("ref")?.trim();
     if (fromUrl) setRefCookie(fromUrl.toUpperCase());
-  }, [sp]);
+  }, [pathname]);
 
   useEffect(() => {
     const code = readRefCookie();

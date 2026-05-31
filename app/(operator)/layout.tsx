@@ -21,10 +21,16 @@ export default async function OperatorLayout({ children }: { children: React.Rea
         <OperatorSidebar />
       </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminAlertsBar />
-        <Suspense fallback={null}>
-          <StaffMobileNav items={OPERATOR_NAV_ITEMS} panelRoot="/operator" />
+        <Suspense
+          fallback={
+            <div className="flex h-14 items-center border-b border-gray-200 bg-white px-4 md:px-6">
+              <span className="text-sm text-gray-400">Загрузка…</span>
+            </div>
+          }
+        >
+          <AdminAlertsBar />
         </Suspense>
+        <StaffMobileNav items={OPERATOR_NAV_ITEMS} panelRoot="/operator" />
         {children}
       </div>
     </div>

@@ -25,10 +25,16 @@ export default async function AdminLayout({
         <AdminSidebar />
       </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminAlertsBar />
-        <Suspense fallback={null}>
-          <StaffMobileNav items={ADMIN_NAV_ITEMS} panelRoot="/admin" />
+        <Suspense
+          fallback={
+            <div className="flex h-14 items-center border-b border-gray-200 bg-white px-4 md:px-6">
+              <span className="text-sm text-gray-400">Загрузка…</span>
+            </div>
+          }
+        >
+          <AdminAlertsBar />
         </Suspense>
+        <StaffMobileNav items={ADMIN_NAV_ITEMS} panelRoot="/admin" />
         {children}
       </div>
     </div>
