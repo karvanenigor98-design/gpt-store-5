@@ -78,9 +78,11 @@ export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
     <nav
       className={cn(
         'fixed inset-x-0 bottom-0 z-40 flex border-t md:hidden',
-        isSubs ? 'border-white/10 bg-[#111111]' : 'border-gray-200 bg-white/95 backdrop-blur-md',
+        isSubs
+          ? 'border-white/10 bg-[#111111] shadow-[0_-6px_24px_rgba(0,0,0,0.45)]'
+          : 'border-gray-200 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.08)]',
       )}
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.25rem)' }}
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.35rem)' }}
       aria-label="Навигация кабинета"
     >
       {DASHBOARD_NAV_ITEMS.map((item) => {
@@ -90,22 +92,39 @@ export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
             ? isCabinetHome(pathname)
             : pathname === item.base || pathname.startsWith(item.base + '/')
         const Icon = item.icon
+        const activeColor = site.primaryColor
         return (
           <Link
             key={item.base}
             href={href}
-            style={isActive ? { color: site.primaryColor } : undefined}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[10px] font-medium leading-tight',
-              isActive
-                ? ''
-                : isSubs
-                  ? 'text-gray-400 hover:text-white'
-                  : 'text-gray-500 hover:text-gray-900',
+              'flex min-h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2 text-[11px] leading-tight transition-colors',
+              isActive ? 'font-semibold' : 'font-medium',
+              !isActive &&
+                (isSubs ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'),
             )}
           >
-            <Icon size={18} className="shrink-0" />
-            <span className="max-w-full truncate text-center">{item.label}</span>
+            <span
+              className={cn(
+                'flex items-center justify-center rounded-xl px-2.5 py-1 transition-colors',
+                isActive && (isSubs ? 'bg-white/12' : 'bg-black/[0.04]'),
+              )}
+              style={isActive ? { color: activeColor } : undefined}
+            >
+              <Icon
+                size={22}
+                strokeWidth={isActive ? 2.5 : 2}
+                className={cn('shrink-0', !isActive && (isSubs ? 'text-gray-400' : 'text-gray-500'))}
+                style={isActive ? { color: activeColor } : undefined}
+              />
+            </span>
+            <span
+              className="max-w-full truncate text-center"
+              style={isActive ? { color: activeColor } : undefined}
+            >
+              {item.label}
+            </span>
           </Link>
         )
       })}

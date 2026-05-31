@@ -190,7 +190,7 @@ export default async function DashboardLayout({
         </header>
         <main
           className={cn(
-            "min-w-0 flex-1 overflow-y-auto p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6 lg:p-8",
+            "min-w-0 flex-1 overflow-y-auto p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6 lg:p-8",
             useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-gray-50",
           )}
         >
