@@ -253,6 +253,20 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  if (gptUser && sessionUiActive && guardedSiteSlug === "gpt-store") {
+    const isDashboardProfile =
+      path === "/dashboard/profile" || path.startsWith("/dashboard/profile/");
+    if ((path.startsWith("/dashboard") || path.startsWith("/cabinet")) && !isDashboardProfile) {
+      const role = await resolveServerRole(gptUser);
+      if (role === "admin") {
+        return redirectPreservingCookies(new URL(`/admin${request.nextUrl.search}`, request.url), supabaseResponse);
+      }
+      if (role === "operator") {
+        return redirectPreservingCookies(new URL(`/operator${request.nextUrl.search}`, request.url), supabaseResponse);
+      }
+    }
+  }
+
   if (gptUser && (path.startsWith("/admin") || path.startsWith("/operator"))) {
     const role = await resolveServerRole(gptUser);
 

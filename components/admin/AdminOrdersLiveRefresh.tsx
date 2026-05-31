@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
+import { tryCreateClient } from "@/lib/supabase/client";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 
@@ -17,7 +17,7 @@ export function AdminOrdersLiveRefresh({ siteSlug }: Props) {
 
   useEffect(() => {
     const supabase =
-      siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : createClient();
+      siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : tryCreateClient();
     if (!supabase) return;
 
     const channel = supabase

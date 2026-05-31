@@ -58,62 +58,70 @@ export default async function AdminOverviewPage({
     revenueFootnote =
       "Выручка Subs Store: сумма final_price заказов с payment_status = paid. Учёт по дате создания заказа.";
   } else {
-    const admin = createAdminClient();
-    const siteId = await getSiteUUID(siteSlug);
+    try {
+      const admin = createAdminClient();
+      const siteId = await getSiteUUID(siteSlug);
 
-    const ordersBaseQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
+      const ordersBaseQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
 
-    const subsStoreId = await getSiteUUID("subs-store");
+      const subsStoreId = await getSiteUUID("subs-store");
 
-    let chatsBaseQ;
-    if (subsStoreId) {
-      chatsBaseQ = admin
-        .from("chat_sessions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "open")
-        .neq("site_id", subsStoreId);
-    } else {
-      chatsBaseQ = admin.from("chat_sessions").select("id", { count: "exact", head: true }).eq("status", "open");
-    }
-
-    let reviewsBaseQ;
-    if (siteId) {
-      reviewsBaseQ = admin
-        .from("reviews")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .eq("site_id", siteId);
-    } else {
-      reviewsBaseQ = admin.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pending");
-    }
-
-    let unreadClientMsgsQ;
-    if (siteId) {
-      const { data: siteSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", siteId);
-      const ids = (siteSessionIds ?? []).map((s) => s.id);
-      if (ids.length > 0) {
-        unreadClientMsgsQ = admin
-          .from("chat_messages")
+      let chatsBaseQ;
+      if (subsStoreId) {
+        chatsBaseQ = admin
+          .from("chat_sessions")
           .select("id", { count: "exact", head: true })
-          .eq("sender_type", "client")
-          .eq("is_read", false)
-          .in("session_id", ids);
+          .eq("status", "open")
+          .neq("site_id", subsStoreId);
       } else {
-        unreadClientMsgsQ = admin
-          .from("chat_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("id", "00000000-0000-0000-0000-000000000000");
+        chatsBaseQ = admin.from("chat_sessions").select("id", { count: "exact", head: true }).eq("status", "open");
       }
-    } else if (subsStoreId) {
-      const { data: excludeSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", subsStoreId);
-      const excludeIds = (excludeSessionIds ?? []).map((s) => s.id);
-      if (excludeIds.length > 0) {
-        unreadClientMsgsQ = admin
-          .from("chat_messages")
+
+      let reviewsBaseQ;
+      if (siteId) {
+        reviewsBaseQ = admin
+          .from("reviews")
           .select("id", { count: "exact", head: true })
-          .eq("sender_type", "client")
-          .eq("is_read", false)
-          .not("session_id", "in", `(${excludeIds.join(",")})`);
+          .eq("status", "pending")
+          .eq("site_id", siteId);
+      } else {
+        reviewsBaseQ = admin.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pending");
+      }
+
+      let unreadClientMsgsQ;
+      if (siteId) {
+        const { data: siteSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", siteId);
+        const ids = (siteSessionIds ?? []).map((s) => s.id);
+        if (ids.length > 0) {
+          unreadClientMsgsQ = admin
+            .from("chat_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("sender_type", "client")
+            .eq("is_read", false)
+            .in("session_id", ids);
+        } else {
+          unreadClientMsgsQ = admin
+            .from("chat_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("id", "00000000-0000-0000-0000-000000000000");
+        }
+      } else if (subsStoreId) {
+        const { data: excludeSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", subsStoreId);
+        const excludeIds = (excludeSessionIds ?? []).map((s) => s.id);
+        if (excludeIds.length > 0) {
+          unreadClientMsgsQ = admin
+            .from("chat_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("sender_type", "client")
+            .eq("is_read", false)
+            .not("session_id", "in", `(${excludeIds.join(",")})`);
+        } else {
+          unreadClientMsgsQ = admin
+            .from("chat_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("sender_type", "client")
+            .eq("is_read", false);
+        }
       } else {
         unreadClientMsgsQ = admin
           .from("chat_messages")
@@ -121,44 +129,48 @@ export default async function AdminOverviewPage({
           .eq("sender_type", "client")
           .eq("is_read", false);
       }
-    } else {
-      unreadClientMsgsQ = admin
-        .from("chat_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("sender_type", "client")
-        .eq("is_read", false);
+
+      const [
+        ov,
+        totalOrdersResp,
+        pendingOrdersResp,
+        activeOrdersResp,
+        openChatsResp,
+        pendingReviewsResp,
+        totalClientsCount,
+        unreadClientMsgsResp,
+      ] = await Promise.all([
+        loadAdminOverviewStats(admin, new Date(), siteSlug),
+        ordersBaseQ,
+        admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending").not("product", "ilike", "spotify%"),
+        admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "active").not("product", "ilike", "spotify%"),
+        chatsBaseQ,
+        reviewsBaseQ,
+        countAuthUsersForAdminSite(admin, "gpt-store"),
+        unreadClientMsgsQ,
+      ]);
+
+      overview = ov;
+      totalOrders = totalOrdersResp.count ?? 0;
+      pendingOrders = pendingOrdersResp.count ?? 0;
+      activeOrders = activeOrdersResp.count ?? 0;
+      openChats = openChatsResp.count ?? 0;
+      pendingReviews = pendingReviewsResp.count ?? 0;
+      totalClients = totalClientsCount;
+      unreadClientMsgs = unreadClientMsgsResp.count ?? 0;
+      revenueFootnote =
+        "Выручка суммирует заказы со статусами оплата получена и далее по цепочке активации. Учёт по дате создания заказа в базе; точный учёт — у платёжного провайдера.";
+    } catch (err) {
+      console.error("[admin/page]", err);
+      return (
+        <div className="p-6">
+          <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Панель администратора</h1>
+          <p className="max-w-xl text-sm text-gray-600">
+            Не удалось загрузить статистику. Проверьте Supabase env на Vercel или попробуйте обновить страницу.
+          </p>
+        </div>
+      );
     }
-
-    const [
-      ov,
-      totalOrdersResp,
-      pendingOrdersResp,
-      activeOrdersResp,
-      openChatsResp,
-      pendingReviewsResp,
-      totalClientsCount,
-      unreadClientMsgsResp,
-    ] = await Promise.all([
-      loadAdminOverviewStats(admin, new Date(), siteSlug),
-      ordersBaseQ,
-      admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending").not("product", "ilike", "spotify%"),
-      admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "active").not("product", "ilike", "spotify%"),
-      chatsBaseQ,
-      reviewsBaseQ,
-      countAuthUsersForAdminSite(admin, "gpt-store"),
-      unreadClientMsgsQ,
-    ]);
-
-    overview = ov;
-    totalOrders = totalOrdersResp.count ?? 0;
-    pendingOrders = pendingOrdersResp.count ?? 0;
-    activeOrders = activeOrdersResp.count ?? 0;
-    openChats = openChatsResp.count ?? 0;
-    pendingReviews = pendingReviewsResp.count ?? 0;
-    totalClients = totalClientsCount;
-    unreadClientMsgs = unreadClientMsgsResp.count ?? 0;
-    revenueFootnote =
-      "Выручка суммирует заказы со статусами оплата получена и далее по цепочке активации. Учёт по дате создания заказа в базе; точный учёт — у платёжного провайдера.";
   }
 
   const stat = (label: string, value: string | number, color: string) => (
