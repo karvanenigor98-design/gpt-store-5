@@ -30,113 +30,102 @@ export default async function AdminOverviewPage({
   let revenueFootnote: string;
 
   if (siteSlug === "subs-store") {
-    try {
-      const subsAdmin = createSubsStoreAdminClient();
-      if (!subsAdmin) {
-        return (
-          <div className="p-6">
-            <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Subs Store — данные</h1>
-            <p className="max-w-xl text-sm text-gray-600">
-              Чтобы видеть метрики Subs Store из этой панели, добавьте в окружение проекта{" "}
-              <strong>GPT STORE</strong> переменные{" "}
-              <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
-              <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code>{" "}
-              (отдельный проект Supabase Subs Store; ключ только серверный). См.{" "}
-              <code className="rounded bg-gray-100 px-1">.env.example</code>.
-            </p>
-          </div>
-        );
-      }
-      const m = await loadSubsStoreDashboardBlock(subsAdmin);
-      overview = m.overview;
-      totalOrders = m.totalOrders;
-      pendingOrders = m.pendingOrders;
-      activeOrders = m.activeOrders;
-      openChats = m.openChats;
-      pendingReviews = m.pendingReviews;
-      totalClients = m.totalClients;
-      unreadClientMsgs = m.unreadClientMsgs;
-      revenueFootnote =
-        "Выручка Subs Store: сумма final_price заказов с payment_status = paid. Учёт по дате создания заказа.";
-    } catch (err) {
-      console.error("[admin/page subs]", err);
+    const subsAdmin = createSubsStoreAdminClient();
+    if (!subsAdmin) {
       return (
         <div className="p-6">
           <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Subs Store — данные</h1>
           <p className="max-w-xl text-sm text-gray-600">
-            Не удалось загрузить метрики Subs Store. Проверьте SUBS_SUPABASE_* env или обновите страницу.
+            Чтобы видеть метрики Subs Store из этой панели, добавьте в окружение проекта{" "}
+            <strong>GPT STORE</strong> переменные{" "}
+            <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
+            <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code>{" "}
+            (отдельный проект Supabase Subs Store; ключ только серверный). См.{" "}
+            <code className="rounded bg-gray-100 px-1">.env.example</code>.
           </p>
         </div>
       );
     }
+    const m = await loadSubsStoreDashboardBlock(subsAdmin);
+    overview = m.overview;
+    totalOrders = m.totalOrders;
+    pendingOrders = m.pendingOrders;
+    activeOrders = m.activeOrders;
+    openChats = m.openChats;
+    pendingReviews = m.pendingReviews;
+    totalClients = m.totalClients;
+    unreadClientMsgs = m.unreadClientMsgs;
+    revenueFootnote =
+      "Выручка Subs Store: сумма final_price заказов с payment_status = paid. Учёт по дате создания заказа.";
   } else {
-    try {
-      const admin = tryCreateAdminClient();
-      if (!admin) {
-        throw new Error("GPT Supabase admin client unavailable");
-      }
-      const siteId = await getSiteUUID(siteSlug);
+    const admin = tryCreateAdminClient();
+    if (!admin) {
+      return (
+        <div className="p-6">
+          <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Панель администратора</h1>
+          <p className="max-w-xl text-sm text-gray-600">
+            На сервере не настроен{" "}
+            <code className="rounded bg-gray-100 px-1">SUPABASE_SERVICE_ROLE_KEY</code>. Добавьте ключ в
+            окружение Vercel и перезапустите деплой.
+          </p>
+        </div>
+      );
+    }
+    const siteId = await getSiteUUID(siteSlug);
 
-      const ordersBaseQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
+    const ordersBaseQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
 
-      const subsStoreId = await getSiteUUID("subs-store");
+    const subsStoreId = await getSiteUUID("subs-store");
 
-      let chatsBaseQ;
-      if (subsStoreId) {
-        chatsBaseQ = admin
-          .from("chat_sessions")
+    let chatsBaseQ;
+    if (subsStoreId) {
+      chatsBaseQ = admin
+        .from("chat_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "open")
+        .neq("site_id", subsStoreId);
+    } else {
+      chatsBaseQ = admin.from("chat_sessions").select("id", { count: "exact", head: true }).eq("status", "open");
+    }
+
+    let reviewsBaseQ;
+    if (siteId) {
+      reviewsBaseQ = admin
+        .from("reviews")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .eq("site_id", siteId);
+    } else {
+      reviewsBaseQ = admin.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pending");
+    }
+
+    let unreadClientMsgsQ;
+    if (siteId) {
+      const { data: siteSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", siteId);
+      const ids = (siteSessionIds ?? []).map((s) => s.id);
+      if (ids.length > 0) {
+        unreadClientMsgsQ = admin
+          .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("status", "open")
-          .neq("site_id", subsStoreId);
+          .eq("sender_type", "client")
+          .eq("is_read", false)
+          .in("session_id", ids);
       } else {
-        chatsBaseQ = admin.from("chat_sessions").select("id", { count: "exact", head: true }).eq("status", "open");
-      }
-
-      let reviewsBaseQ;
-      if (siteId) {
-        reviewsBaseQ = admin
-          .from("reviews")
+        unreadClientMsgsQ = admin
+          .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .eq("site_id", siteId);
-      } else {
-        reviewsBaseQ = admin.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pending");
+          .eq("id", "00000000-0000-0000-0000-000000000000");
       }
-
-      let unreadClientMsgsQ;
-      if (siteId) {
-        const { data: siteSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", siteId);
-        const ids = (siteSessionIds ?? []).map((s) => s.id);
-        if (ids.length > 0) {
-          unreadClientMsgsQ = admin
-            .from("chat_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("sender_type", "client")
-            .eq("is_read", false)
-            .in("session_id", ids);
-        } else {
-          unreadClientMsgsQ = admin
-            .from("chat_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("id", "00000000-0000-0000-0000-000000000000");
-        }
-      } else if (subsStoreId) {
-        const { data: excludeSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", subsStoreId);
-        const excludeIds = (excludeSessionIds ?? []).map((s) => s.id);
-        if (excludeIds.length > 0) {
-          unreadClientMsgsQ = admin
-            .from("chat_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("sender_type", "client")
-            .eq("is_read", false)
-            .not("session_id", "in", `(${excludeIds.join(",")})`);
-        } else {
-          unreadClientMsgsQ = admin
-            .from("chat_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("sender_type", "client")
-            .eq("is_read", false);
-        }
+    } else if (subsStoreId) {
+      const { data: excludeSessionIds } = await admin.from("chat_sessions").select("id").eq("site_id", subsStoreId);
+      const excludeIds = (excludeSessionIds ?? []).map((s) => s.id);
+      if (excludeIds.length > 0) {
+        unreadClientMsgsQ = admin
+          .from("chat_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("sender_type", "client")
+          .eq("is_read", false)
+          .not("session_id", "in", `(${excludeIds.join(",")})`);
       } else {
         unreadClientMsgsQ = admin
           .from("chat_messages")
@@ -144,54 +133,50 @@ export default async function AdminOverviewPage({
           .eq("sender_type", "client")
           .eq("is_read", false);
       }
-
-      const [
-        ov,
-        totalOrdersResp,
-        pendingOrdersResp,
-        activeOrdersResp,
-        openChatsResp,
-        pendingReviewsResp,
-        totalClientsCount,
-        unreadClientMsgsResp,
-      ] = await Promise.all([
-        loadAdminOverviewStats(admin, new Date(), siteSlug),
-        ordersBaseQ,
-        admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending").not("product", "ilike", "spotify%"),
-        admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "active").not("product", "ilike", "spotify%"),
-        chatsBaseQ,
-        reviewsBaseQ,
-        countAuthUsersForAdminSite(admin, "gpt-store"),
-        unreadClientMsgsQ,
-      ]);
-
-      overview = ov;
-      totalOrders = totalOrdersResp.count ?? 0;
-      pendingOrders = pendingOrdersResp.count ?? 0;
-      activeOrders = activeOrdersResp.count ?? 0;
-      openChats = openChatsResp.count ?? 0;
-      pendingReviews = pendingReviewsResp.count ?? 0;
-      totalClients = totalClientsCount;
-      unreadClientMsgs = unreadClientMsgsResp.count ?? 0;
-      revenueFootnote =
-        "Выручка суммирует заказы со статусами оплата получена и далее по цепочке активации. Учёт по дате создания заказа в базе; точный учёт — у платёжного провайдера.";
-    } catch (err) {
-      console.error("[admin/page]", err);
-      return (
-        <div className="p-6">
-          <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Панель администратора</h1>
-          <p className="max-w-xl text-sm text-gray-600">
-            Не удалось загрузить статистику. Проверьте Supabase env на Vercel или попробуйте обновить страницу.
-          </p>
-        </div>
-      );
+    } else {
+      unreadClientMsgsQ = admin
+        .from("chat_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("sender_type", "client")
+        .eq("is_read", false);
     }
+
+    const [
+      ov,
+      totalOrdersResp,
+      pendingOrdersResp,
+      activeOrdersResp,
+      openChatsResp,
+      pendingReviewsResp,
+      totalClientsCount,
+      unreadClientMsgsResp,
+    ] = await Promise.all([
+      loadAdminOverviewStats(admin, new Date(), siteSlug),
+      ordersBaseQ,
+      admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending").not("product", "ilike", "spotify%"),
+      admin.from("orders").select("id", { count: "exact", head: true }).eq("status", "active").not("product", "ilike", "spotify%"),
+      chatsBaseQ,
+      reviewsBaseQ,
+      countAuthUsersForAdminSite(admin, "gpt-store"),
+      unreadClientMsgsQ,
+    ]);
+
+    overview = ov;
+    totalOrders = totalOrdersResp.count ?? 0;
+    pendingOrders = pendingOrdersResp.count ?? 0;
+    activeOrders = activeOrdersResp.count ?? 0;
+    openChats = openChatsResp.count ?? 0;
+    pendingReviews = pendingReviewsResp.count ?? 0;
+    totalClients = totalClientsCount;
+    unreadClientMsgs = unreadClientMsgsResp.count ?? 0;
+    revenueFootnote =
+      "Выручка суммирует заказы со статусами оплата получена и далее по цепочке активации. Учёт по дате создания заказа в базе; точный учёт — у платёжного провайдера.";
   }
 
   const stat = (label: string, value: string | number, color: string) => (
-    <div key={label} className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
-      <p className={`font-heading text-lg font-bold sm:text-2xl md:text-3xl ${color}`}>{value}</p>
-      <p className="mt-1 text-[10px] text-gray-400 sm:text-xs">{label}</p>
+    <div key={label} className="rounded-xl border border-gray-200 bg-white p-4">
+      <p className={`font-heading text-2xl font-bold md:text-3xl ${color}`}>{value}</p>
+      <p className="mt-1 text-xs text-gray-400">{label}</p>
     </div>
   );
 
@@ -207,7 +192,7 @@ export default async function AdminOverviewPage({
       </h1>
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Сегодня</h2>
-      <div className="mb-8 grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-3">
+      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3">
         {stat("Заказов сегодня", overview.ordersToday, "text-gray-900")}
         {stat("Выручка сегодня", `${overview.revenueToday.toLocaleString("ru")} ₽`, revenueAccent)}
         {stat("Новые клиенты", overview.newClientsToday, "text-blue-600")}

@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
+import { isRedirectError } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardNav, DashboardMobileNav } from "./DashboardNav";
 import { ClientNotificationsBar } from "@/components/dashboard/ClientNotificationsBar";
-import { resolveCabinetServerRole } from "@/lib/auth/server-role";
 import { DashboardSiteLogo, DashboardSiteHeaderTitle } from "./DashboardSiteBranding";
 import { hasSiteMembership } from "@/lib/auth/siteMembership";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
@@ -17,11 +17,32 @@ import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 
 export const dynamic = "force-dynamic";
 
+function dashboardLayoutError(message?: string) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="max-w-md text-center">
+        <h1 className="font-heading text-xl font-bold text-gray-900">Не удалось открыть кабинет</h1>
+        <p className="mt-3 text-sm text-gray-600">
+          {message ??
+            "Обновите страницу или войдите заново. Если ошибка повторяется — напишите в поддержку."}
+        </p>
+        <Link
+          href="/login?site=gpt-store"
+          className="mt-6 inline-block rounded-xl bg-[#10a37f] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+        >
+          На страницу входа
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  try {
   const cookieStore = await cookies();
   const headersList = await headers();
   const invokePath = headersList.get("x-invoke-pathname") ?? "";
@@ -58,19 +79,6 @@ export default async function DashboardLayout({
 
   if (!user || isSiteUiLoggedOut(siteSlug, cookieStore)) {
     redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}`);
-  }
-
-  const role = await resolveCabinetServerRole(siteSlug, user);
-  const isDashboardProfile =
-    invokePath === "/dashboard/profile" || invokePath.startsWith("/dashboard/profile/");
-
-  if (siteSlug === "gpt-store") {
-    if (role === "admin" && !isDashboardProfile) {
-      redirect("/admin");
-    }
-    if (role === "operator" && !isDashboardProfile) {
-      redirect("/operator");
-    }
   }
 
   // Check site membership: if user has memberships but not for this site, redirect to login
@@ -197,4 +205,15 @@ export default async function DashboardLayout({
       </Suspense>
     </div>
   );
+  } catch (err) {
+    if (isRedirectError(err)) throw err;
+    console.error("[dashboard/layout]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("gpt_auth_env_missing") || msg.includes("GPT Supabase env invalid")) {
+      return dashboardLayoutError(
+        "На сервере не настроен Supabase (NEXT_PUBLIC_SUPABASE_URL / ANON_KEY). Обратитесь к администратору сайта.",
+      );
+    }
+    return dashboardLayoutError();
+  }
 }

@@ -28,12 +28,14 @@ export function resolveStaffAuthRedirect(role: UserRole, returnUrl: string | nul
   if (role === "admin") {
     if (safe.startsWith("/operator")) return "/admin";
     if (safe.startsWith("/admin")) return safe;
+    if (safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) return safe;
     return "/admin";
   }
 
   if (role === "operator") {
     if (safe.startsWith("/admin")) return safe.replace(/^\/admin/, "/operator") || "/operator";
     if (safe.startsWith("/operator")) return safe;
+    if (safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) return safe;
     return "/operator";
   }
 
@@ -45,17 +47,13 @@ export function resolveStaffAuthRedirect(role: UserRole, returnUrl: string | nul
 }
 
 export async function getGptStaffSessionUser(): Promise<User | null> {
-  try {
-    const supabase = await tryCreateClient();
-    if (!supabase) return null;
-    await supabase.auth.getSession();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return user;
-  } catch {
-    return null;
-  }
+  const supabase = await tryCreateClient();
+  if (!supabase) return null;
+  await supabase.auth.getSession();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
 }
 
 /** Guard для /admin и /operator layouts — единая логика роли и login redirect. */

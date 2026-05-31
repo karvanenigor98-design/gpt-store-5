@@ -13,9 +13,10 @@ export function resolvePostLoginPath(returnUrl: string, role: UserRole): string 
     if (safe.startsWith("/dashboard/chat")) {
       return `${staffBase}/chat`;
     }
+    if (safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) {
+      return safe;
+    }
     if (
-      safe.startsWith("/dashboard") ||
-      safe.startsWith("/cabinet") ||
       safe === "/" ||
       safe.startsWith("/support") ||
       safe.startsWith("/login") ||

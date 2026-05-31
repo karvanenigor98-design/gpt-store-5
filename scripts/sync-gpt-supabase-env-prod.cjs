@@ -68,11 +68,9 @@ async function main() {
   const envs = list.envs || [];
 
   for (const key of KEYS) {
-    const prodEntries = envs.filter(
-      (e) => e.key === key && e.target?.includes("production"),
-    );
-    for (const entry of prodEntries) {
-      console.log(`DELETE ${key} prod id=${entry.id} type=${entry.type}`);
+    const entries = envs.filter((e) => e.key === key);
+    for (const entry of entries) {
+      console.log(`DELETE ${key} id=${entry.id} type=${entry.type} target=${JSON.stringify(entry.target)}`);
       await api(token, "DELETE", `/v9/projects/${PROJECT}/env/${entry.id}?teamId=${TEAM}`);
     }
 
@@ -86,23 +84,34 @@ async function main() {
     console.log(`  ok id=${created.id || created.created?.[0]?.id || "?"}`);
   }
 
-  // Verify dev entries still readable
   const verify = await api(
     token,
     "GET",
     `/v9/projects/${PROJECT}/env?teamId=${TEAM}&decrypt=true`,
   );
   for (const key of KEYS) {
-    const prod = (verify.envs || []).find(
+    const matches = (verify.envs || []).filter(
       (e) => e.key === key && e.target?.includes("production"),
     );
+    if (matches.length > 1) {
+      console.log(`WARN ${key}: ${matches.length} production entries after sync`);
+    }
+    const prod = matches[0];
     const val = prod?.value || "";
-    const okUrl = key.includes("URL") ? /\.supabase\.co/i.test(val) : val.length > 20;
+    let ok = false;
+    if (key.includes("URL")) {
+      ok = /\.supabase\.co/i.test(val);
+    } else if (key === "SUPABASE_SERVICE_ROLE_KEY") {
+      ok = prod?.type === "encrypted" || (val.length >= 100 && val.length <= 400);
+    } else {
+      ok = val.length > 20 && val.length <= 400;
+    }
     console.log(
       `VERIFY ${key}:`,
       key.includes("URL") ? (val || "EMPTY") : `len=${val.length}`,
-      okUrl ? "OK" : "BAD",
+      ok ? "OK" : "BAD",
     );
+    if (!ok) process.exitCode = 1;
   }
 }
 
