@@ -3,6 +3,7 @@ import { AnimateSection } from "@/components/ui/AnimateSection";
 import { ChatGptLandingNav } from "@/components/sections/ChatGptLandingNav";
 import { ChatWidget } from "@/components/sections/ChatWidget";
 import { CompareSection } from "@/components/sections/CompareSection";
+import { CrossSellSection } from "@/components/sections/CrossSellSection";
 import { FaqSection } from "@/components/sections/FaqSection";
 import { FinalCtaSection } from "@/components/sections/FinalCtaSection";
 import { GuaranteeSection } from "@/components/sections/GuaranteeSection";
@@ -10,12 +11,10 @@ import { HeroSection } from "@/components/sections/HeroSection";
 import { HowItWorksSection } from "@/components/sections/HowItWorksSection";
 import { PricingSection } from "@/components/sections/PricingSection";
 import { ReviewsSection } from "@/components/sections/ReviewsSection";
-import { RussiaSection } from "@/components/sections/RussiaSection";
 import { SafetySection } from "@/components/sections/SafetySection";
 import { StoreConfigAutoRefresh } from "@/components/sections/StoreConfigAutoRefresh";
 import { Ticker } from "@/components/sections/Ticker";
 import { TokenSafetySection } from "@/components/sections/TokenSafetySection";
-import { WhyCheaperSection } from "@/components/sections/WhyCheaperSection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobileCta";
 import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
@@ -56,7 +55,7 @@ export default async function HomePage() {
       <div className="relative min-h-screen bg-white">
         <LandingAnimatedBackground />
         <ChatGptLandingNav />
-        <main className="relative z-[1] pb-20 pt-0 md:pb-0">
+        <main className="relative z-[1] overflow-x-hidden pb-20 pt-0 md:pb-0">
           <div className="relative z-[1] bg-white">
             <HeroSection />
             <AnimateSection>
@@ -86,12 +85,6 @@ export default async function HomePage() {
           <AnimateSection delay={0.05}>
             <GuaranteeSection />
           </AnimateSection>
-          <AnimateSection delay={0.05}>
-            <RussiaSection />
-          </AnimateSection>
-          <AnimateSection delay={0.05}>
-            <WhyCheaperSection />
-          </AnimateSection>
           {showReviews && (
             <AnimateSection delay={0.05}>
               <ReviewsSection reviews={reviews} />
@@ -102,6 +95,9 @@ export default async function HomePage() {
               <FaqSection />
             </AnimateSection>
           )}
+          <AnimateSection delay={0.05}>
+            <CrossSellSection />
+          </AnimateSection>
           <AnimateSection delay={0.05}>
             <FinalCtaSection />
           </AnimateSection>

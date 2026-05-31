@@ -12,13 +12,19 @@ export function SpotifyGptCrossSell() {
   }
 
   return (
-    <div
-      className="mx-auto mt-8 flex w-full max-w-3xl flex-col items-start justify-between gap-5 rounded-2xl p-5 text-left sm:flex-row sm:items-center sm:p-6"
-      style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
-      }}
+    <section
+      id="projects"
+      className="px-4 py-12 md:px-6 md:py-16"
+      style={{ background: "#0a0a0a" }}
     >
+      <div className="mx-auto max-w-4xl">
+        <div
+          className="flex w-full flex-col items-start justify-between gap-5 rounded-2xl p-5 text-left sm:flex-row sm:items-center sm:p-6"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
       <div className="flex items-center gap-4">
         <div
           className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl"
@@ -47,6 +53,8 @@ export function SpotifyGptCrossSell() {
         {s.ctaLabel}
         <ArrowRight size={15} />
       </Link>
-    </div>
+        </div>
+      </div>
+    </section>
   );
 }

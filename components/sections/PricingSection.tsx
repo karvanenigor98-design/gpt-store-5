@@ -160,7 +160,7 @@ export function PricingSection({
     plans.every((p) => p.productId === "chatgpt-plus");
 
   return (
-    <section id="pricing" className="relative overflow-hidden py-20 md:py-28">
+    <section id="pricing" className="relative overflow-x-hidden overflow-hidden py-20 md:py-28">
       {/* Subtle gradient */}
       <div
         className="pointer-events-none absolute inset-0"

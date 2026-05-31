@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, Clock3, Lock, ShieldCheck } from "lucide-react";
-import { CrossSellSection } from "@/components/sections/CrossSellSection";
 import { fadeUp } from "@/lib/motion-config";
 
 export function FinalCtaSection() {
@@ -51,8 +50,6 @@ export function FinalCtaSection() {
             <ArrowRight size={20} />
           </motion.a>
         </div>
-
-        <CrossSellSection />
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4 md:gap-8">
           {[

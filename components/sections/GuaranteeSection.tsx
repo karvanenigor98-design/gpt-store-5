@@ -25,6 +25,7 @@ export function GuaranteeSection() {
           </h2>
           <p className="mt-2 text-base text-gray-600">
             Гарантия на весь срок подписки, поддержка 24/7 и статус заказа в личном кабинете.
+            Работает в России · оплата в рублях без иностранной карты.
           </p>
           <ul className="mt-5 space-y-3 text-gray-600">
             {GUARANTEE_POINTS.map((point) => (

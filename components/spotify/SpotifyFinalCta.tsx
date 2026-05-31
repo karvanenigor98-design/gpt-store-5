@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Clock3, Lock, ShieldCheck, type LucideIcon } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
-import { SpotifyGptCrossSell } from "@/components/spotify/SpotifyGptCrossSell";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 
@@ -65,8 +64,6 @@ export function SpotifyFinalCta() {
             <ArrowRight size={20} />
           </motion.button>
         </div>
-
-        <SpotifyGptCrossSell />
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4 md:gap-8">
           {trustItems.map(({ icon: Icon, text }) => (

@@ -32,7 +32,7 @@ export function HowItWorksSection() {
           whileInView="visible"
           viewport={{ once: true, margin: "-80px" }}
           variants={staggerContainer}
-          className="grid gap-6 md:grid-cols-4"
+          className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5"
         >
           {HOW_IT_WORKS_STEPS.map((step, index) => {
             const Icon = chatLandingLucideIcon(step.icon);

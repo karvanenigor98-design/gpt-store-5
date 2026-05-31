@@ -2,9 +2,16 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
+import {
+  SPOTIFY_ACCENT,
+  SPOTIFY_HERO_ACCENT_BASE,
+  SPOTIFY_HERO_ACCENT_WITH_TIMING,
+  SPOTIFY_HERO_BADGE_NO_TIMING,
+  SPOTIFY_HERO_BADGE_WITH_TIMING,
+} from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { reachLandingGoal } from "@/lib/analytics/reach-landing-goal";
+import { useLandingHeroAb } from "@/lib/analytics/landing-hero-ab";
 import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 
@@ -16,6 +23,10 @@ function scrollToSpotifyPricingFromHero(source: string): void {
 
 export function SpotifyHero() {
   const { hero } = useSpotifyLanding();
+  const heroAb = useLandingHeroAb("subs-store");
+  const badge = heroAb === "h1" ? SPOTIFY_HERO_BADGE_NO_TIMING : SPOTIFY_HERO_BADGE_WITH_TIMING;
+  const accentTitle =
+    heroAb === "h1" ? SPOTIFY_HERO_ACCENT_WITH_TIMING : SPOTIFY_HERO_ACCENT_BASE;
 
   return (
     <section
@@ -58,7 +69,7 @@ export function SpotifyHero() {
                 className="h-2 w-2 animate-pulse rounded-full"
                 style={{ background: SPOTIFY_ACCENT }}
               />
-              {hero.badge}
+              {badge}
             </motion.div>
 
             <motion.h1
@@ -79,7 +90,7 @@ export function SpotifyHero() {
                   backgroundClip: "text",
                 }}
               >
-                {hero.accentTitle}
+                {accentTitle}
               </span>
             </motion.h1>
 

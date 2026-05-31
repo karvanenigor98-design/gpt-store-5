@@ -16,6 +16,7 @@ import { SpotifyPricing } from "@/components/spotify/SpotifyPricing";
 import { SpotifyGuarantee } from "@/components/spotify/SpotifyGuarantee";
 import { SpotifyFaq } from "@/components/spotify/SpotifyFaq";
 import { SpotifyFinalCta } from "@/components/spotify/SpotifyFinalCta";
+import { SpotifyGptCrossSell } from "@/components/spotify/SpotifyGptCrossSell";
 import { SpotifyFooter } from "@/components/spotify/SpotifyFooter";
 import { SpotifyLandingProvider } from "@/components/spotify/SpotifyLandingProvider";
 import { SpotifyStoreConfigAutoRefresh } from "@/components/spotify/SpotifyStoreConfigAutoRefresh";
@@ -73,7 +74,7 @@ export default async function SpotifyPage() {
         <SpotifyStoreConfigAutoRefresh />
         <div className="relative" style={{ background: "#0a0a0a", color: "#ffffff" }}>
           <SpotifyNav />
-          <main className="pb-20 pt-14 md:pb-0">
+          <main className="overflow-x-hidden pb-20 pt-14 md:pb-0">
             <SpotifyHero />
             <AnimateSection>
               <SpotifyTicker />
@@ -104,6 +105,9 @@ export default async function SpotifyPage() {
             </AnimateSection>
             <AnimateSection delay={0.05}>
               <SpotifyFaq />
+            </AnimateSection>
+            <AnimateSection delay={0.05}>
+              <SpotifyGptCrossSell />
             </AnimateSection>
             <AnimateSection delay={0.05}>
               <SpotifyFinalCta />

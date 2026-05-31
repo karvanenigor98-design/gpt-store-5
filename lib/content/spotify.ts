@@ -4,10 +4,19 @@ export const SPOTIFY_ACCENT = "#1DB954";
 export const SPOTIFY_GLOW = "rgba(29,185,84,0.15)";
 export const SPOTIFY_BORDER = "rgba(255,255,255,0.08)";
 
+/** A/B hero: срок в badge (A) или в accent H1 (B). */
+export const SPOTIFY_HERO_BADGE_WITH_TIMING =
+  "SPOTIFY STORE · 10–15 мин · Premium · Оплата в ₽";
+export const SPOTIFY_HERO_BADGE_NO_TIMING =
+  "SPOTIFY STORE · Premium без рекламы · Оплата в ₽";
+export const SPOTIFY_HERO_ACCENT_BASE = "в России без сложностей";
+export const SPOTIFY_HERO_ACCENT_WITH_TIMING =
+  "в России без сложностей — подключим за 10–15 минут";
+
 export const SPOTIFY_HERO = {
-  badge: "SPOTIFY STORE · Premium без рекламы · Оплата в ₽",
+  badge: SPOTIFY_HERO_BADGE_WITH_TIMING,
   title: "Spotify Premium",
-  accentTitle: "в России без сложностей",
+  accentTitle: SPOTIFY_HERO_ACCENT_BASE,
   subtitle:
     "Подключаем Spotify Premium на ваш аккаунт или выдаём новый — без рекламы, с офлайном и полным каталогом. Оплата в рублях, гарантия на срок подписки.",
   trustBadges: [
@@ -474,6 +483,11 @@ export const SPOTIFY_FAQ = [
     question: "Как связаться с поддержкой?",
     answer:
       "Через чат на сайте или в личном кабинете после оплаты. Поддержка на русском языке.",
+  },
+  {
+    question: "Где смотреть статус заказа?",
+    answer:
+      "В личном кабинете после оплаты — там видно этап подключения и можно написать оператору. Статус обновляется по мере обработки заказа.",
   },
   {
     question: "Что делать после оплаты?",

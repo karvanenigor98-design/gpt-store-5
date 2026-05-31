@@ -2,8 +2,9 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { HERO_CONTENT } from "@/lib/chatgpt-data";
+import { HERO_CONTENT, HERO_ACCENT_BASE, HERO_ACCENT_WITH_TIMING, HERO_BADGE_NO_TIMING, HERO_BADGE_WITH_TIMING } from "@/lib/chatgpt-data";
 import { reachLandingGoal } from "@/lib/analytics/reach-landing-goal";
+import { useLandingHeroAb } from "@/lib/analytics/landing-hero-ab";
 import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
 
 function scrollToGptPricing(source: string): void {
@@ -13,6 +14,10 @@ function scrollToGptPricing(source: string): void {
 }
 
 export function HeroSection() {
+  const heroAb = useLandingHeroAb("gpt-store");
+  const badge = heroAb === "h1" ? HERO_BADGE_NO_TIMING : HERO_BADGE_WITH_TIMING;
+  const accentTitle = heroAb === "h1" ? HERO_ACCENT_WITH_TIMING : HERO_ACCENT_BASE;
+
   return (
     <section
       id="hero"
@@ -45,7 +50,7 @@ export function HeroSection() {
               className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#10a37f]/20 bg-[#10a37f]/[0.07] px-4 py-2 text-sm text-[#10a37f] md:mb-6"
             >
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#10a37f]" />
-              {HERO_CONTENT.badge}
+              {badge}
             </motion.div>
 
             <motion.h1
@@ -64,7 +69,7 @@ export function HeroSection() {
                   backgroundClip: "text",
                 }}
               >
-                {HERO_CONTENT.accentTitle}
+                {accentTitle}
               </span>
             </motion.h1>
 
