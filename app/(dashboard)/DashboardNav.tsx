@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import { useSafePathname } from '@/lib/client/useSafePathname'
 import { getSiteBySlug } from '@/lib/sites'
 
-const NAV_ITEMS = [
+export const DASHBOARD_NAV_ITEMS = [
   { base: '/dashboard', label: 'Главная', icon: LayoutDashboard },
   { base: '/dashboard/orders', label: 'Заказы', icon: ShoppingBag },
   { base: '/dashboard/chat', label: 'Поддержка', icon: MessageCircle },
@@ -30,7 +30,7 @@ export function DashboardNav({ defaultSiteSlug }: NavProps) {
 
   return (
     <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
-      {NAV_ITEMS.map((item) => {
+      {DASHBOARD_NAV_ITEMS.map((item) => {
         const href = item.base + siteQuery
         const isActive =
           item.base === '/dashboard'
@@ -70,8 +70,15 @@ export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
   const isSubs = site.slug === 'subs-store'
 
   return (
-    <nav className="flex gap-4">
-      {NAV_ITEMS.map((item) => {
+    <nav
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-40 flex border-t md:hidden',
+        isSubs ? 'border-white/10 bg-[#111111]' : 'border-gray-200 bg-white/95 backdrop-blur-md',
+      )}
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.25rem)' }}
+      aria-label="Навигация кабинета"
+    >
+      {DASHBOARD_NAV_ITEMS.map((item) => {
         const href = item.base + siteQuery
         const isActive =
           item.base === '/dashboard'
@@ -83,10 +90,17 @@ export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
             key={item.base}
             href={href}
             style={isActive ? { color: site.primaryColor } : undefined}
-            className={isActive ? '' : cn(isSubs ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900')}
-            aria-label={item.label}
+            className={cn(
+              'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[10px] font-medium leading-tight',
+              isActive
+                ? ''
+                : isSubs
+                  ? 'text-gray-400 hover:text-white'
+                  : 'text-gray-500 hover:text-gray-900',
+            )}
           >
-            <Icon size={20} />
+            <Icon size={18} className="shrink-0" />
+            <span className="max-w-full truncate text-center">{item.label}</span>
           </Link>
         )
       })}

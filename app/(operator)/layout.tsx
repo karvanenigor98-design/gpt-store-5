@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { OperatorSidebar } from "@/components/admin/OperatorSidebar";
+import { StaffMobileNav } from "@/components/admin/StaffMobileNav";
+import { OPERATOR_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { requireStaffPanel } from "@/lib/auth/staff-access";
 
 export default async function OperatorLayout({ children }: { children: React.ReactNode }) {
@@ -20,6 +22,9 @@ export default async function OperatorLayout({ children }: { children: React.Rea
       </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminAlertsBar />
+        <Suspense fallback={null}>
+          <StaffMobileNav items={OPERATOR_NAV_ITEMS} panelRoot="/operator" />
+        </Suspense>
         {children}
       </div>
     </div>

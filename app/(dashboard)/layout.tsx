@@ -161,12 +161,14 @@ export default async function DashboardLayout({
           </Suspense>
           <div className="flex items-center gap-2">
             {(isSubsShell || isGptShell) && <ClientNotificationsBar siteSlug={siteSlug} />}
-            <DashboardMobileNav defaultSiteSlug={siteSlug} />
           </div>
         </header>
+        <Suspense fallback={null}>
+          <DashboardMobileNav defaultSiteSlug={siteSlug} />
+        </Suspense>
         <main
           className={cn(
-            "min-w-0 flex-1 overflow-y-auto p-4 md:p-6 lg:p-8",
+            "min-w-0 flex-1 overflow-y-auto p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6 lg:p-8",
             useDarkCabinetShell ? "bg-[#0a0a0a]" : "bg-gray-50",
           )}
         >

@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { StaffMobileNav } from "@/components/admin/StaffMobileNav";
+import { ADMIN_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { requireStaffPanel } from "@/lib/auth/staff-access";
 
 export default async function AdminLayout({
@@ -24,6 +26,9 @@ export default async function AdminLayout({
       </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminAlertsBar />
+        <Suspense fallback={null}>
+          <StaffMobileNav items={ADMIN_NAV_ITEMS} panelRoot="/admin" />
+        </Suspense>
         {children}
       </div>
     </div>

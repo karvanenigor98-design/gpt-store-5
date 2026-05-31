@@ -3,26 +3,13 @@
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-import { LayoutDashboard, ShoppingBag, MessageCircle, UserCircle, Bell } from "lucide-react";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
+import { OPERATOR_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { getSiteBySlug } from "@/lib/sites";
 import { staffNavHref } from "@/lib/admin/staffNavHref";
 import { cn } from "@/lib/utils";
-
-const NAV: Array<{
-  href: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  badge: "orders" | "chat" | "notifications" | null;
-}> = [
-  { href: "/operator", label: "Главная", icon: LayoutDashboard, badge: null },
-  { href: "/operator/orders", label: "Заказы", icon: ShoppingBag, badge: "orders" },
-  { href: "/operator/clients", label: "Клиенты", icon: UserCircle, badge: null },
-  { href: "/operator/chat", label: "Чат", icon: MessageCircle, badge: "chat" },
-  { href: "/operator/notifications", label: "Уведомления", icon: Bell, badge: "notifications" },
-];
 
 function resolveSite(raw: string | null): "gpt-store" | "subs-store" {
   return raw === "subs-store" ? "subs-store" : "gpt-store";
@@ -58,7 +45,7 @@ export function OperatorSidebar() {
         </span>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
-        {NAV.map((item) => {
+        {OPERATOR_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const href = staffNavHref(item.href, siteSlug);
           const isActive =

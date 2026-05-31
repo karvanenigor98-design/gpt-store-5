@@ -162,9 +162,9 @@ export default async function AdminOverviewPage({
   }
 
   const stat = (label: string, value: string | number, color: string) => (
-    <div key={label} className="rounded-xl border border-gray-200 bg-white p-4">
-      <p className={`font-heading text-2xl font-bold md:text-3xl ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-gray-400">{label}</p>
+    <div key={label} className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
+      <p className={`font-heading text-lg font-bold sm:text-2xl md:text-3xl ${color}`}>{value}</p>
+      <p className="mt-1 text-[10px] text-gray-400 sm:text-xs">{label}</p>
     </div>
   );
 
@@ -180,7 +180,7 @@ export default async function AdminOverviewPage({
       </h1>
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Сегодня</h2>
-      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3">
+      <div className="mb-8 grid grid-cols-3 gap-2 sm:gap-4 md:grid-cols-3">
         {stat("Заказов сегодня", overview.ordersToday, "text-gray-900")}
         {stat("Выручка сегодня", `${overview.revenueToday.toLocaleString("ru")} ₽`, revenueAccent)}
         {stat("Новые клиенты", overview.newClientsToday, "text-blue-600")}

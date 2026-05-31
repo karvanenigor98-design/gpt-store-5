@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -8,6 +9,7 @@ import type { Profile } from "@/types";
 import type { ClientChatSessionPayload } from "@/types/chat-ui";
 import { cn } from "@/lib/utils";
 import { useSafePathname } from "@/lib/client/useSafePathname";
+import { useLandingMobileChatDock } from "@/lib/landing/useLandingMobileChatDock";
 
 interface ChatWidgetProps {
   /** Site context for this widget. Defaults to "gpt-store". */
@@ -189,6 +191,37 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   /** На лендингах mobile: компактная кнопка чата, чтобы не перекрывать sticky CTA. */
   const landingCompactChat =
     pathname === "/" || pathname === "/spotify" || subsLandingSupportLink;
+  const { docked: landingChatDocked, chatSlot: landingChatSlot } =
+    useLandingMobileChatDock(landingCompactChat);
+
+  const landingChatDockClass = cn(
+    "fixed z-50",
+    landingCompactChat
+      ? landingChatDocked
+        ? "max-md:hidden md:bottom-6 md:right-6 md:pb-0"
+        : "max-md:bottom-[max(0.5rem,env(safe-area-inset-bottom))] max-md:right-3 md:bottom-6 md:right-6"
+      : "bottom-4 right-4 sm:bottom-6 sm:right-6",
+  );
+
+  const landingChatButtonClass = cn(
+    "flex items-center gap-2 rounded-full text-sm font-medium text-white shadow-lg transition-all duration-200",
+    landingCompactChat
+      ? "h-12 w-12 justify-center p-0 md:h-auto md:w-auto md:justify-start md:px-4 md:py-3"
+      : "px-3 py-2.5 sm:px-4 sm:py-3",
+  );
+
+  const landingChatLabel = (
+    <span className={cn(landingCompactChat && "hidden md:inline")}>Чат поддержки</span>
+  );
+
+  const wrapLandingChatTrigger = (trigger: React.ReactNode, extraClass?: string) => (
+    <>
+      {landingChatDocked && landingChatSlot ? createPortal(trigger, landingChatSlot) : null}
+      <div className={cn(landingChatDockClass, extraClass, landingChatDocked && "max-md:hidden")}>
+        {trigger}
+      </div>
+    </>
+  );
 
   const chatIconSvg = (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,24 +232,6 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
         d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
       />
     </svg>
-  );
-
-  const landingChatDockClass = cn(
-    "fixed z-50 pb-[env(safe-area-inset-bottom)]",
-    landingCompactChat
-      ? "bottom-3 right-3 max-md:bottom-[max(0.65rem,env(safe-area-inset-bottom))] max-md:right-3 md:bottom-6 md:right-6"
-      : "bottom-4 right-4 sm:bottom-6 sm:right-6",
-  );
-
-  const landingChatButtonClass = cn(
-    "flex items-center gap-2 rounded-full text-sm font-medium text-white shadow-lg transition-all duration-200",
-    landingCompactChat
-      ? "max-md:h-12 max-md:w-12 max-md:justify-center max-md:p-0 md:px-4 md:py-3"
-      : "px-3 py-2.5 sm:px-4 sm:py-3",
-  );
-
-  const landingChatLabel = (
-    <span className={cn(landingCompactChat && "hidden md:inline")}>Чат поддержки</span>
   );
 
   if (pathname === "/support" && !isSubsStore) return null;
@@ -232,113 +247,116 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
             ? chatDashboardHref
             : loginHref;
 
-    return (
-      <div className={landingChatDockClass}>
-        <a
-          href={landingSupportHref}
-          className={landingChatButtonClass}
-          aria-label="Чат поддержки"
-          style={{
-            backgroundColor: accentColor,
-            boxShadow: `0 4px 14px ${accentColor}40`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = accentHover;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = accentColor;
-          }}
-        >
-          {chatIconSvg}
-          {landingChatLabel}
-        </a>
-      </div>
+    return wrapLandingChatTrigger(
+      <a
+        href={landingSupportHref}
+        className={landingChatButtonClass}
+        aria-label="Чат поддержки"
+        style={{
+          backgroundColor: accentColor,
+          boxShadow: `0 4px 14px ${accentColor}40`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = accentHover;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = accentColor;
+        }}
+      >
+        {chatIconSvg}
+        {landingChatLabel}
+      </a>,
     );
   }
 
   if (pathname === "/" && user && user.role !== "admin" && user.role !== "operator") {
+    const chatToggle = (
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn("relative", landingChatButtonClass)}
+        style={{
+          backgroundColor: accentColor,
+          boxShadow: `0 4px 14px ${accentColor}40`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = accentHover;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = accentColor;
+        }}
+        aria-label={open ? "Закрыть чат" : "Открыть чат поддержки"}
+      >
+        {chatIconSvg}
+        {landingChatLabel}
+        {unread > 0 && !open && (
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+            {Math.min(unread, 9)}
+          </span>
+        )}
+      </button>
+    );
+
     return (
-      <div className={cn(landingChatDockClass, "flex flex-col items-end gap-2")}>
-        <div
-          className={cn(
-            "overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
-            "border border-gray-200 bg-white",
-            open
-              ? "h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] translate-y-0 opacity-100"
-              : "pointer-events-none h-0 w-0 translate-y-4 opacity-0",
-          )}
-        >
-          {open && session && (
-            <div className="h-full w-full">
-              <ChatWindow
-                currentUser={user}
-                sessionId={session.id}
-                roomStatus={session.status === "closed" ? "closed" : "open"}
-                otherPartyName={chatPartyName}
-                viewerIsStaff={false}
-                siteSlug={siteSlug}
-              />
-            </div>
-          )}
-          {open && !session?.id && (
-            <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm">
-              <p className="text-gray-600">
-                {openSessionLoading ? "Подключаем чат…" : sessionError ?? ""}
-              </p>
-            </div>
-          )}
+      <>
+        {landingChatDocked && landingChatSlot ? createPortal(chatToggle, landingChatSlot) : null}
+        <div className={cn(landingChatDockClass, "flex flex-col items-end gap-2")}>
+          <div
+            className={cn(
+              "overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
+              "border border-gray-200 bg-white",
+              open
+                ? "h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] translate-y-0 opacity-100"
+                : "pointer-events-none h-0 w-0 translate-y-4 opacity-0",
+            )}
+          >
+            {open && session && (
+              <div className="h-full w-full">
+                <ChatWindow
+                  currentUser={user}
+                  sessionId={session.id}
+                  roomStatus={session.status === "closed" ? "closed" : "open"}
+                  otherPartyName={chatPartyName}
+                  viewerIsStaff={false}
+                  siteSlug={siteSlug}
+                />
+              </div>
+            )}
+            {open && !session?.id && (
+              <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm">
+                <p className="text-gray-600">
+                  {openSessionLoading ? "Подключаем чат…" : sessionError ?? ""}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className={cn(landingChatDocked && "max-md:hidden")}>{chatToggle}</div>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className={cn("relative", landingChatButtonClass)}
-          style={{
-            backgroundColor: accentColor,
-            boxShadow: `0 4px 14px ${accentColor}40`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = accentHover;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = accentColor;
-          }}
-          aria-label={open ? "Закрыть чат" : "Открыть чат поддержки"}
-        >
-          {chatIconSvg}
-          {landingChatLabel}
-          {unread > 0 && !open && (
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-              {Math.min(unread, 9)}
-            </span>
-          )}
-        </button>
-      </div>
+      </>
     );
   }
 
   if (pathname === "/") {
     const landingSupportHref = user ? chatDashboardHref : loginHref;
-    return (
-      <div className={landingChatDockClass}>
-        <a
-          href={landingSupportHref}
-          className={landingChatButtonClass}
-          aria-label="Чат поддержки"
-          style={{
-            backgroundColor: accentColor,
-            boxShadow: `0 4px 14px ${accentColor}40`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = accentHover;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = accentColor;
-          }}
-        >
-          {chatIconSvg}
-          {landingChatLabel}
-        </a>
-      </div>
+    return wrapLandingChatTrigger(
+      <a
+        href={landingSupportHref}
+        className={landingChatButtonClass}
+        aria-label="Чат поддержки"
+        style={{
+          backgroundColor: accentColor,
+          boxShadow: `0 4px 14px ${accentColor}40`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = accentHover;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = accentColor;
+        }}
+      >
+        {chatIconSvg}
+        {landingChatLabel}
+      </a>,
     );
   }
 

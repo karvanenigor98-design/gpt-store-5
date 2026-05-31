@@ -2,41 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import {
-  LayoutDashboard,
-  ShoppingBag,
-  MessageCircle,
-  Star,
-  Settings,
-  Users,
-  UserCircle,
-  Percent,
-  Tag,
-  Layers,
-  Globe,
-  Bell,
-} from "lucide-react";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
+import { ADMIN_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { getSiteBySlug } from "@/lib/sites";
 import { cn } from "@/lib/utils";
-
-type BadgeKey = "notifications" | "chat" | "orders" | null;
-
-const NAV: { href: string; label: string; icon: typeof LayoutDashboard; badge: BadgeKey }[] = [
-  { href: "/admin", label: "Главная", icon: LayoutDashboard, badge: null },
-  { href: "/admin/sites", label: "Магазины", icon: Globe, badge: null },
-  { href: "/admin/orders", label: "Заказы", icon: ShoppingBag, badge: "orders" },
-  { href: "/admin/clients", label: "Клиенты", icon: UserCircle, badge: null },
-  { href: "/admin/users", label: "Пользователи", icon: Users, badge: null },
-  { href: "/admin/chat", label: "Чат", icon: MessageCircle, badge: "chat" },
-  { href: "/admin/notifications", label: "Уведомления", icon: Bell, badge: "notifications" },
-  { href: "/admin/tariffs", label: "Тарифы", icon: Layers, badge: null },
-  { href: "/admin/promocodes", label: "Промокоды", icon: Tag, badge: null },
-  { href: "/admin/discounts", label: "Скидки", icon: Percent, badge: null },
-  { href: "/admin/reviews", label: "Отзывы", icon: Star, badge: null },
-  { href: "/admin/settings", label: "Настройки", icon: Settings, badge: null },
-];
 
 function withSiteQuery(path: string, site: string | null): string {
   if (!site) return path;
@@ -65,7 +35,7 @@ export function AdminSidebar() {
         </Link>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-        {NAV.map((item) => {
+        {ADMIN_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const href = withSiteQuery(item.href, site);
           const isActive =
