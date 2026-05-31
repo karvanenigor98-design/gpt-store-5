@@ -6,6 +6,8 @@ import {
 } from "@/lib/brand/spotify-link-preview-html";
 import { resolveStaffAuthRedirect } from "@/lib/auth/staff-access";
 import { resolveServerRole } from "@/lib/auth/server-role";
+import { isSuperAdminEmail } from "@/lib/auth/superAdmin";
+import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
 import {
   isSiteUiLoggedOut,
   resolveSiteFromRequest,
@@ -257,7 +259,13 @@ export async function middleware(request: NextRequest) {
     const isDashboardProfile =
       path === "/dashboard/profile" || path.startsWith("/dashboard/profile/");
     if ((path.startsWith("/dashboard") || path.startsWith("/cabinet")) && !isDashboardProfile) {
-      const role = await resolveServerRole(gptUser);
+      const quickRole =
+        isSuperAdminEmail(gptUser.email) ? "admin"
+        : (() => {
+            const envRole = resolveRoleByEmail(gptUser.email);
+            return envRole === "admin" || envRole === "operator" ? envRole : null;
+          })();
+      const role = quickRole ?? (await resolveServerRole(gptUser));
       if (role === "admin") {
         return redirectPreservingCookies(new URL(`/admin${request.nextUrl.search}`, request.url), supabaseResponse);
       }

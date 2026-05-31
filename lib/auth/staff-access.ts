@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { resolveServerRole } from "@/lib/auth/server-role";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
 
 export type StaffPanel = "admin" | "operator";
@@ -45,12 +45,17 @@ export function resolveStaffAuthRedirect(role: UserRole, returnUrl: string | nul
 }
 
 export async function getGptStaffSessionUser(): Promise<User | null> {
-  const supabase = await createClient();
-  await supabase.auth.getSession();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  try {
+    const supabase = await tryCreateClient();
+    if (!supabase) return null;
+    await supabase.auth.getSession();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 /** Guard для /admin и /operator layouts — единая логика роли и login redirect. */

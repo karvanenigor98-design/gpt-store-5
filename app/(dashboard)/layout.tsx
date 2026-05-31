@@ -15,6 +15,8 @@ import { getSiteBySlug } from "@/lib/sites";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -41,13 +43,18 @@ export default async function DashboardLayout({
   try {
     bundle = await createSiteSessionClient(siteSlug);
   } catch {
-    redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=subs_env_missing`);
+    redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=supabase_env_missing`);
   }
 
   const supabase = bundle.browserLike;
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user;
+  try {
+    ({
+      data: { user },
+    } = await supabase.auth.getUser());
+  } catch {
+    redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=auth_session_error`);
+  }
 
   if (!user || isSiteUiLoggedOut(siteSlug, cookieStore)) {
     redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}`);

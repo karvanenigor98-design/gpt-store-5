@@ -24,7 +24,12 @@ export default async function DashboardPage({
   });
   const site = getSiteBySlug(siteSlug);
 
-  const { browserLike: supabase } = await createSiteSessionClient(siteSlug);
+  let supabase;
+  try {
+    ({ browserLike: supabase } = await createSiteSessionClient(siteSlug));
+  } catch {
+    return null;
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -41,6 +46,7 @@ export default async function DashboardPage({
       siteSlug,
       userId: user.id,
       userEmail: user.email ?? null,
+      sessionClient: supabase,
     });
 
     if (siteSlug === "subs-store") {

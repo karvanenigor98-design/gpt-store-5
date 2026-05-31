@@ -1,5 +1,5 @@
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
@@ -26,6 +26,11 @@ export async function createSiteSessionClient(siteSlug: SiteSlug): Promise<SiteS
     return { backend: "subs", browserLike: subs };
   }
 
-  const gpt = await createClient();
+  const gpt = await tryCreateClient();
+  if (!gpt) {
+    throw new Error(
+      "gpt_auth_env_missing:NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY должны быть в .env.local",
+    );
+  }
   return { backend: "gpt", browserLike: gpt };
 }

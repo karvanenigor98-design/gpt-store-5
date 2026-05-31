@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { loadAdminOverviewStats, type AdminOverviewStats } from "@/lib/admin/revenue-stats";
@@ -30,36 +30,51 @@ export default async function AdminOverviewPage({
   let revenueFootnote: string;
 
   if (siteSlug === "subs-store") {
-    const subsAdmin = createSubsStoreAdminClient();
-    if (!subsAdmin) {
+    try {
+      const subsAdmin = createSubsStoreAdminClient();
+      if (!subsAdmin) {
+        return (
+          <div className="p-6">
+            <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Subs Store — данные</h1>
+            <p className="max-w-xl text-sm text-gray-600">
+              Чтобы видеть метрики Subs Store из этой панели, добавьте в окружение проекта{" "}
+              <strong>GPT STORE</strong> переменные{" "}
+              <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
+              <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code>{" "}
+              (отдельный проект Supabase Subs Store; ключ только серверный). См.{" "}
+              <code className="rounded bg-gray-100 px-1">.env.example</code>.
+            </p>
+          </div>
+        );
+      }
+      const m = await loadSubsStoreDashboardBlock(subsAdmin);
+      overview = m.overview;
+      totalOrders = m.totalOrders;
+      pendingOrders = m.pendingOrders;
+      activeOrders = m.activeOrders;
+      openChats = m.openChats;
+      pendingReviews = m.pendingReviews;
+      totalClients = m.totalClients;
+      unreadClientMsgs = m.unreadClientMsgs;
+      revenueFootnote =
+        "Выручка Subs Store: сумма final_price заказов с payment_status = paid. Учёт по дате создания заказа.";
+    } catch (err) {
+      console.error("[admin/page subs]", err);
       return (
         <div className="p-6">
           <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">Subs Store — данные</h1>
           <p className="max-w-xl text-sm text-gray-600">
-            Чтобы видеть метрики Subs Store из этой панели, добавьте в окружение проекта{" "}
-            <strong>GPT STORE</strong> переменные{" "}
-            <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_URL</code> и{" "}
-            <code className="rounded bg-gray-100 px-1">SUBS_SUPABASE_SERVICE_ROLE_KEY</code>{" "}
-            (отдельный проект Supabase Subs Store; ключ только серверный). См.{" "}
-            <code className="rounded bg-gray-100 px-1">.env.example</code>.
+            Не удалось загрузить метрики Subs Store. Проверьте SUBS_SUPABASE_* env или обновите страницу.
           </p>
         </div>
       );
     }
-    const m = await loadSubsStoreDashboardBlock(subsAdmin);
-    overview = m.overview;
-    totalOrders = m.totalOrders;
-    pendingOrders = m.pendingOrders;
-    activeOrders = m.activeOrders;
-    openChats = m.openChats;
-    pendingReviews = m.pendingReviews;
-    totalClients = m.totalClients;
-    unreadClientMsgs = m.unreadClientMsgs;
-    revenueFootnote =
-      "Выручка Subs Store: сумма final_price заказов с payment_status = paid. Учёт по дате создания заказа.";
   } else {
     try {
-      const admin = createAdminClient();
+      const admin = tryCreateAdminClient();
+      if (!admin) {
+        throw new Error("GPT Supabase admin client unavailable");
+      }
       const siteId = await getSiteUUID(siteSlug);
 
       const ordersBaseQ = admin.from("orders").select("id", { count: "exact", head: true }).not("product", "ilike", "spotify%");
