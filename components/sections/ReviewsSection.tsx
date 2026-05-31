@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { fadeUp } from "@/lib/motion-config";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
-import { sortPublicReviewsNewestFirst, shouldHideUsername } from "@/lib/reviews/review-sanitize";
+import { prepareLandingMainReviews } from "@/lib/reviews/landing-reviews-display";
+import { shouldHideUsername } from "@/lib/reviews/review-sanitize";
 
 const PREVIEW_COUNT = 4;
 const ROTATE_MS = 10_000;
@@ -51,8 +52,8 @@ function ReviewCard({ review }: { review: PublicReview }) {
 export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectionProps) {
   const [startIndex, setStartIndex] = useState(0);
 
-  const pool = useMemo(
-    () => (reviews.length ? sortPublicReviewsNewestFirst(reviews) : []),
+  const { pool, averageLabel, count } = useMemo(
+    () => prepareLandingMainReviews(reviews.length ? reviews : []),
     [reviews],
   );
 
@@ -103,10 +104,10 @@ export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectio
             Отзывы клиентов
           </span>
           <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            Что говорят клиенты
+            Что говорят пользователи после подключения ChatGPT Plus
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
-            {pool.length} реальных отзывов из Telegram — сначала самые новые.
+            {count} реальных отзывов · средний рейтинг {averageLabel}/5 · сначала самые новые.
           </p>
         </motion.div>
 

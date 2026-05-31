@@ -4,8 +4,15 @@ import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
+import { reachLandingGoal } from "@/lib/analytics/reach-landing-goal";
 import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
+
+function scrollToSpotifyPricingFromHero(source: string): void {
+  reachLandingGoal("landing_hero_cta_click", { site: "subs-store", source });
+  reachLandingGoal("landing_scroll_to_pricing", { site: "subs-store", source });
+  scrollToSpotifyPricing();
+}
 
 export function SpotifyHero() {
   const { hero } = useSpotifyLanding();
@@ -90,7 +97,7 @@ export function SpotifyHero() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4, duration: 0.6 }}
-              className="mt-4 hidden flex-wrap gap-2 sm:flex md:mt-6"
+              className="mt-4 flex flex-wrap gap-2 md:mt-6"
             >
               {hero.trustBadges.map((item, i) => (
                 <motion.li
@@ -120,17 +127,33 @@ export function SpotifyHero() {
               <HeroPromoOfferCard site="spotify" />
             </motion.div>
 
-            <a
-              href="#pricing"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToSpotifyPricing();
-              }}
-              className="mt-3 inline-block text-sm transition-colors md:hidden"
-              style={{ color: "rgba(255,255,255,0.4)" }}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.48, duration: 0.6 }}
+              className="mt-5 flex w-full flex-col gap-3 md:hidden"
             >
-              {hero.secondaryCta} →
-            </a>
+              <motion.button
+                type="button"
+                onClick={() => scrollToSpotifyPricingFromHero("hero_mobile")}
+                whileTap={{ scale: 0.98 }}
+                className="shimmer-btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white"
+                style={{
+                  background: SPOTIFY_ACCENT,
+                  boxShadow: "0 4px 20px rgba(29,185,84,0.35)",
+                }}
+              >
+                {hero.primaryCta}
+                <ArrowRight size={17} />
+              </motion.button>
+              <a
+                href="#how-it-works"
+                className="text-sm transition-colors"
+                style={{ color: "rgba(255,255,255,0.4)" }}
+              >
+                {hero.secondaryCta} →
+              </a>
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -140,7 +163,7 @@ export function SpotifyHero() {
             >
               <motion.button
                 type="button"
-                onClick={scrollToSpotifyPricing}
+                onClick={() => scrollToSpotifyPricingFromHero("hero_mobile")}
                 whileHover={{ scale: 1.03, boxShadow: "0 6px 30px rgba(29,185,84,0.45)" }}
                 whileTap={{ scale: 0.98 }}
                 className="shimmer-btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white sm:w-auto sm:px-8 sm:py-4 sm:text-base"
@@ -155,11 +178,7 @@ export function SpotifyHero() {
                 </span>
               </motion.button>
               <a
-                href="#pricing"
-                onClick={(e) => {
-                  e.preventDefault();
-                  scrollToSpotifyPricing();
-                }}
+                href="#how-it-works"
                 className="text-sm transition-colors"
                 style={{ color: "rgba(255,255,255,0.4)" }}
                 onMouseEnter={(e) => {

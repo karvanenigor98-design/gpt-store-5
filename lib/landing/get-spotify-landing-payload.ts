@@ -4,6 +4,7 @@ import { cache } from "react";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
 import { getStaticSpotifyLandingPayload, minIndividualPrice } from "./spotify-landing-static-payload";
+import { normalizeSpotifyLandingPayloadLabels } from "./normalize-spotify-landing-labels";
 
 import { defaultSpotifySeoTitle, normalizeSpotifyStoreLabel } from "@/lib/brand/spotify-store-brand";
 import { getSpotifyPublicReviews } from "@/lib/reviews/spotifyPublicReviews";
@@ -217,6 +218,8 @@ function buildPageDataFromSnapshot(
   payload.nav.brandAccent = "STORE";
   payload.footer.brand = "SPOTIFY";
   payload.footer.brandAccent = "STORE";
+
+  normalizeSpotifyLandingPayloadLabels(payload);
 
   seoTitle = defaultSpotifySeoTitle();
   seoDescription = normalizeSpotifyStoreLabel(seoDescription);

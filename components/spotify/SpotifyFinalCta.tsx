@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Clock3, Lock, ShieldCheck, type LucideIcon } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { SpotifyGptCrossSell } from "@/components/spotify/SpotifyGptCrossSell";
+import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 
 const TRUST_ICONS: LucideIcon[] = [Lock, Clock3, ShieldCheck];
@@ -49,8 +50,9 @@ export function SpotifyFinalCta() {
         </p>
 
         <div className="mt-10">
-          <motion.a
-            href="/checkout/spotify"
+          <motion.button
+            type="button"
+            onClick={scrollToSpotifyPricing}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-lg md:px-10 md:py-5 md:text-xl"
@@ -61,7 +63,7 @@ export function SpotifyFinalCta() {
           >
             {s.buttonLabel}
             <ArrowRight size={20} />
-          </motion.a>
+          </motion.button>
         </div>
 
         <SpotifyGptCrossSell />

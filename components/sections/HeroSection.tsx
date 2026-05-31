@@ -3,7 +3,14 @@
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { HERO_CONTENT } from "@/lib/chatgpt-data";
+import { reachLandingGoal } from "@/lib/analytics/reach-landing-goal";
 import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
+
+function scrollToGptPricing(source: string): void {
+  reachLandingGoal("landing_hero_cta_click", { site: "gpt-store", source });
+  reachLandingGoal("landing_scroll_to_pricing", { site: "gpt-store", source });
+  document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 export function HeroSection() {
   return (
@@ -74,7 +81,7 @@ export function HeroSection() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4, duration: 0.6 }}
-              className="mt-4 hidden flex-wrap justify-center gap-2 sm:flex md:mt-6 md:justify-start md:gap-2.5"
+              className="mt-4 flex flex-wrap justify-center gap-2 md:mt-6 md:justify-start md:gap-2.5"
             >
               {HERO_CONTENT.trustBadges.map((item, i) => (
                 <motion.li
@@ -99,12 +106,35 @@ export function HeroSection() {
               <HeroPromoOfferCard site="gpt" />
             </motion.div>
 
-            <a
-              href="#how-it-works"
-              className="mt-3 inline-block text-sm text-gray-400 transition-colors hover:text-gray-700 md:hidden"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.48, duration: 0.6 }}
+              className="mt-5 flex w-full flex-col items-center gap-3 md:hidden"
             >
-              {HERO_CONTENT.secondaryCta} →
-            </a>
+              <motion.a
+                href="#pricing"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToGptPricing("hero_mobile");
+                }}
+                whileTap={{ scale: 0.98 }}
+                className="shimmer-btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white"
+                style={{
+                  background: "#10a37f",
+                  boxShadow: "0 4px 16px rgba(16,163,127,0.30)",
+                }}
+              >
+                {HERO_CONTENT.primaryCta}
+                <ArrowRight size={17} />
+              </motion.a>
+              <a
+                href="#how-it-works"
+                className="text-sm text-gray-400 transition-colors hover:text-gray-700"
+              >
+                {HERO_CONTENT.secondaryCta} →
+              </a>
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -116,7 +146,7 @@ export function HeroSection() {
                 href="#pricing"
                 onClick={(e) => {
                   e.preventDefault();
-                  document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  scrollToGptPricing("hero_mobile");
                 }}
                 whileHover={{ scale: 1.03, boxShadow: "0 6px 24px rgba(16,163,127,0.40)" }}
                 whileTap={{ scale: 0.98 }}

@@ -21,8 +21,11 @@ export function GuaranteeSection() {
           </span>
           <ShieldCheck className="mt-4 h-12 w-12 text-[#10a37f]" />
           <h2 className="mt-4 font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            Гарантия на весь срок подписки
+            Более 10 000 подключений и рейтинг 4.9/5
           </h2>
+          <p className="mt-2 text-base text-gray-600">
+            Гарантия на весь срок подписки, поддержка 24/7 и статус заказа в личном кабинете.
+          </p>
           <ul className="mt-5 space-y-3 text-gray-600">
             {GUARANTEE_POINTS.map((point) => (
               <li key={point} className="flex items-start gap-2">

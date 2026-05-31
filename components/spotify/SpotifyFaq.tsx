@@ -33,6 +33,9 @@ export function SpotifyFaq() {
             {sec.eyebrow}
           </span>
           <h2 className="font-heading text-3xl font-bold text-white md:text-4xl">{sec.title}</h2>
+          <p className="max-w-2xl text-sm md:text-base" style={{ color: "rgba(255,255,255,0.45)" }}>
+            Про Premium в России, аккаунт, пароль и гарантию — спокойно и без перегруза.
+          </p>
         </motion.div>
 
         <motion.div

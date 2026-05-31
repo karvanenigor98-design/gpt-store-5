@@ -21,6 +21,7 @@ import { SpotifyLandingProvider } from "@/components/spotify/SpotifyLandingProvi
 import { SpotifyStoreConfigAutoRefresh } from "@/components/spotify/SpotifyStoreConfigAutoRefresh";
 import { AnimateSection } from "@/components/ui/AnimateSection";
 import { ChatWidget } from "@/components/sections/ChatWidget";
+import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobileCta";
 
 const APP_URL = getPublicSiteOrigin();
 const SPOTIFY_URL = `${APP_URL}/spotify`;
@@ -72,16 +73,25 @@ export default async function SpotifyPage() {
         <SpotifyStoreConfigAutoRefresh />
         <div className="relative" style={{ background: "#0a0a0a", color: "#ffffff" }}>
           <SpotifyNav />
-          <main className="pt-14">
+          <main className="pb-20 pt-14 md:pb-0">
             <SpotifyHero />
             <AnimateSection>
               <SpotifyTicker />
+            </AnimateSection>
+            <AnimateSection delay={0.05}>
+              <SpotifyPricing />
+            </AnimateSection>
+            <AnimateSection delay={0.05}>
+              <SpotifyCompare />
             </AnimateSection>
             <AnimateSection delay={0.05}>
               <SpotifyHowItWorks />
             </AnimateSection>
             <AnimateSection delay={0.05}>
               <SpotifySafety />
+            </AnimateSection>
+            <AnimateSection delay={0.05}>
+              <SpotifyGuarantee />
             </AnimateSection>
             <AnimateSection delay={0.05}>
               <SpotifyRussia />
@@ -93,15 +103,6 @@ export default async function SpotifyPage() {
               <SpotifyReviews />
             </AnimateSection>
             <AnimateSection delay={0.05}>
-              <SpotifyCompare />
-            </AnimateSection>
-            <AnimateSection delay={0.05}>
-              <SpotifyPricing />
-            </AnimateSection>
-            <AnimateSection delay={0.05}>
-              <SpotifyGuarantee />
-            </AnimateSection>
-            <AnimateSection delay={0.05}>
               <SpotifyFaq />
             </AnimateSection>
             <AnimateSection delay={0.05}>
@@ -109,6 +110,13 @@ export default async function SpotifyPage() {
             </AnimateSection>
           </main>
           <SpotifyFooter />
+          <LandingStickyMobileCta
+            site="subs-store"
+            label={payload.hero.primaryCta}
+            accentColor="#1DB954"
+            accentHover="#17a349"
+            variant="dark"
+          />
           <ChatWidget siteSlug="subs-store" />
         </div>
       </SpotifyLandingProvider>

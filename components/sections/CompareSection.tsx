@@ -77,10 +77,10 @@ export function CompareSection() {
             Сравнение
           </span>
           <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            ChatGPT Plus vs ChatGPT Pro
+            Plus — для ежедневной работы, Pro — для максимальных возможностей
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
-            Детальное сравнение возможностей двух подписок
+            Одинаковое качество ChatGPT 5.5 — разница в лимитах и расширенных функциях Pro.
           </p>
         </motion.div>
 

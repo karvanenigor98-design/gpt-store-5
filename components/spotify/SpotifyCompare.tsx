@@ -53,10 +53,10 @@ export function SpotifyCompare() {
             Сравнение тарифов
           </span>
           <h2 className="font-heading text-2xl font-bold text-white md:text-3xl">
-            Какой формат Spotify Premium выбрать
+            Individual — для одного, Duo — для пары, Family — для семьи
           </h2>
           <p className="max-w-2xl text-base" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Коротко о различиях — без лишних обещаний. Точные условия уточним под ваш регион и способ подключения.
+            Коротко о различиях — выберите формат, затем срок подписки в блоке тарифов.
           </p>
         </motion.div>
 

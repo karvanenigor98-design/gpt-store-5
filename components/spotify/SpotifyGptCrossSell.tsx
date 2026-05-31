@@ -31,7 +31,7 @@ export function SpotifyGptCrossSell() {
             className="text-xs font-semibold uppercase tracking-wide"
             style={{ color: "rgba(255,255,255,0.4)" }}
           >
-            {s.label}
+            {s.eyebrow ?? "Наши проекты"}
           </p>
           <h3 className="font-heading text-lg font-bold text-white">{s.title}</h3>
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>

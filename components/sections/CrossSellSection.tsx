@@ -32,10 +32,10 @@ export function CrossSellSection() {
           </svg>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Также от GPT STORE</p>
-          <h3 className="font-heading text-lg font-bold text-gray-900">Spotify Premium</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Наши проекты</p>
+          <h3 className="font-heading text-lg font-bold text-gray-900">Также подключаем Spotify Premium</h3>
           <p className="text-sm text-gray-500">
-            Подписка Spotify с оплатой в рублях, поддержкой и активацией за 10–15 минут.
+            Spotify Premium в России без сложностей: без рекламы, с офлайном и оплатой в рублях.
           </p>
         </div>
       </div>

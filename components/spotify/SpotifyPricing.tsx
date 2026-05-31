@@ -32,6 +32,10 @@ import {
   sortPlansForDisplay,
 } from "@/lib/spotify-plan-helpers";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
+import {
+  SPOTIFY_TARIFF_GUIDE_ITEMS,
+  TariffChooseGuide,
+} from "@/components/landing/TariffChooseGuide";
 
 export function SpotifyPricing() {
   const { plans: initialPlans, pricingSection: sec } = useSpotifyLanding();
@@ -151,6 +155,13 @@ export function SpotifyPricing() {
             {sec.subtitle}
           </p>
         </motion.div>
+
+        <TariffChooseGuide
+          theme="spotify"
+          title="Начните с 1 месяца или возьмите срок подольше, чтобы было выгоднее"
+          items={SPOTIFY_TARIFF_GUIDE_ITEMS}
+          supportHref="/dashboard/chat?site=subs-store"
+        />
 
         <div className="mb-10 flex justify-center">
           <div

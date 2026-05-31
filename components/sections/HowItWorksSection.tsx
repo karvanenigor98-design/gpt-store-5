@@ -17,13 +17,13 @@ export function HowItWorksSection() {
           className="mb-14 flex flex-col items-center gap-3 text-center"
         >
           <span className="inline-flex items-center rounded-full border border-[#10a37f]/20 bg-[#10a37f]/8 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-[#10a37f]">
-            Как всё устроено
+            Процесс подключения
           </span>
           <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            Как это работает
+            От выбора тарифа до доступа к ChatGPT — несколько понятных шагов
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
-            Всё занимает 5–15 минут. Вы ничего не настраиваете самостоятельно.
+            Оплата в рублях, инструкции в кабинете, статус заказа в реальном времени.
           </p>
         </motion.div>
 

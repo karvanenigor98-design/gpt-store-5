@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PLUS_PLANS, PRO_PLANS, PRODUCTS, type ProductId } from "@/lib/chatgpt-data";
 import { fadeUp } from "@/lib/motion-config";
+import {
+  GPT_TARIFF_GUIDE_ITEMS,
+  TariffChooseGuide,
+} from "@/components/landing/TariffChooseGuide";
 
 type RuntimePlan = (typeof PLUS_PLANS)[number] & {
   original_price?: number;
@@ -178,12 +182,18 @@ export function PricingSection({
             Тарифы
           </span>
           <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
-            Выберите подписку
+            Выберите формат подключения — от Plus до Pro
           </h2>
           <p className="max-w-2xl text-lg text-gray-500">
-            ChatGPT 5.5 для ежедневных задач — ChatGPT 5.5 Pro для профессиональной работы
+            Plus — для ежедневной работы. Pro — для максимальных лимитов. Оплата в рублях, гарантия на весь срок.
           </p>
         </motion.div>
+
+        <TariffChooseGuide
+          theme="gpt"
+          items={GPT_TARIFF_GUIDE_ITEMS}
+          supportHref="/dashboard/chat?site=gpt-store"
+        />
 
         {/* Product switcher */}
         <div className="mb-10 flex justify-center">
