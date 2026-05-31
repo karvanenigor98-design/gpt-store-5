@@ -5,6 +5,8 @@ import { resolveServerRole } from "@/lib/auth/server-role";
 import { createClient } from "@/lib/supabase/server";
 import type { SiteSlug } from "@/lib/sites";
 
+export const dynamic = "force-dynamic";
+
 async function requireStaff() {
   const supabase = await createClient();
   const {

@@ -52,14 +52,31 @@ export async function tryCreateClient(): Promise<SupabaseClient<Database> | null
 }
 
 export async function createClient(): Promise<SupabaseClient<Database>> {
-  const client = await tryCreateClient();
-  if (!client) {
+  const creds = gptServerCredentials();
+  if (!creds) {
     throw new Error(
       `GPT Supabase env invalid. ${supabaseUrlConfigHint("NEXT_PUBLIC_SUPABASE_URL")} ` +
         "Также нужен NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     );
   }
-  return client;
+  const cookieStore = await cookies();
+  return createServerClient(creds.url, creds.anon, {
+    cookieOptions: getAuthCookieOptions(),
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options),
+          );
+        } catch {
+          // Вызов из Server Component — игнорируем
+        }
+      },
+    },
+  }) as SupabaseClient<Database>;
 }
 
 /** Административный клиент (обходит RLS) — только на сервере. */

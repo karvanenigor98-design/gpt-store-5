@@ -4,6 +4,8 @@ import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET — какие сайты видит текущий пользователь в общей админке (GPT STORE shell).
  */

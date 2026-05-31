@@ -4,6 +4,8 @@ import { resolveStaffChatPeer } from "@/lib/auth/staffPeer";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Кто собеседник во внутреннем чате admin ↔ operator.
  */

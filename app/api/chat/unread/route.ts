@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Счётчик непрочитанных для текущего пользователя (как клиента):
  * входящие от оператора/авто/ai с is_read = false.
