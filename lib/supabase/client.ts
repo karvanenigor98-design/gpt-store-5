@@ -12,30 +12,54 @@ function gptBrowserCredentials(): { url: string; anon: string } | null {
   return { url, anon };
 }
 
+function browserClientOptions() {
+  return {
+    cookieOptions: getAuthCookieOptions(),
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  } as const;
+}
+
 /** Без throw — для client hooks/layout, где падение ломает весь кабинет. */
 export function tryCreateClient(): SupabaseClient<Database> | null {
   const creds = gptBrowserCredentials();
   if (!creds) return null;
   try {
-    return createBrowserClient(creds.url, creds.anon, {
-      cookieOptions: getAuthCookieOptions(),
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    }) as SupabaseClient<Database>;
+    return createBrowserClient(creds.url, creds.anon, browserClientOptions()) as SupabaseClient<Database>;
   } catch {
     return null;
   }
 }
 
+/** SSR/prerender stub — не бросает при отсутствии env на этапе build. */
+function ssgPlaceholderClient(): SupabaseClient<Database> {
+  return createBrowserClient(
+    "https://placeholder.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIn0.placeholder",
+    {
+      cookieOptions: getAuthCookieOptions(),
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    },
+  ) as SupabaseClient<Database>;
+}
+
 export function createClient(): SupabaseClient<Database> {
   const client = tryCreateClient();
-  if (!client) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY должны быть заданы для браузерного клиента Supabase.",
-    );
+  if (client) return client;
+
+  // Client components prerender on the server; missing env must not fail the build.
+  if (typeof window === "undefined") {
+    return ssgPlaceholderClient();
   }
-  return client;
+
+  throw new Error(
+    "NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY должны быть заданы для браузерного клиента Supabase.",
+  );
 }
