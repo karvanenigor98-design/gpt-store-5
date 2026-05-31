@@ -34,7 +34,9 @@ export default async function AdminLayout({
         >
           <AdminAlertsBar />
         </Suspense>
-        <StaffMobileNav items={ADMIN_NAV_ITEMS} panelRoot="/admin" />
+        <Suspense fallback={null}>
+          <StaffMobileNav items={ADMIN_NAV_ITEMS} panelRoot="/admin" />
+        </Suspense>
         {children}
       </div>
     </div>

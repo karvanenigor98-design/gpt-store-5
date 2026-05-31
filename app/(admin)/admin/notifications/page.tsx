@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Bell, CheckCheck, Filter } from "lucide-react";
@@ -71,7 +71,7 @@ function resolveSiteSlug(sp: URLSearchParams): AdminNotificationSiteSlug {
   return "gpt-store";
 }
 
-export default function NotificationsPage() {
+function NotificationsPageInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const staffRoot = staffPanelRootFromPathname(pathname);
@@ -320,5 +320,19 @@ export default function NotificationsPage() {
         })}
       </div>
     </div>
+  );
+}
+
+export default function NotificationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6">
+          <p className="text-sm text-gray-500">Загрузка уведомлений…</p>
+        </div>
+      }
+    >
+      <NotificationsPageInner />
+    </Suspense>
   );
 }

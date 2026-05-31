@@ -146,7 +146,8 @@ async function loadGptCustomerOrders(
   userId: string,
   userEmail: string | null,
 ): Promise<CustomerOrderView[]> {
-  const admin = createAdminClient();
+  try {
+    const admin = createAdminClient();
   const siteId = await getSiteUUID("gpt-store");
 
   let query = admin
@@ -203,6 +204,9 @@ async function loadGptCustomerOrders(
     .filter((row) => orderOwnedByUser({ row, userId, userEmail: email || null }))
     .map((r) => normalizeGptOrderRow(r));
   return finalizeCustomerOrders(normalized);
+  } catch {
+    return [];
+  }
 }
 
 async function loadSubsCustomerOrders(

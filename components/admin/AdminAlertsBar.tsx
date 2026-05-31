@@ -5,7 +5,7 @@ import type { StaffPanelRoot } from "@/lib/admin/notificationNavigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Volume2, VolumeX } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { tryCreateClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   buildAdminNotificationHref,
@@ -83,7 +83,7 @@ export function AdminAlertsBar() {
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentSiteSlug, setCurrentSiteSlug] = useState<string>("gpt-store");
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => tryCreateClient(), []);
   const bootRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -292,6 +292,7 @@ export function AdminAlertsBar() {
   }, [currentSiteSlug, pushAlert, staffRoot]);
 
   useEffect(() => {
+    if (!supabase) return;
     if (bootRef.current) return;
     if (currentSiteSlug === "subs-store") return;
     bootRef.current = true;

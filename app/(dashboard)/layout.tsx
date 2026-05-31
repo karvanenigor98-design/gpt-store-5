@@ -29,8 +29,10 @@ export default async function DashboardLayout({
     siteParam: urlSite === "subs-store" || urlSite === "gpt-store" ? urlSite : null,
     pathname: invokePath || "/dashboard",
   });
+  const isCabinetPath =
+    invokePath.startsWith("/dashboard") || invokePath.startsWith("/cabinet");
   const returnPath =
-    invokePath && invokePath.startsWith("/dashboard")
+    invokePath && isCabinetPath
       ? `${invokePath}${invokeSearch}`
       : `/dashboard?site=${siteSlug}`;
   const returnUrl = encodeURIComponent(returnPath);
@@ -137,7 +139,9 @@ export default async function DashboardLayout({
               isSubsShell ? "border-white/10 bg-[#111111]" : "border-gray-200 bg-white/75 backdrop-blur-md",
             )}
           >
-            <ClientNotificationsBar siteSlug={siteSlug} />
+            <Suspense fallback={null}>
+              <ClientNotificationsBar siteSlug={siteSlug} />
+            </Suspense>
           </header>
         )}
         {/* Mobile header */}
@@ -162,7 +166,11 @@ export default async function DashboardLayout({
             <DashboardSiteHeaderTitle defaultSiteSlug={siteSlug} />
           </Suspense>
           <div className="flex items-center gap-2">
-            {(isSubsShell || isGptShell) && <ClientNotificationsBar siteSlug={siteSlug} />}
+            {(isSubsShell || isGptShell) && (
+              <Suspense fallback={null}>
+                <ClientNotificationsBar siteSlug={siteSlug} />
+              </Suspense>
+            )}
           </div>
         </header>
         <main
@@ -177,7 +185,9 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
-      <DashboardMobileNav defaultSiteSlug={siteSlug} />
+      <Suspense fallback={null}>
+        <DashboardMobileNav defaultSiteSlug={siteSlug} />
+      </Suspense>
     </div>
   );
 }

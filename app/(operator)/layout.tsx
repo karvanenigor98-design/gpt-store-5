@@ -30,7 +30,9 @@ export default async function OperatorLayout({ children }: { children: React.Rea
         >
           <AdminAlertsBar />
         </Suspense>
-        <StaffMobileNav items={OPERATOR_NAV_ITEMS} panelRoot="/operator" />
+        <Suspense fallback={null}>
+          <StaffMobileNav items={OPERATOR_NAV_ITEMS} panelRoot="/operator" />
+        </Suspense>
         {children}
       </div>
     </div>

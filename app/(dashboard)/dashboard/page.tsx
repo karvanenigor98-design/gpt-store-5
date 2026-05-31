@@ -36,47 +36,51 @@ export default async function DashboardPage({
   let orders: CustomerOrderView[] = [];
   let chatsCount = 0;
 
-  orders = await loadCustomerOrdersForUser({
-    siteSlug,
-    userId: user.id,
-    userEmail: user.email ?? null,
-  });
+  try {
+    orders = await loadCustomerOrdersForUser({
+      siteSlug,
+      userId: user.id,
+      userEmail: user.email ?? null,
+    });
 
-  if (siteSlug === "subs-store") {
-    const subsAdmin = createSubsStoreAdminClient();
-    if (subsAdmin) {
-      const { data: prof } = await subsAdmin
+    if (siteSlug === "subs-store") {
+      const subsAdmin = createSubsStoreAdminClient();
+      if (subsAdmin) {
+        const { data: prof } = await subsAdmin
+          .from("profiles")
+          .select("username, email, created_at")
+          .eq("id", user.id)
+          .maybeSingle();
+        profile = prof;
+      }
+
+      const { count } = await supabase
+        .from("chat_threads")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      chatsCount = count ?? 0;
+    } else {
+      const admin = createAdminClient();
+      const { data: prof } = await admin
         .from("profiles")
         .select("username, email, created_at")
         .eq("id", user.id)
         .maybeSingle();
       profile = prof;
-    }
 
-    const { count } = await supabase
-      .from("chat_threads")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
-    chatsCount = count ?? 0;
-  } else {
-    const admin = createAdminClient();
-    const { data: prof } = await admin
-      .from("profiles")
-      .select("username, email, created_at")
-      .eq("id", user.id)
-      .maybeSingle();
-    profile = prof;
-
-    const siteId = await getSiteUUID(siteSlug);
-    let chatsCountQuery = supabase
-      .from("chat_sessions")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
-    if (siteId) {
-      chatsCountQuery = chatsCountQuery.eq("site_id", siteId) as typeof chatsCountQuery;
+      const siteId = await getSiteUUID(siteSlug);
+      let chatsCountQuery = supabase
+        .from("chat_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if (siteId) {
+        chatsCountQuery = chatsCountQuery.eq("site_id", siteId) as typeof chatsCountQuery;
+      }
+      const { count: c } = await chatsCountQuery;
+      chatsCount = c ?? 0;
     }
-    const { count: c } = await chatsCountQuery;
-    chatsCount = c ?? 0;
+  } catch (err) {
+    console.error("[dashboard/page]", err);
   }
 
   const ordersCount = orders.length;

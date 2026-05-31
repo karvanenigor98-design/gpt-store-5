@@ -23,6 +23,10 @@ function resolveSiteSlug(defaultSiteSlug?: SiteSlug): SiteSlug {
   return defaultSiteSlug === 'subs-store' ? 'subs-store' : 'gpt-store'
 }
 
+function isCabinetHome(pathname: string): boolean {
+  return pathname === '/dashboard' || pathname === '/cabinet'
+}
+
 export function DashboardNav({ defaultSiteSlug }: NavProps) {
   const pathname = usePathname()
   const siteSlug = resolveSiteSlug(defaultSiteSlug)
@@ -36,7 +40,7 @@ export function DashboardNav({ defaultSiteSlug }: NavProps) {
         const href = item.base + siteQuery
         const isActive =
           item.base === '/dashboard'
-            ? pathname === '/dashboard'
+            ? isCabinetHome(pathname)
             : pathname === item.base || pathname.startsWith(item.base + '/')
         const Icon = item.icon
         return (
@@ -83,7 +87,7 @@ export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
         const href = item.base + siteQuery
         const isActive =
           item.base === '/dashboard'
-            ? pathname === '/dashboard'
+            ? isCabinetHome(pathname)
             : pathname === item.base || pathname.startsWith(item.base + '/')
         const Icon = item.icon
         return (
