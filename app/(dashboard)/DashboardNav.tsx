@@ -3,9 +3,8 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { LayoutDashboard, ShoppingBag, MessageCircle, User, Star } from 'lucide-react'
-import { useSearchParams } from 'next/navigation'
 import { useSafePathname } from '@/lib/client/useSafePathname'
-import { getSiteBySlug } from '@/lib/sites'
+import { getSiteBySlug, type SiteSlug } from '@/lib/sites'
 
 export const DASHBOARD_NAV_ITEMS = [
   { base: '/dashboard', label: 'Главная', icon: LayoutDashboard },
@@ -16,16 +15,19 @@ export const DASHBOARD_NAV_ITEMS = [
 ]
 
 interface NavProps {
-  /** Server-resolved site slug (from cookie). Falls back to URL ?site= param. */
-  defaultSiteSlug?: string;
+  /** Server-resolved site slug (from cookie). */
+  defaultSiteSlug: SiteSlug;
+}
+
+function resolveSiteSlug(defaultSiteSlug?: SiteSlug): SiteSlug {
+  return defaultSiteSlug === 'subs-store' ? 'subs-store' : 'gpt-store'
 }
 
 export function DashboardNav({ defaultSiteSlug }: NavProps) {
   const pathname = useSafePathname()
-  const searchParams = useSearchParams()
-  const siteSlug = searchParams.get('site') ?? defaultSiteSlug ?? null
+  const siteSlug = resolveSiteSlug(defaultSiteSlug)
   const site = getSiteBySlug(siteSlug)
-  const siteQuery = siteSlug ? `?site=${siteSlug}` : ''
+  const siteQuery = `?site=${siteSlug}`
   const activeColor = site.primaryColor
 
   return (
@@ -63,10 +65,9 @@ export function DashboardNav({ defaultSiteSlug }: NavProps) {
 
 export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
   const pathname = useSafePathname()
-  const searchParams = useSearchParams()
-  const siteSlug = searchParams.get('site') ?? defaultSiteSlug ?? null
+  const siteSlug = resolveSiteSlug(defaultSiteSlug)
   const site = getSiteBySlug(siteSlug)
-  const siteQuery = siteSlug ? `?site=${siteSlug}` : ''
+  const siteQuery = `?site=${siteSlug}`
   const isSubs = site.slug === 'subs-store'
 
   return (

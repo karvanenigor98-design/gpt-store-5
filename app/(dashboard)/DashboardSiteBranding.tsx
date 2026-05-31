@@ -1,18 +1,15 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { getSiteBySlug } from "@/lib/sites";
+import { getSiteBySlug, type SiteSlug } from "@/lib/sites";
 
 interface BrandingProps {
-  /** Optional server-resolved slug (from cookie). Falls back to URL ?site= param. */
-  defaultSiteSlug?: string;
+  /** Server-resolved slug (from cookie). */
+  defaultSiteSlug: SiteSlug;
 }
 
 export function DashboardSiteLogo({ defaultSiteSlug }: BrandingProps) {
-  const params = useSearchParams();
-  const siteSlug = params.get("site") ?? defaultSiteSlug ?? null;
-  const site = getSiteBySlug(siteSlug);
+  const site = getSiteBySlug(defaultSiteSlug);
 
   return (
     <Link href={site.landingPath} className="flex items-center gap-2">
@@ -28,9 +25,7 @@ export function DashboardSiteLogo({ defaultSiteSlug }: BrandingProps) {
 }
 
 export function DashboardSiteHeaderTitle({ defaultSiteSlug }: BrandingProps) {
-  const params = useSearchParams();
-  const siteSlug = params.get("site") ?? defaultSiteSlug ?? null;
-  const site = getSiteBySlug(siteSlug);
+  const site = getSiteBySlug(defaultSiteSlug);
   const isSubs = site.slug === "subs-store";
   return (
     <span className={`font-heading text-sm font-semibold ${isSubs ? "text-white" : "text-gray-900"}`}>
