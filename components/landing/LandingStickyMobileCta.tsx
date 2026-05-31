@@ -103,16 +103,16 @@ export function LandingStickyMobileCta({
           style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
         >
           <div
-            className="pointer-events-auto mx-auto flex max-w-lg items-center gap-2 px-3 pt-2"
+            className="pointer-events-auto mx-auto flex w-full max-w-lg items-center gap-2 px-3 pt-2"
             style={{
-              paddingRight: "max(0.75rem, env(safe-area-inset-right))",
               paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
+              paddingRight: "calc(4.75rem + max(0.75rem, env(safe-area-inset-right)))",
             }}
           >
             <button
               type="button"
               onClick={handleClick}
-              className="flex min-h-[3rem] w-[calc(100%-9.5rem)] max-w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-lg"
+              className="flex min-h-[3rem] min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-white shadow-lg"
               style={{
                 background: accentColor,
                 boxShadow: `0 6px 24px ${accentColor}55`,
@@ -124,8 +124,8 @@ export function LandingStickyMobileCta({
                 e.currentTarget.style.background = accentColor;
               }}
             >
-              {label}
-              <ArrowRight size={16} />
+              <span className="truncate">{label}</span>
+              <ArrowRight size={16} className="shrink-0" />
             </button>
           </div>
           <div

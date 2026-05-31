@@ -186,6 +186,9 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
     : `/login?returnUrl=${encodeURIComponent("/dashboard/chat")}`;
   const subsLandingSupportLink =
     isSubsStore && (pathname === "/spotify" || pathname === "/support");
+  /** На лендингах mobile: компактная кнопка чата, чтобы не перекрывать sticky CTA. */
+  const landingCompactChat =
+    pathname === "/" || pathname === "/spotify" || subsLandingSupportLink;
 
   const chatIconSvg = (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -196,6 +199,24 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
         d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
       />
     </svg>
+  );
+
+  const landingChatDockClass = cn(
+    "fixed z-50 pb-[env(safe-area-inset-bottom)]",
+    landingCompactChat
+      ? "bottom-3 right-3 max-md:bottom-[max(0.65rem,env(safe-area-inset-bottom))] max-md:right-3 md:bottom-6 md:right-6"
+      : "bottom-4 right-4 sm:bottom-6 sm:right-6",
+  );
+
+  const landingChatButtonClass = cn(
+    "flex items-center gap-2 rounded-full text-sm font-medium text-white shadow-lg transition-all duration-200",
+    landingCompactChat
+      ? "max-md:h-12 max-md:w-12 max-md:justify-center max-md:p-0 md:px-4 md:py-3"
+      : "px-3 py-2.5 sm:px-4 sm:py-3",
+  );
+
+  const landingChatLabel = (
+    <span className={cn(landingCompactChat && "hidden md:inline")}>Чат поддержки</span>
   );
 
   if (pathname === "/support" && !isSubsStore) return null;
@@ -212,10 +233,11 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
             : loginHref;
 
     return (
-      <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+      <div className={landingChatDockClass}>
         <a
           href={landingSupportHref}
-          className="flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
+          className={landingChatButtonClass}
+          aria-label="Чат поддержки"
           style={{
             backgroundColor: accentColor,
             boxShadow: `0 4px 14px ${accentColor}40`,
@@ -228,7 +250,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
           }}
         >
           {chatIconSvg}
-          Чат поддержки
+          {landingChatLabel}
         </a>
       </div>
     );
@@ -236,7 +258,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
 
   if (pathname === "/" && user && user.role !== "admin" && user.role !== "operator") {
     return (
-      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+      <div className={cn(landingChatDockClass, "flex flex-col items-end gap-2")}>
         <div
           className={cn(
             "overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
@@ -269,7 +291,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="relative flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
+          className={cn("relative", landingChatButtonClass)}
           style={{
             backgroundColor: accentColor,
             boxShadow: `0 4px 14px ${accentColor}40`,
@@ -283,7 +305,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
           aria-label={open ? "Закрыть чат" : "Открыть чат поддержки"}
         >
           {chatIconSvg}
-          Чат поддержки
+          {landingChatLabel}
           {unread > 0 && !open && (
             <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
               {Math.min(unread, 9)}
@@ -297,10 +319,11 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   if (pathname === "/") {
     const landingSupportHref = user ? chatDashboardHref : loginHref;
     return (
-      <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom)] sm:bottom-6 sm:right-6">
+      <div className={landingChatDockClass}>
         <a
           href={landingSupportHref}
-          className="flex items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all duration-200 sm:px-4 sm:py-3"
+          className={landingChatButtonClass}
+          aria-label="Чат поддержки"
           style={{
             backgroundColor: accentColor,
             boxShadow: `0 4px 14px ${accentColor}40`,
@@ -313,7 +336,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
           }}
         >
           {chatIconSvg}
-          Чат поддержки
+          {landingChatLabel}
         </a>
       </div>
     );
