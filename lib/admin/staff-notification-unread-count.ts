@@ -1,41 +1,31 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getSiteUUID } from "@/lib/admin/getSiteId";
+import { countStaffUnreadNotifications } from "@/lib/admin/staff-notification-reads";
+import type { UserRole } from "@/types/database";
 
-/** Непрочитанные staff-уведомления (как на странице /admin/notifications, без chat_reply). */
+/** Непрочитанные staff-уведомления для текущего пользователя (site-aware, без chat_reply). */
 export async function countGptStoreUnreadNotifications(
   admin: SupabaseClient,
-  siteSlug: "gpt-store" | "subs-store" = "gpt-store",
+  params: {
+    userId: string;
+    role: UserRole;
+    siteSlug?: "gpt-store" | "subs-store";
+  },
 ): Promise<number> {
-  const siteId = await getSiteUUID(siteSlug);
-
-  let q = admin
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("is_read", false)
-    .neq("type", "chat_reply");
-
-  if (siteId) {
-    if (siteSlug === "gpt-store") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
-    } else {
-      q = q.eq("site_id", siteId);
-    }
-  }
-
-  const { count, error } = await q;
-  if (error) return 0;
-  return count ?? 0;
+  return countStaffUnreadNotifications(admin, {
+    userId: params.userId,
+    role: params.role,
+    siteSlug: params.siteSlug ?? "gpt-store",
+  });
 }
 
-export async function countSubsStoreUnreadNotifications(subs: SupabaseClient): Promise<number> {
-  const { count, error } = await subs
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("is_read", false)
-    .neq("type", "chat_reply");
-
-  if (error) return 0;
-  return count ?? 0;
+export async function countSubsStoreUnreadNotifications(
+  subs: SupabaseClient,
+  params: { userId: string; role: UserRole },
+): Promise<number> {
+  return countStaffUnreadNotifications(subs, {
+    userId: params.userId,
+    role: params.role,
+    siteSlug: "subs-store",
+  });
 }

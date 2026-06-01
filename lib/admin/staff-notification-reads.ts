@@ -1,0 +1,200 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { getSiteUUID } from "@/lib/admin/getSiteId";
+import type { UserRole } from "@/types/database";
+
+type NotifRow = {
+  id: string;
+  recipient_user_id: string | null;
+  recipient_role: string | null;
+  is_read: boolean;
+};
+
+const STAFF_INBOX_TYPES = new Set([
+  "new_order",
+  "payment_success",
+  "payment_failed",
+  "new_chat_message",
+  "new_review",
+  "order_needs_data",
+  "order_problem",
+  "order_activated",
+  "subscription_expiring",
+]);
+
+function isStaffInboxNotification(row: { type?: string }): boolean {
+  const t = row.type;
+  if (!t || t === "chat_reply") return false;
+  if (!STAFF_INBOX_TYPES.has(t)) return false;
+  return true;
+}
+
+function matchesRecipient(
+  row: NotifRow & { type?: string },
+  userId: string,
+  role: UserRole,
+): boolean {
+  if (row.recipient_user_id === userId) return true;
+
+  if (isStaffInboxNotification(row)) {
+    return role === "admin" || role === "operator";
+  }
+
+  if (row.recipient_user_id) {
+    return false;
+  }
+  if (row.recipient_role) {
+    return row.recipient_role === role || (row.recipient_role === "admin" && role === "admin");
+  }
+  return role === "admin" || role === "operator";
+}
+
+export async function loadStaffReadNotificationIds(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<Set<string>> {
+  try {
+    const { data, error } = await admin
+      .from("notification_reads")
+      .select("notification_id")
+      .eq("user_id", userId);
+
+    if (error) {
+      if (error.message.toLowerCase().includes("notification_reads")) return new Set();
+      return new Set();
+    }
+
+    return new Set((data ?? []).map((r) => String((r as { notification_id: string }).notification_id)));
+  } catch {
+    return new Set();
+  }
+}
+
+export function isNotificationUnreadForStaff(
+  row: NotifRow & { type?: string },
+  userId: string,
+  role: UserRole,
+  readIds: Set<string>,
+): boolean {
+  if (row.type === "chat_reply") return false;
+  if (!matchesRecipient(row, userId, role)) return false;
+
+  if (row.recipient_user_id === userId && !isStaffInboxNotification(row)) {
+    return !row.is_read;
+  }
+
+  return !readIds.has(row.id);
+}
+
+export async function countStaffUnreadNotifications(
+  admin: SupabaseClient,
+  params: {
+    userId: string;
+    role: UserRole;
+    siteSlug: "gpt-store" | "subs-store";
+  },
+): Promise<number> {
+  const siteId = await getSiteUUID(params.siteSlug);
+  const readIds = await loadStaffReadNotificationIds(admin, params.userId);
+
+  let q = admin
+    .from("notifications")
+    .select("id, recipient_user_id, recipient_role, is_read, type");
+
+  if (siteId) {
+    if (params.siteSlug === "gpt-store") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
+    } else {
+      q = q.eq("site_id", siteId);
+    }
+  }
+
+  const { data, error } = await q;
+  if (error) return 0;
+
+  return (data ?? []).filter((row) =>
+    isNotificationUnreadForStaff(row as NotifRow, params.userId, params.role, readIds),
+  ).length;
+}
+
+/** Пометить уведомление прочитанным для текущего staff-пользователя. */
+export async function markStaffNotificationRead(
+  admin: SupabaseClient,
+  params: { notificationId: string; userId: string },
+): Promise<void> {
+  const { data: row } = await admin
+    .from("notifications")
+    .select("id, recipient_user_id, type")
+    .eq("id", params.notificationId)
+    .maybeSingle();
+
+  if (!row) return;
+
+  const typed = row as { id: string; recipient_user_id: string | null; type?: string };
+  const staffInbox = isStaffInboxNotification(typed);
+
+  if (typed.recipient_user_id === params.userId && !staffInbox) {
+    await admin
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", params.notificationId)
+      .eq("recipient_user_id", params.userId);
+    return;
+  }
+
+  await admin.from("notification_reads").upsert(
+    {
+      notification_id: params.notificationId,
+      user_id: params.userId,
+      read_at: new Date().toISOString(),
+    },
+    { onConflict: "notification_id,user_id" },
+  );
+}
+
+export async function markAllStaffBroadcastNotificationsRead(
+  admin: SupabaseClient,
+  params: { userId: string; siteSlug: "gpt-store" | "subs-store" },
+): Promise<void> {
+  const siteId = await getSiteUUID(params.siteSlug);
+  const readIds = await loadStaffReadNotificationIds(admin, params.userId);
+
+  let q = admin
+    .from("notifications")
+    .select("id, recipient_user_id, recipient_role, is_read, type")
+    .is("recipient_user_id", null);
+
+  if (siteId) {
+    if (params.siteSlug === "gpt-store") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
+    } else {
+      q = q.eq("site_id", siteId);
+    }
+  }
+
+  const { data } = await q;
+  const toMark = (data ?? []).filter(
+    (row) =>
+      (row as { type?: string }).type !== "chat_reply" &&
+      !readIds.has(String((row as { id: string }).id)),
+  );
+
+  if (!toMark.length) return;
+
+  await admin.from("notification_reads").upsert(
+    toMark.map((row) => ({
+      notification_id: (row as { id: string }).id,
+      user_id: params.userId,
+      read_at: new Date().toISOString(),
+    })),
+    { onConflict: "notification_id,user_id" },
+  );
+
+  await admin
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("recipient_user_id", params.userId)
+    .eq("is_read", false);
+}

@@ -25,7 +25,12 @@ export async function PATCH(req: NextRequest) {
   const ctx = await requireStaff();
   if (ctx instanceof NextResponse) return ctx;
 
-  let body: { id?: string; action?: "approve" | "reject" | "delete"; site?: string };
+  let body: {
+    id?: string;
+    action?: "approve" | "reject" | "delete";
+    site?: string;
+    rating?: number;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -57,9 +62,59 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "action: approve | reject | delete" }, { status: 400 });
   }
 
-  const status = body.action === "approve" ? "approved" : "rejected";
+  if (body.action === "approve") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let fetchQ = (ctx.admin.from("reviews") as any)
+      .select("id, rating, content")
+      .eq("id", id);
+    if (siteId) {
+      fetchQ = fetchQ.eq("site_id", siteId);
+    }
+    const { data: existingRow } = await fetchQ.maybeSingle();
+    const existing = existingRow as { id: string; rating: number | null; content: string } | null;
+    if (!existing) {
+      return NextResponse.json({ error: "Отзыв не найден" }, { status: 404 });
+    }
 
-  let query = ctx.admin.from("reviews").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+    let rating =
+      body.rating != null && Number.isFinite(body.rating)
+        ? Math.min(5, Math.max(1, Math.round(Number(body.rating))))
+        : null;
+    if (rating == null && existing.rating != null && Number.isFinite(existing.rating)) {
+      rating = Math.min(5, Math.max(1, Math.round(Number(existing.rating))));
+    }
+    if (rating == null) {
+      return NextResponse.json(
+        { error: "Перед публикацией выберите рейтинг." },
+        { status: 400 },
+      );
+    }
+
+    const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (ctx.admin.from("reviews") as any)
+      .update({
+        status: "approved",
+        rating,
+        published_at: now,
+        updated_at: now,
+      })
+      .eq("id", id);
+    if (siteId) {
+      query = query.eq("site_id", siteId);
+    }
+    const { error } = (await query) as { error: { message?: string } | null };
+    if (error) {
+      return NextResponse.json({ error: error.message ?? "Не удалось обновить отзыв" }, { status: 500 });
+    }
+    revalidatePublicReviewPages();
+    return NextResponse.json({ ok: true, status: "approved" });
+  }
+
+  const status = "rejected";
+  const now = new Date().toISOString();
+
+  let query = ctx.admin.from("reviews").update({ status, updated_at: now }).eq("id", id);
   if (siteId) {
     query = query.eq("site_id", siteId) as typeof query;
   }

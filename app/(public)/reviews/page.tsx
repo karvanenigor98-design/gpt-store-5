@@ -4,7 +4,9 @@ import Link from "next/link";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { resolveSearchParams } from "@/lib/next-search-params";
+import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
 import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
+import { mergePublicReviews, sortLandingReviewsTopRatedThenNew } from "@/lib/reviews/merge-public-reviews";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { telegramProfileUrl } from "@/lib/reviews/telegram-profile-url";
 
@@ -22,10 +24,17 @@ export const runtime = "nodejs";
 
 async function loadReviewsSafe(): Promise<PublicReview[]> {
   try {
-    const curated = await loadGptTelegramCuratedReviewsAsync();
-    if (curated.length > 0) return curated;
+    const [curated, fromDb] = await Promise.all([
+      loadGptTelegramCuratedReviewsAsync(),
+      loadGptPublishedDbReviews("gpt-store", 500),
+    ]);
+    const merged = sortLandingReviewsTopRatedThenNew(
+      mergePublicReviews(curated, fromDb, 500),
+      10,
+    );
+    if (merged.length > 0) return merged;
   } catch (err) {
-    console.error("[reviews] curated load failed:", err);
+    console.error("[reviews] load failed:", err);
   }
   return getStaticGptLandingReviews(12);
 }

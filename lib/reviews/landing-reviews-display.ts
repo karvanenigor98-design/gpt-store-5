@@ -46,14 +46,23 @@ function hashId(id: string): number {
   return Math.abs(h);
 }
 
-/** ~10% отзывов с 4★, остальные 5★ → средняя 4.9. */
+function hasExplicitRating(item: LandingReviewLike): boolean {
+  return item.rating != null && item.rating >= 1 && item.rating <= 5;
+}
+
+/** ~10% отзывов с 4★, остальные 5★ → средняя 4.9 (только для legacy без rating). */
 export function applyLandingRatings49<T extends LandingReviewLike>(
   items: T[],
 ): (T & { rating: number })[] {
-  return items.map((item) => ({
-    ...item,
-    rating: hashId(item.id) % 10 === 0 ? 4 : 5,
-  }));
+  return items.map((item) => {
+    if (hasExplicitRating(item)) {
+      return { ...item, rating: item.rating! };
+    }
+    return {
+      ...item,
+      rating: hashId(item.id) % 10 === 0 ? 4 : 5,
+    };
+  });
 }
 
 export function computeLandingAverageLabel(items: { rating: number }[]): string {

@@ -68,18 +68,34 @@ export async function insertCustomerReview(params: {
   const admin = createAdminClient();
   const siteId = await getSiteUUID("gpt-store");
 
-  const { data, error } = await admin
-    .from("reviews")
-    .insert({
+  const row: Record<string, unknown> = {
+    site_id: siteId,
+    author_name: params.authorName,
+    author_username: params.authorUsername ?? null,
+    content: params.content,
+    rating: params.rating,
+    status: "pending",
+    source: "cabinet",
+    telegram_date: new Date().toISOString(),
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let { data, error } = await (admin.from("reviews") as any).insert(row).select("id").single();
+
+  if (error && isMissingColumnError(error.message)) {
+    const legacyRow = {
       site_id: siteId,
       author_name: params.authorName,
       author_username: params.authorUsername ?? null,
       content: params.content,
       status: "pending",
       telegram_date: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacy = await (admin.from("reviews") as any).insert(legacyRow).select("id").single();
+    data = legacy.data;
+    error = legacy.error;
+  }
 
   if (error || !data?.id) {
     return {

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
+import {
+  isNotificationUnreadForStaff,
+  loadStaffReadNotificationIds,
+  markAllStaffBroadcastNotificationsRead,
+  markStaffNotificationRead,
+} from "@/lib/admin/staff-notification-reads";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
@@ -14,7 +20,7 @@ async function requireStaff() {
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return { user, admin: createAdminClient() };
+  return { user, role, admin: createAdminClient() };
 }
 
 /** GPT Store notifications (таблица в GPT Supabase). Subs — /api/admin/subs-store/notifications */
@@ -41,10 +47,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Не удалось загрузить уведомления" }, { status: 500 });
   }
 
-  const items = (data ?? []).filter((row) => {
-    const t = (row as { type?: string }).type;
-    return t !== "chat_reply";
-  });
+  const readIds = await loadStaffReadNotificationIds(ctx.admin, ctx.user.id);
+
+  const items = (data ?? [])
+    .filter((row) => {
+      const t = (row as { type?: string }).type;
+      return t !== "chat_reply";
+    })
+    .map((row) => {
+      const r = row as {
+        id: string;
+        recipient_user_id: string | null;
+        recipient_role: string | null;
+        is_read: boolean;
+        type?: string;
+      };
+      const unread = isNotificationUnreadForStaff(r, ctx.user.id, ctx.role, readIds);
+      return { ...row, is_read: !unread };
+    });
 
   return NextResponse.json({ items: items.slice(0, 100) });
 }
@@ -64,19 +84,10 @@ export async function PATCH(req: NextRequest) {
   const siteId = await getSiteUUID(siteSlug);
 
   if (body.mark_all) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = ctx.admin.from("notifications").update({ is_read: true }).eq("is_read", false);
-    if (siteId) {
-      if (siteSlug === "gpt-store") {
-        q = q.or(`site_id.eq.${siteId},site_id.is.null`);
-      } else {
-        q = q.eq("site_id", siteId);
-      }
-    }
-    const { error } = await q;
-    if (error) {
-      return NextResponse.json({ error: "Не удалось обновить" }, { status: 500 });
-    }
+    await markAllStaffBroadcastNotificationsRead(ctx.admin, {
+      userId: ctx.user.id,
+      siteSlug,
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -85,9 +96,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id обязателен" }, { status: 400 });
   }
 
-  const { error } = await ctx.admin.from("notifications").update({ is_read: true }).eq("id", id);
-  if (error) {
-    return NextResponse.json({ error: "Не удалось обновить" }, { status: 500 });
-  }
+  await markStaffNotificationRead(ctx.admin, { notificationId: id, userId: ctx.user.id });
   return NextResponse.json({ ok: true });
 }

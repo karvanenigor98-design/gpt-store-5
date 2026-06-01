@@ -23,7 +23,7 @@ async function requireStaff() {
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return { admin: createAdminClient() };
+  return { user, role, admin: createAdminClient() };
 }
 
 function parseOrdersSince(raw: string | null): string | null {
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   if (siteSlug === "subs-store") {
     const ctx = await requireSubsStaffContext();
     if (ctx instanceof NextResponse) return ctx;
-    const { subs } = ctx;
+    const { subs, user, role } = ctx;
 
     let ordersQ = subs.from("orders").select("id", { count: "exact", head: true });
     if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const [chatUnread, notifUnread] = await Promise.all([
       countSubsStoreUnreadClientMessages(subs),
-      countSubsStoreUnreadNotifications(subs),
+      countSubsStoreUnreadNotifications(subs, { userId: user.id, role }),
     ]);
 
     return NextResponse.json({
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
   const ctx = await requireStaff();
   if (ctx instanceof NextResponse) return ctx;
-  const { admin } = ctx;
+  const { admin, user, role } = ctx;
 
   const gptSiteId = await getSiteUUID("gpt-store");
   let ordersQ = admin.from("orders").select("id", { count: "exact", head: true });
@@ -70,7 +70,11 @@ export async function GET(req: NextRequest) {
   const [ordersRes, chatUnread, notifUnread] = await Promise.all([
     ordersQ,
     countGptStoreUnreadClientMessages(admin, "gpt-store"),
-    countGptStoreUnreadNotifications(admin, "gpt-store"),
+    countGptStoreUnreadNotifications(admin, {
+      userId: user.id,
+      role,
+      siteSlug: "gpt-store",
+    }),
   ]);
 
   return NextResponse.json({

@@ -504,7 +504,6 @@ export function AdminAlertsBar() {
   }
 
   const unread = items.filter(isAlertUnread).length;
-  const totalUnread = allItems.filter(isAlertUnread).length;
 
   async function markDbRead(dbId: string) {
     if (currentSiteSlug === "subs-store") {
@@ -646,9 +645,9 @@ export function AdminAlertsBar() {
           >
             <Bell size={16} className={unread > 0 ? "text-[#10a37f]" : "text-gray-500"} />
             Уведомления
-            {totalUnread > 0 && (
+            {unread > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                {totalUnread > 9 ? "9+" : totalUnread}
+                {unread > 9 ? "9+" : unread}
               </span>
             )}
           </button>

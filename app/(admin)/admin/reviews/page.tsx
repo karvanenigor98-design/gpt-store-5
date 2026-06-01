@@ -115,6 +115,7 @@ export default async function AdminReviewsPage({
                   reviewId={review.id}
                   siteSlug={siteSlug}
                   listStatus={status}
+                  initialRating={review.rating}
                 />
               </div>
             </div>

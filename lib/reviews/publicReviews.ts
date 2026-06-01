@@ -176,26 +176,66 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
   const curatedLimit = options?.preferCurated ? 500 : options?.randomize ? 500 : cap;
   const curated = loadGptTelegramCuratedReviews(curatedLimit);
 
+  try {
+    const { loadGptPublishedDbReviews } = await import("@/lib/reviews/load-published-db-reviews");
+    const fromDb = await loadGptPublishedDbReviews("gpt-store", cap);
+    if (fromDb.length > 0 || options?.preferCurated === false) {
+      const merged = curated.length
+        ? finalizeAndSort(
+            [...fromDb, ...finalizeAndSort(curated, options)],
+            options,
+          )
+        : finalizeAndSort(fromDb, options);
+      if (merged.length > 0) return merged.slice(0, cap);
+    }
+  } catch {
+    /* fallback below */
+  }
+
   if (options?.preferCurated !== false && curated.length > 0) {
     return finalizeAndSort(curated, options).slice(0, cap);
   }
 
   try {
     const supabase = createAdminClient();
+    const { getSiteUUID } = await import("@/lib/admin/getSiteId");
+    const siteId = await getSiteUUID("gpt-store");
     const fetchLimit = options?.randomize ? 500 : limit ?? 200;
-    const { data, error } = await supabase
-      .from("reviews")
-      .select("id, author_name, author_username, content, telegram_date, original_url")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase.from("reviews") as any)
+      .select(
+        "id, author_name, author_username, content, telegram_date, original_url, rating, published_at, created_at",
+      )
       .eq("status", "approved")
+      .not("rating", "is", null)
+      .order("published_at", { ascending: false, nullsFirst: false })
       .order("telegram_date", { ascending: false })
       .limit(fetchLimit);
+
+    if (siteId) {
+      query = query.eq("site_id", siteId);
+    }
+
+    const { data, error } = (await query) as {
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    };
 
     if (error || !data || data.length === 0) {
       if (curated.length) return finalizeAndSort(curated, options).slice(0, cap);
       return finalizeAndSort(fallbackReviews(), options).slice(0, cap);
     }
 
-    let mapped: PublicReview[] = data.map((item, idx) => {
+    let mapped: PublicReview[] = data.map((raw, idx) => {
+      const item = raw as {
+        id: string;
+        author_name: string | null;
+        author_username: string | null;
+        content: string;
+        telegram_date: string | null;
+        original_url: string | null;
+        rating: number | null;
+      };
       const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
         authorName: item.author_name?.trim() || "Клиент",
         authorUsername: item.author_username,
@@ -203,7 +243,10 @@ export async function getPublicReviews(limit?: number, options?: GetPublicReview
       });
       const username = resolvedUsername;
       const cleanedContent = cleanReviewText(item.content);
-      const rating = extractRating(item.content);
+      const rating =
+        item.rating != null && Number.isFinite(item.rating)
+          ? Math.min(5, Math.max(1, Math.round(Number(item.rating))))
+          : extractRating(item.content);
       const authorKey = normalizeAuthorKey(username || authorName);
       const usernameClean = username ? username.replace(/^@+/, "") : null;
       const sourceUrl = item.original_url || (usernameClean ? `https://t.me/${usernameClean}` : null);

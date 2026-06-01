@@ -20,7 +20,9 @@ import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobile
 import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
+import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
 import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
+import { mergePublicReviews, sortLandingReviewsTopRatedThenNew } from "@/lib/reviews/merge-public-reviews";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -44,7 +46,14 @@ export const runtime = "nodejs";
 /** Все отзывы из Telegram-экспорта (messages.html + messages2.html), новые первыми. */
 export default async function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
-  const reviews = await loadGptTelegramCuratedReviewsAsync();
+  const [curated, fromDb] = await Promise.all([
+    loadGptTelegramCuratedReviewsAsync(),
+    loadGptPublishedDbReviews("gpt-store", 200),
+  ]);
+  const reviews = sortLandingReviewsTopRatedThenNew(
+    mergePublicReviews(curated, fromDb, 300),
+    10,
+  );
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;

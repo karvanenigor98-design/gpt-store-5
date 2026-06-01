@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  isNotificationUnreadForStaff,
+  loadStaffReadNotificationIds,
+  markAllStaffBroadcastNotificationsRead,
+  markStaffNotificationRead,
+} from "@/lib/admin/staff-notification-reads";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 
 /** Subs notifications — другая схема, без site_id. */
@@ -15,10 +21,24 @@ export async function GET() {
     return NextResponse.json({ error: "Не удалось загрузить уведомления" }, { status: 500 });
   }
 
-  const items = (data ?? []).filter((row) => {
-    const t = (row as { type?: string }).type;
-    return t !== "chat_reply";
-  });
+  const readIds = await loadStaffReadNotificationIds(ctx.subs, ctx.user.id);
+
+  const items = (data ?? [])
+    .filter((row) => {
+      const t = (row as { type?: string }).type;
+      return t !== "chat_reply";
+    })
+    .map((row) => {
+      const r = row as {
+        id: string;
+        recipient_user_id: string | null;
+        recipient_role: string | null;
+        is_read: boolean;
+        type?: string;
+      };
+      const unread = isNotificationUnreadForStaff(r, ctx.user.id, ctx.role, readIds);
+      return { ...row, is_read: !unread };
+    });
 
   return NextResponse.json({ items: items.slice(0, 100) });
 }
@@ -35,7 +55,10 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.mark_all) {
-    await ctx.subs.from("notifications").update({ is_read: true }).eq("is_read", false);
+    await markAllStaffBroadcastNotificationsRead(ctx.subs, {
+      userId: ctx.user.id,
+      siteSlug: "subs-store",
+    });
     return NextResponse.json({ ok: true });
   }
 
@@ -44,9 +67,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id обязателен" }, { status: 400 });
   }
 
-  const { error } = await ctx.subs.from("notifications").update({ is_read: true }).eq("id", id);
-  if (error) {
-    return NextResponse.json({ error: "Не удалось обновить" }, { status: 500 });
-  }
+  await markStaffNotificationRead(ctx.subs, { notificationId: id, userId: ctx.user.id });
   return NextResponse.json({ ok: true });
 }

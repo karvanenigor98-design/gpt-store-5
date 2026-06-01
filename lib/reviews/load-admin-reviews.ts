@@ -23,18 +23,21 @@ export async function loadGptAdminReviews(
   const admin = createAdminClient();
   const siteId = await getSiteUUID(siteSlug);
 
-  let query = admin
-    .from("reviews")
-    .select("id,author_name,author_username,content,telegram_date,created_at,status")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (admin.from("reviews") as any)
+    .select("id,author_name,author_username,content,telegram_date,created_at,status,rating")
     .eq("status", status)
     .order("created_at", { ascending: false })
     .limit(50);
 
   if (siteId) {
-    query = query.eq("site_id", siteId) as typeof query;
+    query = query.eq("site_id", siteId);
   }
 
-  const { data, error } = await query;
+  const { data, error } = (await query) as {
+    data: Record<string, unknown>[] | null;
+    error: { message: string } | null;
+  };
   if (error) {
     console.error("[loadGptAdminReviews]", error.message);
     return [];
@@ -49,7 +52,10 @@ export async function loadGptAdminReviews(
       (review.telegram_date as string | null) ??
       (review.created_at as string | null) ??
       null,
-    rating: null,
+    rating:
+      review.rating != null && Number.isFinite(Number(review.rating))
+        ? Math.min(5, Math.max(1, Math.round(Number(review.rating))))
+        : null,
   }));
 }
 
