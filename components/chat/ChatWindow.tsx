@@ -11,31 +11,12 @@ import {
   getInstantFaqAnswer,
   OPERATOR_CHAT_QUICK_REPLIES,
 } from "@/lib/chat/scriptedFaq";
+import { playChatMessagePing } from "@/lib/admin/notification-sound";
 import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
 import { cn } from "@/lib/utils";
 import type { ChatRoomListItem } from "@/types/chat-ui";
 
 type RoomStatus = NonNullable<ChatRoomListItem["status"]> | "open" | "closed" | "waiting";
-
-function playClientPing() {
-  try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.frequency.value = 660;
-    g.gain.setValueAtTime(0.05, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-    o.start(ctx.currentTime);
-    o.stop(ctx.currentTime + 0.1);
-    window.setTimeout(() => ctx.close(), 200);
-  } catch {
-    /* noop */
-  }
-}
 
 interface ChatWindowProps {
   currentUser: Profile;
@@ -181,7 +162,7 @@ export function ChatWindow({
             setHeaderPulse(true);
             window.setTimeout(() => setHeaderPulse(false), 1600);
             if (typeof document !== "undefined" && document.hidden) {
-              playClientPing();
+              playChatMessagePing();
               if (typeof Notification !== "undefined" && Notification.permission === "granted") {
                 try {
                   new Notification("GPT STORE — новое сообщение", {

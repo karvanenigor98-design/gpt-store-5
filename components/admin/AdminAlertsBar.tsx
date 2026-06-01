@@ -5,7 +5,7 @@ import type { StaffPanelRoot } from "@/lib/admin/notificationNavigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Volume2, VolumeX } from "lucide-react";
-import { tryCreateClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   buildAdminNotificationHref,
@@ -14,7 +14,15 @@ import {
   staffPanelRootFromPathname,
 } from "@/lib/admin/notificationNavigation";
 import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
-import { loadNotificationSoundEnabled, playNotificationPing } from "@/lib/admin/notification-sound";
+import {
+  loadNotificationSoundEnabled,
+  loadNotificationVolume,
+  NOTIFICATION_VOLUME_MAX,
+  NOTIFICATION_VOLUME_MIN,
+  playNotificationPing,
+  saveNotificationSoundEnabled,
+  saveNotificationVolume,
+} from "@/lib/admin/notification-sound";
 import { SiteSwitcher, getAdminSelectedSiteSlug } from "./SiteSwitcher";
 import { getSiteBySlug } from "@/lib/sites";
 import { staffNotificationsHref } from "@/lib/admin/staffNavHref";
@@ -32,7 +40,6 @@ type AlertItem = {
 };
 
 const READ_KEY = "gptstore-admin-alert-read-ids";
-const SOUND_KEY = "gptstore-admin-sound-enabled";
 
 function loadRead(): Set<string> {
   try {
@@ -51,18 +58,8 @@ function saveRead(ids: Set<string>) {
   } catch {}
 }
 
-function loadSoundEnabled(): boolean {
-  return loadNotificationSoundEnabled();
-}
-
-function saveSoundEnabled(v: boolean) {
-  try {
-    localStorage.setItem(SOUND_KEY, String(v));
-  } catch {}
-}
-
-function playPing() {
-  playNotificationPing();
+function playPing(volume: number) {
+  playNotificationPing({ volume });
 }
 
 export function AdminAlertsBar() {
@@ -82,14 +79,16 @@ export function AdminAlertsBar() {
   const [allItems, setAllItems] = useState<AlertItem[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundVolume, setSoundVolume] = useState(10);
   const [currentSiteSlug, setCurrentSiteSlug] = useState<string>("gpt-store");
-  const supabase = useMemo(() => tryCreateClient(), []);
+  const supabase = useMemo(() => createClient(), []);
   const bootRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setReadIds(loadRead());
-    setSoundEnabled(loadSoundEnabled());
+    setSoundEnabled(loadNotificationSoundEnabled());
+    setSoundVolume(loadNotificationVolume());
   }, []);
 
   useEffect(() => {
@@ -132,10 +131,10 @@ export function AdminAlertsBar() {
       });
       if (sound && soundEnabled) {
         const r = loadRead();
-        if (!r.has(item.id)) playPing();
+        if (!r.has(item.id)) playPing(soundVolume);
       }
     },
-    [soundEnabled]
+    [soundEnabled, soundVolume]
   );
 
   const subsSeenNotifRef = useRef<Set<string>>(new Set());
@@ -200,7 +199,7 @@ export function AdminAlertsBar() {
 
           if (!isBoot && isNew && !row.is_read) {
             refreshStaffNavBadges();
-            if (soundEnabled) playPing();
+            if (soundEnabled) playPing(soundVolume);
           }
         }
         gptNotifBootRef.current = true;
@@ -215,7 +214,7 @@ export function AdminAlertsBar() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [currentSiteSlug, soundEnabled, staffRoot]);
+  }, [currentSiteSlug, soundEnabled, soundVolume, staffRoot]);
 
   useEffect(() => {
     if (currentSiteSlug !== "subs-store") return;
@@ -274,7 +273,7 @@ export function AdminAlertsBar() {
 
           if (!isBoot && isNew && !row.is_read) {
             refreshStaffNavBadges();
-            if (soundEnabled) playPing();
+            if (soundEnabled) playPing(soundVolume);
           }
         }
         subsNotifBootRef.current = true;
@@ -289,10 +288,9 @@ export function AdminAlertsBar() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [currentSiteSlug, pushAlert, staffRoot]);
+  }, [currentSiteSlug, soundEnabled, soundVolume, pushAlert, staffRoot]);
 
   useEffect(() => {
-    if (!supabase) return;
     if (bootRef.current) return;
     if (currentSiteSlug === "subs-store") return;
     bootRef.current = true;
@@ -578,7 +576,17 @@ export function AdminAlertsBar() {
   function toggleSound() {
     const next = !soundEnabled;
     setSoundEnabled(next);
-    saveSoundEnabled(next);
+    saveNotificationSoundEnabled(next);
+    if (next) playNotificationPing({ volume: soundVolume });
+  }
+
+  function onVolumeChange(level: number) {
+    setSoundVolume(level);
+    saveNotificationVolume(level);
+  }
+
+  function previewSound() {
+    playNotificationPing({ volume: soundVolume });
   }
 
   return (
@@ -593,15 +601,42 @@ export function AdminAlertsBar() {
 
         {/* Notifications bell — right side */}
         <div ref={dropdownRef} className="relative flex items-center gap-2">
-          {/* Sound toggle */}
-          <button
-            type="button"
-            onClick={toggleSound}
-            title={soundEnabled ? "Выключить звук уведомлений" : "Включить звук уведомлений"}
-            className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-gray-500 hover:bg-gray-100 transition-colors"
-          >
-            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-          </button>
+          <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
+            <button
+              type="button"
+              onClick={toggleSound}
+              title={soundEnabled ? "Выключить звук" : "Включить звук"}
+              className="rounded p-0.5 text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            </button>
+            {soundEnabled && (
+              <>
+                <label className="sr-only" htmlFor="admin-notification-volume">
+                  Громкость уведомлений
+                </label>
+                <input
+                  id="admin-notification-volume"
+                  type="range"
+                  min={NOTIFICATION_VOLUME_MIN}
+                  max={NOTIFICATION_VOLUME_MAX}
+                  step={1}
+                  value={soundVolume}
+                  onChange={(e) => onVolumeChange(Number(e.target.value))}
+                  onMouseUp={previewSound}
+                  onTouchEnd={previewSound}
+                  className="h-1.5 w-20 cursor-pointer accent-[#10a37f]"
+                  title={`Громкость: ${soundVolume} из ${NOTIFICATION_VOLUME_MAX}`}
+                />
+                <span
+                  className="min-w-[1.25rem] text-center text-[10px] font-semibold tabular-nums text-gray-600"
+                  title="Громкость 1–10"
+                >
+                  {soundVolume}
+                </span>
+              </>
+            )}
+          </div>
 
           {/* Bell button */}
           <button
