@@ -1,35 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import { LayoutDashboard, ShoppingBag, MessageCircle, UserCircle, Bell } from "lucide-react";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
-import { useUrlSiteSlug } from "@/lib/client/useUrlSiteSlug";
-import { OPERATOR_NAV_ITEMS } from "@/lib/admin/staff-nav-config";
 import { getSiteBySlug } from "@/lib/sites";
 import { staffNavHref } from "@/lib/admin/staffNavHref";
 import { cn } from "@/lib/utils";
 
+const NAV: Array<{
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badge: "orders" | "chat" | "notifications" | null;
+}> = [
+  { href: "/operator", label: "Главная", icon: LayoutDashboard, badge: null },
+  { href: "/operator/orders", label: "Заказы", icon: ShoppingBag, badge: "orders" },
+  { href: "/operator/clients", label: "Клиенты", icon: UserCircle, badge: null },
+  { href: "/operator/chat", label: "Чат", icon: MessageCircle, badge: "chat" },
+  { href: "/operator/notifications", label: "Уведомления", icon: Bell, badge: "notifications" },
+];
+
+function resolveSite(raw: string | null): "gpt-store" | "subs-store" {
+  return raw === "subs-store" ? "subs-store" : "gpt-store";
+}
+
 export function OperatorSidebar() {
+  const sp = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const siteSlug = useUrlSiteSlug("gpt-store");
+  const siteSlug = resolveSite(sp.get("site"));
   const site = getSiteBySlug(siteSlug);
   const accent = site.primaryColor;
   const badges = useStaffNavBadges(siteSlug);
 
   useEffect(() => {
-    const urlSite = new URLSearchParams(window.location.search).get("site");
+    const urlSite = sp.get("site");
     if (urlSite === "gpt-store" || urlSite === "subs-store") return;
     const saved = getAdminSelectedSiteSlug();
     if (saved !== "gpt-store" && saved !== "subs-store") return;
-    const q = new URLSearchParams(window.location.search);
+    const q = new URLSearchParams(sp.toString());
     q.set("site", saved);
     const qs = q.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
-  }, [pathname, router]);
+  }, [sp, pathname, router]);
 
   return (
     <aside className="hidden w-56 flex-col border-r border-black/[0.06] bg-white/85 backdrop-blur-md md:flex">
@@ -41,7 +58,7 @@ export function OperatorSidebar() {
         </span>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-2">
-        {OPERATOR_NAV_ITEMS.map((item) => {
+        {NAV.map((item) => {
           const Icon = item.icon;
           const href = staffNavHref(item.href, siteSlug);
           const isActive =
@@ -78,7 +95,7 @@ export function OperatorSidebar() {
         >
           Сменить аккаунт
         </Link>
-        <form action={`/api/auth/signout?site=${siteSlug}`} method="POST">
+        <form action={`/api/auth/signout?site=${siteSlug}&global=1`} method="POST">
           <button
             type="submit"
             className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-gray-500 transition-colors hover:bg-black/[0.04] hover:text-gray-800"

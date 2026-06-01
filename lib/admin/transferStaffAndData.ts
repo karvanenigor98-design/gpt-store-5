@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 
+import { updateProfileFlexible } from "@/lib/admin/updateProfileFlexible";
 import { roleAfterGrant } from "@/lib/auth/staffRoleMerge";
 import { normalizeAuthEmail } from "@/lib/auth/superAdmin";
 import type { Database, UserRole } from "@/types/database";
@@ -64,6 +65,23 @@ async function loadProfile(
 }
 
 /** Subs: UUID профиля админа по email из GPT-сессии. */
+async function upsertStaffSiteMembership(
+  db: AdminDb,
+  userId: string,
+  siteSlug: "gpt-store" | "subs-store",
+  membershipRole: "admin" | "operator",
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any).from("site_memberships").upsert(
+      { user_id: userId, site_slug: siteSlug, role: membershipRole },
+      { onConflict: "user_id,site_slug" },
+    );
+  } catch {
+    /* site_memberships may be absent in Subs project */
+  }
+}
+
 export async function resolveSubsProfileIdByEmail(
   db: AdminDb,
   email: string | null | undefined,
@@ -140,8 +158,12 @@ export async function executeTransferStaffAndData(options: {
     }
   }
 
-  const { error: upErr } = await db.from("profiles").update(profilePatch).eq("id", targetUserId);
-  if (upErr) return { ok: false, status: 400, error: upErr.message };
+  const profileUpdate = await updateProfileFlexible(db, targetUserId, profilePatch);
+  if (!profileUpdate.ok) {
+    return { ok: false, status: 400, error: profileUpdate.error };
+  }
+
+  await upsertStaffSiteMembership(db, targetUserId, site, nextRole === "admin" ? "admin" : "operator");
 
   const counts: TransferCounts = { orders: 0, chat_sessions: 0, chat_messages: 0 };
 

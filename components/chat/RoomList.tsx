@@ -15,6 +15,8 @@ interface RoomListProps {
   siteSlug?: string;
   /** Открыть диалог из URL (?thread_id= / ?session_id=) после загрузки списка */
   pendingSelectRoomId?: string | null;
+  /** Открыть по client_id (?client_id=) — сессия может создаться в родителе */
+  pendingSelectClientId?: string | null;
   onPendingRoomConsumed?: () => void;
 }
 
@@ -23,6 +25,7 @@ export function RoomList({
   onSelect,
   siteSlug,
   pendingSelectRoomId,
+  pendingSelectClientId,
   onPendingRoomConsumed,
 }: RoomListProps) {
   const [rooms, setRooms] = useState<ChatRoomListItem[]>([]);
@@ -96,13 +99,25 @@ export function RoomList({
   }, [siteSlug, loadRooms]);
 
   useEffect(() => {
-    if (!pendingSelectRoomId || loading || !rooms.length) return;
-    const room = rooms.find((r) => r.id === pendingSelectRoomId);
-    if (room) {
-      onSelect(room);
-      onPendingRoomConsumed?.();
+    if (loading || !rooms.length) return;
+
+    if (pendingSelectRoomId) {
+      const room = rooms.find((r) => r.id === pendingSelectRoomId);
+      if (room) {
+        onSelect(room);
+        onPendingRoomConsumed?.();
+      }
+      return;
     }
-  }, [pendingSelectRoomId, loading, rooms, onSelect, onPendingRoomConsumed]);
+
+    if (pendingSelectClientId) {
+      const room = rooms.find((r) => r.client_id === pendingSelectClientId);
+      if (room) {
+        onSelect(room);
+        onPendingRoomConsumed?.();
+      }
+    }
+  }, [pendingSelectRoomId, pendingSelectClientId, loading, rooms, onSelect, onPendingRoomConsumed]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

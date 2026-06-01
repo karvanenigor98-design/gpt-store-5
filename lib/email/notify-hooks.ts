@@ -38,17 +38,23 @@ export async function emailCustomerChatReply(params: {
       ? `${params.messagePreview.slice(0, 200)}…`
       : params.messagePreview;
 
+  const brandTitle =
+    params.siteSlug === "subs-store" ?
+      "Вам написали в поддержку SPOTIFY STORE"
+    : "Вам написали в поддержку GPT STORE";
+  const bodyIntro =
+    params.siteSlug === "subs-store" ?
+      "Оператор написал вам в чате по вашему аккаунту/заказу. Откройте личный кабинет, чтобы ответить."
+    : "Оператор написал вам в чате по вашему аккаунту/заказу. Откройте личный кабинет, чтобы ответить.";
+
   await dispatchSiteEmail({
     siteSlug: params.siteSlug,
     eventType: "chat_staff_reply",
     recipientEmail: email,
     recipientRole: "client",
     recipientUserId: params.customerUserId,
-    title: "Новый ответ в чате",
-    bodyLines: [
-      `${params.senderLabel} ответил(а) вам:`,
-      preview,
-    ],
+    title: brandTitle,
+    bodyLines: [bodyIntro, preview ? `«${preview}»` : ""].filter(Boolean),
     ctaLabel: "Открыть чат",
     ctaUrl: buildCustomerChatUrl(params.siteSlug, params.sessionId),
     dedupeKey: `chat_reply:${params.siteSlug}:${params.sessionId}:${params.customerUserId}`,

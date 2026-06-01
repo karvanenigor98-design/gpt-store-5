@@ -22,6 +22,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
   const searchParams = useSearchParams();
   const pendingRoomId =
     searchParams.get("thread_id") ?? searchParams.get("session_id");
+  const pendingClientId = searchParams.get("client_id");
 
   const [tab, setTab] = useState<"clients" | "team">("clients");
   const [selectedRoom, setSelectedRoom] = useState<ChatRoomListItem | null>(null);
@@ -38,13 +39,82 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
   }, [pendingRoomId]);
 
   const clearPendingRoomFromUrl = useCallback(() => {
-    if (!pendingRoomId) return;
+    if (!pendingRoomId && !pendingClientId) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("thread_id");
     params.delete("session_id");
+    params.delete("client_id");
     const qs = params.toString();
     router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-  }, [pendingRoomId, router, searchParams]);
+  }, [pendingRoomId, pendingClientId, router, searchParams]);
+
+  useEffect(() => {
+    if (!pendingClientId || pendingRoomId) return;
+    if (selectedRoom?.client_id === pendingClientId) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      const isSubs = siteSlug === "subs-store";
+      const listUrl = isSubs
+        ? `/api/admin/subs-store/chat/rooms?list=1`
+        : `/api/chat/rooms?list=1${siteSlug ? `&site=${encodeURIComponent(siteSlug)}` : ""}`;
+
+      try {
+        const res = await fetch(listUrl, { credentials: "include" });
+        if (res.ok) {
+          const rooms = (await res.json()) as ChatRoomListItem[];
+          const existing = rooms.find((r) => r.client_id === pendingClientId);
+          if (existing && !cancelled) {
+            setSelectedRoom(existing);
+            return;
+          }
+        }
+
+        const summaryRes = await fetch(
+          `/api/staff/client-summary?userId=${encodeURIComponent(pendingClientId)}&site=${siteSlug === "subs-store" ? "subs-store" : "gpt-store"}`,
+          { credentials: "include" },
+        );
+        const summaryJson = summaryRes.ok
+          ? ((await summaryRes.json()) as {
+              profile?: { email?: string | null; username?: string | null } | null;
+            })
+          : null;
+        const prof = summaryJson?.profile;
+
+        if (!cancelled) {
+          setSelectedRoom({
+            id: null,
+            client_id: pendingClientId,
+            status: "open",
+            last_message_at: null,
+            last_message_preview: null,
+            unread_operator: 0,
+            client: {
+              email: prof?.email ?? null,
+              full_name: prof?.username ?? prof?.email ?? null,
+            },
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setSelectedRoom({
+            id: null,
+            client_id: pendingClientId,
+            status: "open",
+            last_message_at: null,
+            last_message_preview: null,
+            unread_operator: 0,
+            client: { email: null, full_name: null },
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingClientId, pendingRoomId, selectedRoom?.client_id, siteSlug]);
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -56,13 +126,6 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
     if (selectedRoom.id) {
       setSessionId(selectedRoom.id);
       setResolveError(null);
-      setResolving(false);
-      return;
-    }
-
-    if (siteSlug === "subs-store") {
-      setSessionId(null);
-      setResolveError("Для Subs Store выберите диалог из списка (тред не найден).");
       setResolving(false);
       return;
     }
@@ -82,12 +145,17 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
             ...(siteSlug === "subs-store" || siteSlug === "gpt-store" ? { site: siteSlug } : {}),
           }),
         });
-        const data = (await res.json()) as { sessionId?: string; error?: string };
-        if (!res.ok || !data.sessionId) {
+        const data = (await res.json()) as {
+          sessionId?: string;
+          threadId?: string;
+          error?: string;
+        };
+        const resolvedId = data.sessionId ?? data.threadId;
+        if (!res.ok || !resolvedId) {
           throw new Error(data.error ?? "Не удалось создать сессию");
         }
         if (!cancelled) {
-          setSessionId(data.sessionId);
+          setSessionId(resolvedId);
         }
       } catch (e) {
         if (!cancelled) {
@@ -154,6 +222,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
                 onSelect={setSelectedRoom}
                 siteSlug={siteSlug}
                 pendingSelectRoomId={pendingRoomId}
+                pendingSelectClientId={pendingClientId && !pendingRoomId ? pendingClientId : null}
                 onPendingRoomConsumed={clearPendingRoomFromUrl}
               />
             </div>

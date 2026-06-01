@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { pickCanonicalOperatorSession } from "@/lib/chat/operatorSession";
+import { getOrCreateSubsCustomerSupportThread } from "@/lib/chat/subs-support-thread";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
+import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Database } from "@/types/database";
 
 function normalizeStaffSiteSlug(raw: string | undefined): "gpt-store" | "subs-store" | undefined {
@@ -27,10 +29,18 @@ export async function POST(req: NextRequest) {
   const siteSlug = normalizeStaffSiteSlug(body.site?.trim());
 
   if (siteSlug === "subs-store") {
-    return NextResponse.json(
-      { error: "Для Subs Store используйте тред из списка чатов (отдельная база), сессии GPT STORE здесь не создаются." },
-      { status: 400 }
-    );
+    const subsAdmin = createSubsStoreAdminClient();
+    if (!subsAdmin) {
+      return NextResponse.json(
+        { error: "Subs Supabase админ недоступен" },
+        { status: 503 },
+      );
+    }
+    const thread = await getOrCreateSubsCustomerSupportThread(subsAdmin, userId);
+    if (!thread?.id) {
+      return NextResponse.json({ error: "Не удалось создать тред поддержки" }, { status: 500 });
+    }
+    return NextResponse.json({ sessionId: thread.id, threadId: thread.id });
   }
 
   const supabase = await createClient();

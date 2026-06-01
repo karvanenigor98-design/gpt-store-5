@@ -24,6 +24,8 @@
     "lint": "next lint",
     "env:subs-inbox": "node scripts/sync-subs-inbox-user-id.cjs",
     "subs:db:telegram-username": "node scripts/apply-subs-telegram-username.cjs",
+    "db:client-stage": "node scripts/apply-client-stage-migration.cjs",
+    "subs:db:client-stage": "node scripts/apply-client-stage-migration.cjs",
     "subs:db:commerce": "node scripts/apply-subs-commerce-migration.cjs",
     "verify": "node scripts/verify-project.cjs",
     "email:test": "node scripts/test-email-send.cjs",

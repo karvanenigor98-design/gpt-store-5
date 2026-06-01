@@ -331,6 +331,7 @@ export default async function AdminClientsPage({
   }
 
   const isSubsStoreSite = siteSlug === "subs-store";
+  const staffChatBase = role === "operator" ? "/operator/chat" : "/admin/chat";
 
   const clients = mergedRows
     .filter((r) => r.id !== (user?.id ?? ""))
@@ -474,7 +475,7 @@ export default async function AdminClientsPage({
                   </td>
                   <td className="px-4 py-3">
                     <Link
-                      href={isSubsStoreSite ? "/admin/chat?site=subs-store" : "/admin/chat"}
+                      href={`${staffChatBase}?site=${encodeURIComponent(siteSlug)}&client_id=${encodeURIComponent(c.id)}`}
                       className="inline-flex items-center gap-1 text-[#10a37f] hover:underline"
                     >
                       <MessageCircle size={14} />

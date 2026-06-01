@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { updateProfileFlexible } from "@/lib/admin/updateProfileFlexible";
 import { isServerAdmin } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
@@ -56,12 +57,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Нет полей для обновления" }, { status: 400 });
   }
 
+  const profileUpdate = await updateProfileFlexible(admin, clientId, patch);
+  if (!profileUpdate.ok) {
+    return NextResponse.json({ error: profileUpdate.error }, { status: 400 });
+  }
+
   const { data: updated, error } = await admin
     .from("profiles")
-    .update(patch)
-    .eq("id", clientId)
     .select("id, notes, client_stage")
-    .single();
+    .eq("id", clientId)
+    .maybeSingle();
 
   if (error || !updated) {
     return NextResponse.json({ error: "Не удалось сохранить" }, { status: 500 });
