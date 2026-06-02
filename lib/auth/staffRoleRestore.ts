@@ -52,7 +52,7 @@ export async function loadStaffRoleFromSiteMemberships(
   }
 }
 
-/** Последняя staff-роль из role_audit (action set_role). */
+/** Последняя роль из role_audit (action set_role) — только свежая запись. */
 export async function loadStaffRoleFromAudit(
   admin: SupabaseClient,
   userId: string,
@@ -64,19 +64,16 @@ export async function loadStaffRoleFromAudit(
       .eq("target_id", userId)
       .eq("action", "set_role")
       .order("created_at", { ascending: false })
-      .limit(15);
+      .limit(1)
+      .maybeSingle();
 
-    if (error) return null;
+    if (error || !data) return null;
 
-    let best: UserRole | null = null;
-    for (const row of data ?? []) {
-      const payload = row.payload as { to?: string } | null;
-      const to = payload?.to;
-      if (to === "admin" || to === "operator") {
-        best = mergeStaffRoles(best ?? "client", to);
-      }
+    const to = (data.payload as { to?: string } | null)?.to;
+    if (to === "admin" || to === "operator" || to === "client") {
+      return to;
     }
-    return best;
+    return null;
   } catch {
     return null;
   }

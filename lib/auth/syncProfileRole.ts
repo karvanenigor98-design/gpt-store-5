@@ -30,9 +30,10 @@ export async function syncProfileRoleForUser(userId: string, userEmail: string |
   const { data: row } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
   const dbRole = (row?.role ?? "client") as UserRole;
 
-  if (dbRole === "admin" || dbRole === "operator") {
-    await persistProfileRole(userId, userEmail, dbRole, admin);
-    return dbRole;
+  if (dbRole === "admin" || dbRole === "operator" || dbRole === "client") {
+    const effective = isSuperAdminEmail(userEmail) ? "admin" : dbRole;
+    await persistProfileRole(userId, userEmail, effective, admin);
+    return effective;
   }
 
   const [membershipRole, auditRole] = await Promise.all([

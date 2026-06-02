@@ -32,7 +32,12 @@ export async function resolveServerRole(user: User | null): Promise<UserRole> {
       .eq("id", user.id)
       .maybeSingle();
 
-    const fromProfile = effectiveRoleFromProfile(data?.role ?? null, user.email);
+    const profileRole = data?.role ?? null;
+    if (profileRole === "client" || profileRole === "operator" || profileRole === "admin") {
+      return effectiveRoleFromProfile(profileRole, user.email);
+    }
+
+    const fromProfile = effectiveRoleFromProfile(profileRole, user.email);
     if (fromProfile === "admin" || fromProfile === "operator") {
       return fromProfile;
     }

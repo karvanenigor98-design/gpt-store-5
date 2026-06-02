@@ -109,17 +109,18 @@ export async function POST(request: NextRequest) {
       /* optional table */
     }
 
-    const { error: auditErr } = await db.from("role_audit").insert({
-      actor_id: user.id,
-      target_id: userId,
-      action: "set_role",
-      payload: { from: prevRole, to: role, site },
-    });
-    if (auditErr && site === "gpt-store") {
-      return NextResponse.json({ error: auditErr.message }, { status: 400 });
+    try {
+      await db.from("role_audit").insert({
+        actor_id: user.id,
+        target_id: userId,
+        action: "set_role",
+        payload: { from: prevRole, to: role, site },
+      });
+    } catch {
+      /* audit optional — роль в profiles уже сохранена */
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, role, previousRole: prevRole });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal error" },

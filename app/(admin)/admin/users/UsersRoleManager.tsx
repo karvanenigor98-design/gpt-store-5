@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 type UserItem = {
   id: string;
@@ -29,6 +29,13 @@ export function UsersRoleManager({
   const [roles, setRoles] = useState<Record<string, UserItem["role"]>>(
     Object.fromEntries(users.map((u) => [u.id, u.role]))
   );
+  const [savedRoles, setSavedRoles] = useState<Record<string, UserItem["role"]>>(
+    Object.fromEntries(users.map((u) => [u.id, u.role]))
+  );
+  const [rowStatus, setRowStatus] = useState<Record<string, "ok" | "error">>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const usersByIdRef = useRef(new Map(users.map((u) => [u.id, u])));
+  usersByIdRef.current = new Map(users.map((u) => [u.id, u]));
   const [operatorEmail, setOperatorEmail] = useState("");
   const [addingOperator, setAddingOperator] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -39,18 +46,61 @@ export function UsersRoleManager({
   const [transferMigrate, setTransferMigrate] = useState(true);
   const [transferring, setTransferring] = useState(false);
 
-  async function saveRole(userId: string) {
-    setSavingId(userId);
-    setMessage(null);
-    const role = roles[userId];
-    const res = await fetch("/api/admin/users/role", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role, site: adminSite }),
-    });
-    const json = (await res.json()) as { error?: string };
-    setSavingId(null);
-    setMessage(res.ok ? "Роль обновлена" : json.error ?? "Ошибка обновления роли");
+  const saveRole = useCallback(
+    async (userId: string, role: UserItem["role"]) => {
+      const previous = savedRoles[userId];
+      if (previous === role) return true;
+
+      setSavingId(userId);
+      setRowStatus((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+      setRowError((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+
+      const res = await fetch("/api/admin/users/role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role, site: adminSite }),
+      });
+      const json = (await res.json()) as { error?: string; role?: UserItem["role"] };
+
+      setSavingId(null);
+
+      if (!res.ok) {
+        setRoles((prev) => ({ ...prev, [userId]: previous }));
+        setRowStatus((prev) => ({ ...prev, [userId]: "error" }));
+        setRowError((prev) => ({
+          ...prev,
+          [userId]: json.error ?? "Не удалось сохранить роль",
+        }));
+        setMessage(json.error ?? "Ошибка обновления роли");
+        return false;
+      }
+
+      const persisted = json.role ?? role;
+      setRoles((prev) => ({ ...prev, [userId]: persisted }));
+      setSavedRoles((prev) => ({ ...prev, [userId]: persisted }));
+      setRowStatus((prev) => ({ ...prev, [userId]: "ok" }));
+      const email = usersByIdRef.current.get(userId)?.email;
+      setMessage(
+        email ?
+          `Роль ${email} → ${persisted}`
+        : `Роль обновлена → ${persisted}`,
+      );
+      return true;
+    },
+    [adminSite, savedRoles],
+  );
+
+  function handleRoleChange(userId: string, role: UserItem["role"]) {
+    setRoles((prev) => ({ ...prev, [userId]: role }));
+    void saveRole(userId, role);
   }
 
   async function addOperatorByEmail() {
@@ -110,6 +160,7 @@ export function UsersRoleManager({
     }
     if (json.role) {
       setRoles((prev) => ({ ...prev, [transferTargetId]: json.role! }));
+      setSavedRoles((prev) => ({ ...prev, [transferTargetId]: json.role! }));
     }
     const c = json.counts;
     const extra =
@@ -222,6 +273,9 @@ export function UsersRoleManager({
       </div>
 
       {message && <p className="text-xs text-gray-600">{message}</p>}
+      <p className="text-xs text-gray-500">
+        Роль сохраняется сразу при выборе в списке (в базе profiles и site_memberships).
+      </p>
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="w-full">
           <thead className="border-b border-gray-200 bg-gray-50">
@@ -236,7 +290,7 @@ export function UsersRoleManager({
               <th className="px-4 py-3">Оплачено</th>
               <th className="px-4 py-3">Последний заказ</th>
               <th className="px-4 py-3">Регистрация</th>
-              <th className="px-4 py-3">Действие</th>
+              <th className="px-4 py-3">Статус</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -250,12 +304,10 @@ export function UsersRoleManager({
                   <select
                     value={roles[u.id]}
                     onChange={(e) =>
-                      setRoles((prev) => ({
-                        ...prev,
-                        [u.id]: e.target.value as UserItem["role"],
-                      }))
+                      handleRoleChange(u.id, e.target.value as UserItem["role"])
                     }
-                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                    disabled={savingId === u.id}
+                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800 disabled:opacity-60"
                   >
                     <option value="client">client</option>
                     <option value="operator">operator</option>
@@ -275,15 +327,20 @@ export function UsersRoleManager({
                 <td className="px-4 py-3 text-xs text-gray-500">
                   {new Date(u.created_at).toLocaleDateString("ru-RU")}
                 </td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => void saveRole(u.id)}
-                    disabled={savingId === u.id}
-                    className="rounded-lg bg-[#10a37f] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                  >
-                    {savingId === u.id ? "Сохранение..." : "Сохранить"}
-                  </button>
+                <td className="px-4 py-3 text-xs">
+                  {savingId === u.id ?
+                    <span className="text-gray-500">Сохранение…</span>
+                  : rowStatus[u.id] === "ok" ?
+                    <span className="font-medium text-emerald-600">Сохранено</span>
+                  : rowStatus[u.id] === "error" ?
+                    <span className="text-red-600" title={rowError[u.id]}>
+                      Ошибка
+                    </span>
+                  : roles[u.id] !== savedRoles[u.id] ?
+                    <span className="text-amber-600">…</span>
+                  : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
               </tr>
             ))}
