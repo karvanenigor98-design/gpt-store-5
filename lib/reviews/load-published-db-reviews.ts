@@ -1,4 +1,8 @@
 import { getSiteUUID } from "@/lib/admin/getSiteId";
+import {
+  applyGptStoreSiteFilter,
+  GPT_PUBLISHED_STATUSES,
+} from "@/lib/reviews/gpt-store-review-query";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { resolveReviewAuthorDisplay } from "@/lib/reviews/review-author-display";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -6,7 +10,8 @@ import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 const FALLBACK_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 const MIN_PUBLIC_REVIEW_RATING = 1;
-const MIN_PUBLIC_REVIEW_TEXT_LENGTH = 12;
+/** Короткие, но прошедшие модерацию отзывы тоже показываем. */
+const MIN_PUBLIC_REVIEW_TEXT_LENGTH = 3;
 
 function isMissingColumnError(message: string | null | undefined): boolean {
   const m = String(message ?? "").toLowerCase();
@@ -50,8 +55,8 @@ function mapGptRow(
   const rating =
     item.rating != null && Number.isFinite(item.rating)
       ? Math.min(5, Math.max(1, Math.round(Number(item.rating))))
-      : null;
-  if (!rating || rating < MIN_PUBLIC_REVIEW_RATING) return null;
+      : 5;
+  if (rating < MIN_PUBLIC_REVIEW_RATING) return null;
 
   const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
     authorName: item.author_name?.trim() || "Клиент",
@@ -90,21 +95,14 @@ export async function loadGptPublishedDbReviews(
     .select(
       "id, author_name, author_username, content, rating, telegram_date, published_at, created_at, original_url",
     )
-    .in("status", ["approved", "published"])
-    .not("rating", "is", null)
+    .in("status", GPT_PUBLISHED_STATUSES)
     .not("content", "is", null)
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (siteId) {
-    if (siteSlug === "gpt-store") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof query;
-    } else {
-      query = query.eq("site_id", siteId);
-    }
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query = applyGptStoreSiteFilter(query as any, siteSlug, siteId) as typeof query;
 
   let { data, error } = (await query) as {
     data: Record<string, unknown>[] | null;
@@ -116,20 +114,12 @@ export async function loadGptPublishedDbReviews(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let fallbackQuery = (admin.from("reviews") as any)
       .select("id, author_name, author_username, content, rating, telegram_date, created_at, original_url, status")
-      .in("status", ["approved", "published"])
-      .not("rating", "is", null)
+      .in("status", GPT_PUBLISHED_STATUSES)
       .not("content", "is", null)
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (siteId && siteSlug === "gpt-store") {
-      try {
-        // If site_id exists — keep strict GPT filter + legacy null rows.
-        fallbackQuery = fallbackQuery.or(`site_id.eq.${siteId},site_id.is.null`);
-      } catch {
-        /* site_id absent — keep fallback query as-is */
-      }
-    }
+    fallbackQuery = applyGptStoreSiteFilter(fallbackQuery, siteSlug, siteId);
 
     const fallback = (await fallbackQuery) as {
       data: Record<string, unknown>[] | null;

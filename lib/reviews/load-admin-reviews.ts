@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
+import {
+  applyGptStoreSiteFilter,
+  gptPublishedStatusFilter,
+} from "@/lib/reviews/gpt-store-review-query";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 function isColumnError(message: string): boolean {
@@ -23,21 +27,49 @@ export async function loadGptAdminReviews(
   const admin = createAdminClient();
   const siteId = await getSiteUUID(siteSlug);
 
+  const statusFilter = gptPublishedStatusFilter(status);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (admin.from("reviews") as any)
-    .select("id,author_name,author_username,content,telegram_date,created_at,status,rating")
-    .eq("status", status)
+    .select("id,author_name,author_username,content,telegram_date,created_at,published_at,status,rating")
+    .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(500);
 
-  if (siteId) {
-    query = query.eq("site_id", siteId);
+  if (Array.isArray(statusFilter)) {
+    query = query.in("status", statusFilter);
+  } else {
+    query = query.eq("status", statusFilter);
   }
 
-  const { data, error } = (await query) as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query = applyGptStoreSiteFilter(query as any, siteSlug, siteId) as typeof query;
+
+  let { data, error } = (await query) as {
     data: Record<string, unknown>[] | null;
     error: { message: string } | null;
   };
+
+  if (error && isColumnError(error.message)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let fallbackQuery = (admin.from("reviews") as any)
+      .select("id,author_name,author_username,content,telegram_date,created_at,status,rating")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (Array.isArray(statusFilter)) {
+      fallbackQuery = fallbackQuery.in("status", statusFilter);
+    } else {
+      fallbackQuery = fallbackQuery.eq("status", statusFilter);
+    }
+    fallbackQuery = applyGptStoreSiteFilter(fallbackQuery, siteSlug, siteId);
+    const fallback = (await fallbackQuery) as {
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    };
+    data = fallback.data;
+    error = fallback.error;
+  }
+
   if (error) {
     console.error("[loadGptAdminReviews]", error.message);
     return [];
@@ -49,6 +81,7 @@ export async function loadGptAdminReviews(
     author_username: (review.author_username as string | null) ?? null,
     content: (review.content as string) ?? "",
     telegram_date:
+      (review.published_at as string | null) ??
       (review.telegram_date as string | null) ??
       (review.created_at as string | null) ??
       null,

@@ -67,7 +67,7 @@ export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectio
         <div className="mx-auto max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
           <h2 className="font-heading text-xl font-bold text-gray-900">Отзывы временно не отображаются</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Не удалось загрузить отзывы из Telegram-экспорта. Обновите страницу через минуту.
+            Пока нет опубликованных отзывов. Одобренные в админке появятся здесь автоматически.
           </p>
         </div>
       </section>

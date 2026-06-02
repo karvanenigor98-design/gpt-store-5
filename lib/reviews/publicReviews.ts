@@ -174,25 +174,27 @@ function mergeCuratedWithLive(curated: PublicReview[], live: PublicReview[], cap
 export async function getPublicReviews(limit?: number, options?: GetPublicReviewsOptions): Promise<PublicReview[]> {
   const cap = limit ?? 200;
   const curatedLimit = options?.preferCurated ? 500 : options?.randomize ? 500 : cap;
-  const curated = loadGptTelegramCuratedReviews(curatedLimit);
+  const curated = options?.preferCurated ? loadGptTelegramCuratedReviews(curatedLimit) : [];
 
   try {
     const { loadGptPublishedDbReviews } = await import("@/lib/reviews/load-published-db-reviews");
-    const fromDb = await loadGptPublishedDbReviews("gpt-store", cap);
-    if (fromDb.length > 0 || options?.preferCurated === false) {
-      const merged = curated.length
-        ? finalizeAndSort(
-            [...fromDb, ...finalizeAndSort(curated, options)],
-            options,
-          )
-        : finalizeAndSort(fromDb, options);
-      if (merged.length > 0) return merged.slice(0, cap);
+    const fromDb = await loadGptPublishedDbReviews("gpt-store", Math.max(cap, 5000));
+    if (fromDb.length > 0) {
+      const base =
+        options?.preferCurated && curated.length
+          ? finalizeAndSort([...fromDb, ...finalizeAndSort(curated, options)], options)
+          : finalizeAndSort(fromDb, options);
+      return base.slice(0, cap);
+    }
+    if (!options?.preferCurated) {
+      return [];
     }
   } catch {
-    /* fallback below */
+    if (!options?.preferCurated) return [];
+    /* legacy curated fallback below */
   }
 
-  if (options?.preferCurated !== false && curated.length > 0) {
+  if (options?.preferCurated && curated.length > 0) {
     return finalizeAndSort(curated, options).slice(0, cap);
   }
 

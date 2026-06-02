@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LandingFooter } from "@/components/layout/LandingFooter";
-import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { resolveSearchParams } from "@/lib/next-search-params";
 import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
 import { sortLandingReviewsNewestFirst } from "@/lib/reviews/landing-reviews-display";
@@ -24,11 +23,11 @@ export const runtime = "nodejs";
 async function loadReviewsSafe(): Promise<PublicReview[]> {
   try {
     const published = await loadGptPublishedDbReviews("gpt-store", 5000);
-    if (published.length > 0) return sortLandingReviewsNewestFirst(published);
+    return sortLandingReviewsNewestFirst(published);
   } catch (err) {
     console.error("[reviews] load failed:", err);
+    return [];
   }
-  return getStaticGptLandingReviews(12);
 }
 
 export default async function PublicReviewsPage({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { resolveServerRole } from "@/lib/auth/server-role";
+import { applyGptStoreSiteFilter } from "@/lib/reviews/gpt-store-review-query";
 import { revalidatePublicReviewPages } from "@/lib/reviews/revalidate-public-reviews";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
@@ -46,10 +47,12 @@ export async function PATCH(req: NextRequest) {
   const siteId = await getSiteUUID(siteSlug);
 
   if (body.action === "delete") {
-    let query = ctx.admin.from("reviews").delete().eq("id", id);
-    if (siteId) {
-      query = query.eq("site_id", siteId) as typeof query;
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = applyGptStoreSiteFilter(
+      (ctx.admin.from("reviews") as any).delete().eq("id", id),
+      siteSlug,
+      siteId,
+    );
     const { error } = await query;
     if (error) {
       return NextResponse.json({ error: error.message ?? "Не удалось удалить отзыв" }, { status: 500 });
@@ -64,12 +67,12 @@ export async function PATCH(req: NextRequest) {
 
   if (body.action === "approve") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let fetchQ = (ctx.admin.from("reviews") as any)
-      .select("id, rating, content, site_id")
-      .eq("id", id);
-    if (siteId) {
-      fetchQ = fetchQ.eq("site_id", siteId);
-    }
+    const fetchQ = applyGptStoreSiteFilter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ctx.admin.from("reviews") as any).select("id, rating, content, site_id").eq("id", id),
+      siteSlug,
+      siteId,
+    );
     const { data: existingRow } = await fetchQ.maybeSingle();
     const existing = existingRow as {
       id: string;
@@ -122,10 +125,12 @@ export async function PATCH(req: NextRequest) {
   const status = "rejected";
   const now = new Date().toISOString();
 
-  let query = ctx.admin.from("reviews").update({ status, updated_at: now }).eq("id", id);
-  if (siteId) {
-    query = query.eq("site_id", siteId) as typeof query;
-  }
+  const query = applyGptStoreSiteFilter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (ctx.admin.from("reviews") as any).update({ status, updated_at: now }).eq("id", id),
+    siteSlug,
+    siteId,
+  );
 
   const { error } = await query;
   if (error) {

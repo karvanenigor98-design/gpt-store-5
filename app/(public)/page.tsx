@@ -21,8 +21,7 @@ import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
 import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
-import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
-import { mergePublicReviews } from "@/lib/reviews/merge-public-reviews";
+import { sortLandingReviewsNewestFirst } from "@/lib/reviews/landing-reviews-display";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -43,14 +42,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export const runtime = "nodejs";
 
-/** Все отзывы из Telegram-экспорта (messages.html + messages2.html), новые первыми. */
+/** Только отзывы, одобренные в админке (вкладка «Опубликованы»). */
 export default async function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
-  const [curated, fromDb] = await Promise.all([
-    loadGptTelegramCuratedReviewsAsync(),
-    loadGptPublishedDbReviews("gpt-store", 200),
-  ]);
-  const reviews = mergePublicReviews(curated, fromDb, 300);
+  const fromDb = await loadGptPublishedDbReviews("gpt-store", 5000);
+  const reviews = sortLandingReviewsNewestFirst(fromDb);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;
