@@ -10,6 +10,7 @@ import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
+import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
@@ -208,12 +209,23 @@ export function LoginForm() {
     );
 
   const resetHref = isSubsStore ? `/reset-password?site=${siteSlug}` : "/reset-password";
-  const registerHref = isSubsStore
-    ? `/register?site=${siteSlug}&returnUrl=${encodeURIComponent(effectiveReturnUrl)}`
-    : "/register";
+  const checkoutMessage = getCheckoutAuthMessage(effectiveReturnUrl, siteSlug);
+  const registerHref = `/register?site=${siteSlug}&returnUrl=${encodeURIComponent(effectiveReturnUrl)}`;
 
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+      {checkoutMessage ? (
+        <p
+          className="rounded-lg border px-3 py-2 text-sm"
+          style={{
+            borderColor: `${accentColor}40`,
+            background: `${accentColor}12`,
+            color: isSubsStore ? "#a7f3c0" : "#0f766e",
+          }}
+        >
+          {checkoutMessage}
+        </p>
+      ) : null}
       <div>
         <label className={labelClass}>Email</label>
         <input

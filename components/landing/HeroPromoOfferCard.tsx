@@ -9,6 +9,8 @@ import { promoDaysLeftLabel } from "@/lib/landing/promo-deadline";
 import type { HeroPromoSiteKey } from "@/lib/landing/hero-promo-config";
 import { fadeUp } from "@/lib/motion-config";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
+import { ConnectCheckoutButton } from "@/components/checkout/ConnectCheckoutButton";
+import { parsePlanIdFromCheckoutPath } from "@/lib/checkout/checkout-intent";
 import { cn } from "@/lib/utils";
 
 type HeroPromoOfferCardProps = {
@@ -26,6 +28,8 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
 
   const isGpt = site === "gpt";
   const accent = isGpt ? "#10a37f" : SPOTIFY_ACCENT;
+  const planId = parsePlanIdFromCheckoutPath(offer.checkoutHref);
+  const siteSlug = isGpt ? "gpt-store" : "subs-store";
   const countdownText = promoDaysLeftLabel(daysLeft, deadlineLabel);
   const wide = layout === "wide";
 
@@ -112,22 +116,43 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
           <span>{countdownText}</span>
         </div>
 
-        <Link
-          href={offer.checkoutHref}
-          className={cn(
-            "shimmer-btn relative mt-4 inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90",
-            wide && "sm:text-base",
-          )}
-          style={{
-            background: accent,
-            boxShadow: isGpt ? "0 4px 16px rgba(16,163,127,0.30)" : "0 4px 20px rgba(29,185,84,0.35)",
-          }}
-        >
-          <span className="relative z-[2] inline-flex items-center justify-center gap-2">
-            {offer.ctaLabel}
-            <ArrowRight size={16} />
-          </span>
-        </Link>
+        {planId ? (
+          <ConnectCheckoutButton
+            siteSlug={siteSlug}
+            planId={planId}
+            planName={offer.planName}
+            className={cn(
+              "shimmer-btn relative mt-4 inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90",
+              wide && "sm:text-base",
+            )}
+            style={{
+              background: accent,
+              boxShadow: isGpt ? "0 4px 16px rgba(16,163,127,0.30)" : "0 4px 20px rgba(29,185,84,0.35)",
+            }}
+          >
+            <span className="relative z-[2] inline-flex items-center justify-center gap-2">
+              {offer.ctaLabel}
+              <ArrowRight size={16} />
+            </span>
+          </ConnectCheckoutButton>
+        ) : (
+          <Link
+            href={offer.checkoutHref}
+            className={cn(
+              "shimmer-btn relative mt-4 inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90",
+              wide && "sm:text-base",
+            )}
+            style={{
+              background: accent,
+              boxShadow: isGpt ? "0 4px 16px rgba(16,163,127,0.30)" : "0 4px 20px rgba(29,185,84,0.35)",
+            }}
+          >
+            <span className="relative z-[2] inline-flex items-center justify-center gap-2">
+              {offer.ctaLabel}
+              <ArrowRight size={16} />
+            </span>
+          </Link>
+        )}
       </div>
     </motion.div>
   );

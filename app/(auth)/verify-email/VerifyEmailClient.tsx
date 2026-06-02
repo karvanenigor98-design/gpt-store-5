@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck } from "lucide-react";
-import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { defaultCustomerDashboard, normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
+import { readCheckoutIntent, isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
 import { buildSignupRedirectTo } from "@/lib/site-url";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
 import { createClient } from "@/lib/supabase/client";
@@ -67,7 +68,18 @@ export function VerifyEmailClient() {
   })();
   const isSubsStore = siteSlug === "subs-store";
   const accentColor = isSubsStore ? SPOTIFY_GREEN : "#10a37f";
-  const postLoginTarget = defaultCustomerDashboard(siteSlug);
+  const returnUrlParam = searchParams.get("returnUrl") ?? "";
+  const checkoutIntent = readCheckoutIntent(siteSlug);
+  const checkoutFlow =
+    searchParams.get("flow") === "checkout" ||
+    isCheckoutReturnPath(returnUrlParam) ||
+    Boolean(checkoutIntent);
+  const postLoginTarget = normalizeAuthReturnUrl(
+    returnUrlParam.startsWith("/") && !returnUrlParam.startsWith("//")
+      ? returnUrlParam
+      : checkoutIntent?.returnPath ?? defaultCustomerDashboard(siteSlug),
+    siteSlug,
+  );
 
   function getAuthClient() {
     return isSubsStore ? createSubsBrowserClient() : createClient();
@@ -278,11 +290,17 @@ export function VerifyEmailClient() {
         </div>
         <h1 className={`font-heading text-2xl font-bold mb-2 ${headingClass}`}>Вы зарегистрированы!</h1>
         <p className={`text-sm ${subTextClass}`}>
-          Открываем{" "}
-          {isSubsStore ? (
-            <span style={{ color: SPOTIFY_GREEN }}>Spotify Store</span>
-          ) : "личный кабинет"}
-          …
+          {checkoutFlow
+            ? "Продолжаем оформление заказа…"
+            : (
+              <>
+                Открываем{" "}
+                {isSubsStore ? (
+                  <span style={{ color: SPOTIFY_GREEN }}>Spotify Store</span>
+                ) : "личный кабинет"}
+                …
+              </>
+            )}
         </p>
       </div>
     );
@@ -298,7 +316,11 @@ export function VerifyEmailClient() {
         )}
       </div>
       <h1 className={`font-heading text-2xl font-bold mb-3 ${headingClass}`}>
-        {flowCheckInbox && isSubsStore ? "Завершите регистрацию" : "Проверьте почту"}
+        {checkoutFlow
+          ? "Подтвердите email, чтобы продолжить оформление заказа"
+          : flowCheckInbox && isSubsStore
+            ? "Завершите регистрацию"
+            : "Проверьте почту"}
       </h1>
       {resolvedError && (
         <div className={`mb-4 space-y-3 rounded-lg border px-3 py-2 text-sm ${isSubsStore ? "border-red-700/40 bg-red-950/50 text-red-400" : "border-red-200 bg-red-50 text-red-700"}`}>
@@ -327,7 +349,13 @@ export function VerifyEmailClient() {
         </p>
       )}
       <p className={`text-sm leading-relaxed mb-6 ${subTextClass}`}>
-        {flowCheckInbox && isSubsStore ? (
+        {checkoutFlow ? (
+          <>
+            Мы отправили письмо для подтверждения регистрации. После подтверждения email вы автоматически
+            вернётесь к оформлению выбранного тарифа
+            {isSubsStore ? " Spotify Premium" : " ChatGPT Plus"}.
+          </>
+        ) : flowCheckInbox && isSubsStore ? (
           <>
             Мы отправили инструкции на указанный адрес. Откройте письмо и подтвердите email — после этого вы
             автоматически попадёте в личный кабинет Spotify Store.

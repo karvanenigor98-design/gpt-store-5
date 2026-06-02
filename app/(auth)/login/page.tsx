@@ -28,8 +28,8 @@ export default async function LoginPage({
   const isSubsStore = authSite === "subs-store";
   const registerHref =
     isSubsStore
-      ? "/register?site=subs-store"
-      : "/register?site=gpt-store";
+      ? `/register?site=subs-store${returnUrl ? `&returnUrl=${encodeURIComponent(returnUrl)}` : ""}`
+      : `/register?site=gpt-store${returnUrl ? `&returnUrl=${encodeURIComponent(returnUrl)}` : ""}`;
 
   if (isSubsStore) {
     return (

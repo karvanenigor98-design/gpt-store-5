@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
     let createdNew = false;
 
     if (resumeOrderId?.trim() && subsAdmin) {
+      if (!subsUserId) {
+        return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
+      }
+
       const { data: existing } = await subsAdmin
         .from("orders")
         .select("id,status,customer_email,final_price,user_id,tariff_id")
@@ -94,6 +98,10 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       planLabel = tariff?.title ?? "Spotify Premium";
     } else {
+      if (!subsUserId) {
+        return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
+      }
+
       if (!planId || !accountEmail?.trim()) {
         return NextResponse.json({ error: "Укажите тариф и email" }, { status: 400 });
       }

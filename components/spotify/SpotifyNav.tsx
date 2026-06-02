@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 import { LandingOrderStatusChip } from "@/components/landing/LandingOrderStatusChip";
+import { LandingAuthNavLink } from "@/components/landing/LandingAuthNavLink";
 
 export function SpotifyNav() {
   const { nav, hero } = useSpotifyLanding();
@@ -76,8 +77,8 @@ export function SpotifyNav() {
           <div className="hidden sm:block">
             <LandingOrderStatusChip siteSlug="subs-store" />
           </div>
-          <Link
-            href="/cabinet?site=subs-store"
+          <LandingAuthNavLink
+            siteSlug="subs-store"
             className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
             style={{
               borderColor: "rgba(255,255,255,0.15)",
@@ -89,10 +90,7 @@ export function SpotifyNav() {
             onMouseLeave={(e) => {
               e.currentTarget.style.background = "transparent";
             }}
-          >
-            <User size={14} />
-            Кабинет
-          </Link>
+          />
           <button
             type="button"
             onClick={handlePremiumCta}
@@ -146,17 +144,14 @@ export function SpotifyNav() {
                   </Link>
                 )
               )}
-              <Link
-                href="/cabinet?site=subs-store"
-                onClick={() => setOpen(false)}
-                className="mt-1 rounded-lg border px-3 py-2.5 text-center text-sm"
+              <LandingAuthNavLink
+                siteSlug="subs-store"
+                className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
                 style={{
                   borderColor: "rgba(255,255,255,0.15)",
                   color: "rgba(255,255,255,0.7)",
                 }}
-              >
-                Личный кабинет
-              </Link>
+              />
               <div className="mt-1">
                 <LandingOrderStatusChip siteSlug="subs-store" />
               </div>

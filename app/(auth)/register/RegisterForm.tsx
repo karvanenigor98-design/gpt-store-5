@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { registerSchema, type RegisterInput } from "@/lib/validations";
+import { isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
 import { cn } from "@/lib/utils";
 
 function isAlreadyRegisteredError(message: string): boolean {
@@ -181,6 +182,10 @@ export function RegisterForm() {
     const sentTo = signData.user?.email ?? normalizedEmail;
     const verifyParams = new URLSearchParams({ email: sentTo, sent: "1" });
     if (isSubsStore) verifyParams.set("site", "subs-store");
+    if (safeReturnUrl.startsWith("/") && !safeReturnUrl.startsWith("//")) {
+      verifyParams.set("returnUrl", safeReturnUrl);
+    }
+    if (isCheckoutReturnPath(safeReturnUrl)) verifyParams.set("flow", "checkout");
     router.push(`/verify-email?${verifyParams.toString()}`);
   }
 
@@ -201,9 +206,7 @@ export function RegisterForm() {
 
   const termsHref = "/terms";
   const privacyHref = "/privacy";
-  const loginHref = isSubsStore
-    ? `/login?site=${siteSlug}&returnUrl=${encodeURIComponent(returnUrl)}`
-    : "/login";
+  const loginHref = `/login?site=${siteSlug}&returnUrl=${encodeURIComponent(returnUrl)}`;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -295,14 +298,12 @@ export function RegisterForm() {
         </p>
       )}
 
-      {isSubsStore && (
-        <p className="text-center text-sm text-gray-400">
-          Уже есть аккаунт?{" "}
-          <a href={loginHref} className="hover:underline" style={{ color: accentColor }}>
-            Войти
-          </a>
-        </p>
-      )}
+      <p className="text-center text-sm text-gray-400">
+        Уже есть аккаунт?{" "}
+        <a href={loginHref} className="hover:underline" style={{ color: accentColor }}>
+          Войти
+        </a>
+      </p>
     </form>
   );
 }

@@ -36,6 +36,7 @@ import {
   SPOTIFY_TARIFF_GUIDE_ITEMS,
   TariffChooseGuide,
 } from "@/components/landing/TariffChooseGuide";
+import { ConnectCheckoutButton } from "@/components/checkout/ConnectCheckoutButton";
 
 export function SpotifyPricing() {
   const { plans: initialPlans, pricingSection: sec } = useSpotifyLanding();
@@ -687,17 +688,19 @@ function PlanCard({
             </div>
           );
         })() : null}
-        <motion.a
-          href={`/checkout/spotify?plan=${plan.id}`}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className={`relative flex h-11 w-full shrink-0 items-center justify-center rounded-xl px-4 text-sm font-semibold transition-all ${
-            planCtaUsesShimmer(tier) ? "shimmer-btn overflow-hidden" : ""
-          }`}
-          style={getPlanCtaStyle(tier)}
-        >
-          <span className={planCtaUsesShimmer(tier) ? "relative z-[2]" : ""}>{ctaText}</span>
-        </motion.a>
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <ConnectCheckoutButton
+            siteSlug="subs-store"
+            planId={plan.id}
+            planName={plan.name}
+            className={`relative flex h-11 w-full shrink-0 items-center justify-center rounded-xl px-4 text-sm font-semibold transition-all ${
+              planCtaUsesShimmer(tier) ? "shimmer-btn overflow-hidden" : ""
+            }`}
+            style={getPlanCtaStyle(tier)}
+          >
+            <span className={planCtaUsesShimmer(tier) ? "relative z-[2]" : ""}>{ctaText}</span>
+          </ConnectCheckoutButton>
+        </motion.div>
       </div>
 
       <AnimatePresence initial={false}>

@@ -12,6 +12,8 @@ import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
 import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
+import { useCheckoutAuthGate } from "@/hooks/useCheckoutAuthGate";
+import { buildCheckoutAuthUrl, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 
 const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
 
@@ -20,6 +22,7 @@ const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплат�
 export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const authGate = useCheckoutAuthGate("gpt-store");
 
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState<ExtendedPlan | null>(null);
@@ -35,14 +38,38 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   const plansHashRef = useRef(JSON.stringify(runtimePlans));
   const selectedPlanIdRef = useRef<string | null>(null);
 
-  // Предвыбор тарифа из URL (?plan=plus-std)
   useEffect(() => {
-    const planId = searchParams.get("plan");
-    if (planId) {
-      const found = runtimePlans.find((p) => p.id === planId && p.inStock !== false);
-      if (found) setSelectedPlan(found);
+    if (!authGate.ready || !authGate.intent) return;
+    if (authGate.intent.promoCode) {
+      setPromoCode((prev) => prev || (authGate.intent!.promoCode ?? ""));
     }
-  }, [searchParams, runtimePlans]);
+    if (authGate.intent.accountEmail) {
+      setAccountEmail((prev) => prev || (authGate.intent!.accountEmail ?? ""));
+    }
+  }, [authGate.ready, authGate.intent]);
+
+  useEffect(() => {
+    if (!authGate.ready || !selectedPlan) return;
+    persistCheckoutIntent({
+      siteSlug: "gpt-store",
+      planId: selectedPlan.id,
+      planName: selectedPlan.name,
+      promoCode: promoCode.trim() || null,
+      accountEmail: accountEmail.trim() || null,
+    });
+  }, [authGate.ready, selectedPlan, promoCode, accountEmail]);
+
+  // Предвыбор тарифа из URL (?plan=…) или checkout intent
+  useEffect(() => {
+    if (!authGate.ready) return;
+    const planId = searchParams.get("plan") ?? authGate.intent?.planId ?? null;
+    if (!planId) return;
+    const found = runtimePlans.find((p) => p.id === planId && p.inStock !== false);
+    if (found) {
+      setSelectedPlan(found);
+      setStep((current) => (current > 1 ? current : 2));
+    }
+  }, [searchParams, runtimePlans, authGate.ready, authGate.intent]);
 
   useEffect(() => {
     selectedPlanIdRef.current = selectedPlan?.id ?? null;
@@ -156,6 +183,11 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
       if (!res.ok || !json.paymentUrl || !json.orderId) {
         const base = formatPallyCheckoutError(json.error ?? "Платёжная ссылка недоступна");
+        if (res.status === 401) {
+          const ret = `/checkout?plan=${encodeURIComponent(selectedPlan.id)}`;
+          router.push(buildCheckoutAuthUrl("gpt-store", ret));
+          return;
+        }
         if (json.orderSaved && !/заказ сохранён/i.test(base)) {
           setError(`${base} Заказ сохранён в админке — повторите оплату.`);
         } else {
@@ -175,6 +207,14 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (!authGate.ready) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#10a37f]" />
+      </div>
+    );
   }
 
   return (

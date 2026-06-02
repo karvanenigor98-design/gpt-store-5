@@ -8,6 +8,8 @@ import { SPOTIFY_PLANS, SPOTIFY_ACCENT, SPOTIFY_GLOW, type SpotifyPlan } from "@
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
+import { useCheckoutAuthGate } from "@/hooks/useCheckoutAuthGate";
+import { buildCheckoutAuthUrl, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 
 const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
 
@@ -17,6 +19,7 @@ const ACCOUNT_DATA_HINT =
 export function SpotifyCheckoutFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const authGate = useCheckoutAuthGate("subs-store");
   const planIdFromUrl = searchParams.get("plan");
   const [step, setStep] = useState(1);
   const [plans, setPlans] = useState<SpotifyPlan[]>(SPOTIFY_PLANS);
@@ -76,19 +79,42 @@ export function SpotifyCheckoutFlow() {
 
   // Только выбор тарифа из URL — шаг не трогаем (poll каждые 5 с)
   useEffect(() => {
-    if (!planIdFromUrl || !plans.length) return;
-    const found = plans.find((p) => p.id === planIdFromUrl);
+    const effectivePlanId = planIdFromUrl ?? authGate.intent?.planId ?? null;
+    if (!effectivePlanId || !plans.length) return;
+    const found = plans.find((p) => p.id === effectivePlanId);
     if (found) setSelectedPlan(found);
-  }, [planIdFromUrl, plans]);
+  }, [planIdFromUrl, authGate.intent?.planId, plans]);
 
   // Один раз: с лендинга ?plan=… → шаг 2, но не откатывать если уже на 3
   useEffect(() => {
-    if (!planIdFromUrl || urlPlanInitDoneRef.current || !plans.length) return;
-    if (!plans.some((p) => p.id === planIdFromUrl)) return;
+    const effectivePlanId = planIdFromUrl ?? authGate.intent?.planId ?? null;
+    if (!effectivePlanId || urlPlanInitDoneRef.current || !plans.length || !authGate.ready) return;
+    if (!plans.some((p) => p.id === effectivePlanId)) return;
     urlPlanInitDoneRef.current = true;
     setStep((current) => (current > 1 ? current : 2));
     maxStepReachedRef.current = Math.max(maxStepReachedRef.current, 2);
-  }, [planIdFromUrl, plans]);
+  }, [planIdFromUrl, authGate.intent?.planId, authGate.ready, plans]);
+
+  useEffect(() => {
+    if (!authGate.ready || !authGate.intent) return;
+    if (authGate.intent.promoCode) {
+      setPromoCode((prev) => prev || (authGate.intent!.promoCode ?? ""));
+    }
+    if (authGate.intent.accountEmail) {
+      setEmail((prev) => prev || (authGate.intent!.accountEmail ?? ""));
+    }
+  }, [authGate.ready, authGate.intent]);
+
+  useEffect(() => {
+    if (!authGate.ready || !selectedPlan) return;
+    persistCheckoutIntent({
+      siteSlug: "subs-store",
+      planId: selectedPlan.id,
+      planName: selectedPlan.name,
+      promoCode: promoCode.trim() || null,
+      accountEmail: email.trim() || null,
+    });
+  }, [authGate.ready, selectedPlan, promoCode, email]);
 
   useEffect(() => {
     const subs = tryCreateSubsBrowserClient();
@@ -97,7 +123,7 @@ export function SpotifyCheckoutFlow() {
       return;
     }
     void subs.auth.getUser().then(({ data }) => {
-      if (data.user?.email) setEmail(data.user.email);
+      if (data.user?.email) setEmail((prev) => prev || data.user!.email!);
       setReady(true);
     });
   }, []);
@@ -156,6 +182,10 @@ export function SpotifyCheckoutFlow() {
       }
       if (!res.ok || !json.paymentUrl) {
         const base = formatPallyCheckoutError(json.error ?? "Не удалось создать ссылку на оплату");
+        if (res.status === 401 && selectedPlan) {
+          router.push(buildCheckoutAuthUrl("subs-store", `/checkout/spotify?plan=${selectedPlan.id}`));
+          return;
+        }
         setPayError(
           json.orderSaved && !/заказ сохранён/i.test(base)
             ? `${base} Заказ сохранён в админке — повторите оплату.`
@@ -176,7 +206,7 @@ export function SpotifyCheckoutFlow() {
     }
   }
 
-  if (!ready) {
+  if (!authGate.ready || !ready) {
     return (
       <div className="flex min-h-[40vh] flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: SPOTIFY_ACCENT }} />

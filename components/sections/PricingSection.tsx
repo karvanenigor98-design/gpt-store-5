@@ -8,6 +8,7 @@ import {
   GPT_TARIFF_GUIDE_ITEMS,
   TariffChooseGuide,
 } from "@/components/landing/TariffChooseGuide";
+import { ConnectCheckoutButton } from "@/components/checkout/ConnectCheckoutButton";
 
 type RuntimePlan = (typeof PLUS_PLANS)[number] & {
   original_price?: number;
@@ -627,49 +628,51 @@ export function PricingSection({
 
                 <div className="relative mt-auto shrink-0 pt-2">
                   {plan.price > 0 && isInStock ? (
-                    <motion.a
-                      href={`/checkout?plan=${plan.id}`}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`shimmer-btn flex h-11 w-full items-center justify-center rounded-xl px-4 text-sm transition-all ${
-                        proTier ? "font-extrabold" : "font-semibold"
-                      }`}
-                      style={
-                        plan.isPopular
-                          ? {
-                              background: cardAccent,
-                              color: "white",
-                              boxShadow:
-                                activeProduct === "chatgpt-pro"
-                                  ? `0 8px 32px -4px ${proTier === "20x" ? "rgba(5,150,105,0.45)" : cardGlow}, 0 2px 8px rgba(0,0,0,0.08)`
-                                  : `0 8px 32px -4px rgba(16,163,127,0.4), 0 2px 8px rgba(0,0,0,0.06)`,
-                            }
-                          : proTier
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <ConnectCheckoutButton
+                        siteSlug="gpt-store"
+                        planId={plan.id}
+                        planName={plan.name}
+                        className={`shimmer-btn flex h-11 w-full items-center justify-center rounded-xl px-4 text-sm transition-all ${
+                          proTier ? "font-extrabold" : "font-semibold"
+                        }`}
+                        style={
+                          plan.isPopular
                             ? {
-                                background: proTier === "5x" ? "#0284c7" : "#059669",
+                                background: cardAccent,
                                 color: "white",
-                                border: "1.5px solid transparent",
                                 boxShadow:
-                                  proTier === "5x"
-                                    ? "0 6px 20px -8px rgba(2,132,199,0.45)"
-                                    : "0 6px 20px -8px rgba(5,150,105,0.45)",
+                                  activeProduct === "chatgpt-pro"
+                                    ? `0 8px 32px -4px ${proTier === "20x" ? "rgba(5,150,105,0.45)" : cardGlow}, 0 2px 8px rgba(0,0,0,0.08)`
+                                    : `0 8px 32px -4px rgba(16,163,127,0.4), 0 2px 8px rgba(0,0,0,0.06)`,
                               }
-                            : plusTier === "fast"
+                            : proTier
                               ? {
-                                  background: "#f97316",
+                                  background: proTier === "5x" ? "#0284c7" : "#059669",
                                   color: "white",
                                   border: "1.5px solid transparent",
-                                  boxShadow: "0 6px 20px -8px rgba(249,115,22,0.45)",
+                                  boxShadow:
+                                    proTier === "5x"
+                                      ? "0 6px 20px -8px rgba(2,132,199,0.45)"
+                                      : "0 6px 20px -8px rgba(5,150,105,0.45)",
                                 }
-                          : {
-                              background: "transparent",
-                              border: `1.5px solid ${proTier || plusTier ? `${cardAccent}55` : "rgba(0,0,0,0.12)"}`,
-                              color: proTier || plusTier ? cardAccent : "#374151",
-                            }
-                      }
-                    >
-                      {ctaText}
-                    </motion.a>
+                              : plusTier === "fast"
+                                ? {
+                                    background: "#f97316",
+                                    color: "white",
+                                    border: "1.5px solid transparent",
+                                    boxShadow: "0 6px 20px -8px rgba(249,115,22,0.45)",
+                                  }
+                                : {
+                                    background: "transparent",
+                                    border: `1.5px solid ${proTier || plusTier ? `${cardAccent}55` : "rgba(0,0,0,0.12)"}`,
+                                    color: proTier || plusTier ? cardAccent : "#374151",
+                                  }
+                        }
+                      >
+                        {ctaText}
+                      </ConnectCheckoutButton>
+                    </motion.div>
                   ) : (
                     <span className="flex h-11 w-full items-center justify-center rounded-xl border border-black/[0.12] bg-gray-100 px-4 text-sm font-semibold text-gray-500">
                       {isInStock ? "Уточняйте цену" : "Временно нет в наличии"}
