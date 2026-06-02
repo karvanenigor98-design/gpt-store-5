@@ -98,14 +98,14 @@ export type LandingMainReviewsPrepared<T extends LandingReviewLike> = {
 export function prepareLandingMainReviews<T extends LandingReviewLike>(
   items: T[],
 ): LandingMainReviewsPrepared<T> {
-  const withDbRating = items.filter((item) => hasExplicitRating(item));
-  const base = withDbRating.length > 0 ? withDbRating : items;
-  const sorted = sortLandingReviewsNewestFirst(base);
-  const rated = applyLandingRatings49(sorted);
-  const pool = rated;
+  const sorted = sortLandingReviewsNewestFirst(items);
+  const rated = sorted.map((item) => ({
+    ...item,
+    rating: hasExplicitRating(item) ? item.rating! : 5,
+  }));
 
   return {
-    pool,
+    pool: rated,
     averageLabel: computeLandingAverageLabel(rated),
     count: rated.length,
   };

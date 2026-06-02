@@ -3,8 +3,11 @@ import {
   applyGptStoreSiteFilter,
   GPT_PUBLISHED_STATUSES,
 } from "@/lib/reviews/gpt-store-review-query";
+import {
+  formatReviewAuthorLikeAdmin,
+  normalizePublishedReviewContent,
+} from "@/lib/reviews/admin-display-review";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
-import { resolveReviewAuthorDisplay } from "@/lib/reviews/review-author-display";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
@@ -16,13 +19,6 @@ const MIN_PUBLIC_REVIEW_TEXT_LENGTH = 3;
 function isMissingColumnError(message: string | null | undefined): boolean {
   const m = String(message ?? "").toLowerCase();
   return m.includes("column") || m.includes("does not exist") || m.includes("schema cache");
-}
-
-function initialsFromName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "U";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
 function normalizeAuthorKey(value: string): string {
@@ -50,7 +46,7 @@ function mapGptRow(
   },
   idx: number,
 ): PublicReview | null {
-  const text = (item.content ?? "").trim();
+  const text = normalizePublishedReviewContent(item.content ?? "");
   if (text.length < MIN_PUBLIC_REVIEW_TEXT_LENGTH) return null;
   const rating =
     item.rating != null && Number.isFinite(item.rating)
@@ -58,19 +54,18 @@ function mapGptRow(
       : 5;
   if (rating < MIN_PUBLIC_REVIEW_RATING) return null;
 
-  const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
-    authorName: item.author_name?.trim() || "Клиент",
+  const { authorName, authorUsername, initials } = formatReviewAuthorLikeAdmin({
+    authorName: item.author_name,
     authorUsername: item.author_username,
-    content: text,
   });
-  const authorKey = normalizeAuthorKey(resolvedUsername || authorName);
-  const usernameClean = resolvedUsername ? resolvedUsername.replace(/^@+/, "") : null;
+  const authorKey = normalizeAuthorKey(authorUsername || authorName);
+  const usernameClean = authorUsername;
   const sortTs = item.published_at ?? item.telegram_date ?? item.created_at;
 
   return {
     id: item.id,
     authorName,
-    authorUsername: resolvedUsername,
+    authorUsername,
     content: text,
     rating,
     dateLabel: formatDateLabel(sortTs),
@@ -78,7 +73,7 @@ function mapGptRow(
     sourceUrl: item.original_url || (usernameClean ? `https://t.me/${usernameClean}` : null),
     inSiteProfileUrl: `/reviews?author=${encodeURIComponent(authorKey)}`,
     avatarColor: FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
-    initials: initialsFromName(authorName),
+    initials,
   };
 }
 
@@ -202,14 +197,17 @@ export async function loadSubsPublishedDbReviews(limit = 200): Promise<PublicRev
     if (text.length < MIN_PUBLIC_REVIEW_TEXT_LENGTH) continue;
     const rating = Math.min(5, Math.max(1, Math.round(Number(row.rating))));
     if (rating < MIN_PUBLIC_REVIEW_RATING) continue;
-    const authorName = (row.name && String(row.name).trim()) || "Клиент";
-    const authorKey = normalizeAuthorKey(authorName);
+    const { authorName, authorUsername, initials } = formatReviewAuthorLikeAdmin({
+      authorName: row.name ?? null,
+      authorUsername: null,
+    });
+    const authorKey = normalizeAuthorKey(authorUsername || authorName);
     const sortTs = row.published_at ?? row.created_at ?? null;
 
     out.push({
       id: String(row.id),
       authorName,
-      authorUsername: null,
+      authorUsername,
       content: text,
       rating,
       dateLabel: formatDateLabel(sortTs),
@@ -217,7 +215,7 @@ export async function loadSubsPublishedDbReviews(limit = 200): Promise<PublicRev
       sourceUrl: null,
       inSiteProfileUrl: `/spotify/reviews?author=${encodeURIComponent(authorKey)}`,
       avatarColor: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-      initials: initialsFromName(authorName),
+      initials,
     });
   }
   return out;

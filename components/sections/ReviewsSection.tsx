@@ -54,9 +54,7 @@ export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectio
     [reviews],
   );
 
-  const previewReviews = useMemo(() => {
-    return pool.slice(0, PREVIEW_COUNT) as PublicReview[];
-  }, [pool]);
+  const previewReviews = useMemo(() => pool.slice(0, PREVIEW_COUNT) as PublicReview[], [pool]);
 
   const leftCol = previewReviews.filter((_, i) => i % 2 === 0);
   const rightCol = previewReviews.filter((_, i) => i % 2 !== 0);
