@@ -10,7 +10,7 @@ import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 
 /** Subs notifications — другая схема, без site_id. */
 export async function GET() {
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ adminOnly: true });
   if (ctx instanceof NextResponse) return ctx;
 
   const query = ctx.subs.from("notifications").select("*").order("created_at", { ascending: false }).limit(120);
@@ -44,7 +44,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ adminOnly: true });
   if (ctx instanceof NextResponse) return ctx;
 
   let body: { id?: string; mark_all?: boolean };

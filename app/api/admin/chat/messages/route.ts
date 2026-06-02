@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   const role = await resolveServerRole(user);
-  if (role !== "admin" && role !== "operator") {
+  if (role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

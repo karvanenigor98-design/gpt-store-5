@@ -71,17 +71,19 @@ export async function requireStaffPanel(
   }
 
   const role = await resolveServerRole(user);
-  if (role === "admin") {
-    if (panel === "operator") {
-      redirect(returnPath.replace(/^\/operator/, "/admin") || "/admin");
+
+  if (panel === "admin") {
+    if (role !== "admin") {
+      redirect(role === "operator" ? "/operator" : "/dashboard?site=gpt-store");
     }
     return { user, role: "admin" };
   }
 
+  if (role === "admin") {
+    redirect(returnPath.replace(/^\/operator/, "/admin") || "/admin");
+  }
+
   if (role === "operator") {
-    if (panel === "admin") {
-      redirect(returnPath.replace(/^\/admin/, "/operator") || "/operator");
-    }
     return { user, role: "operator" };
   }
 

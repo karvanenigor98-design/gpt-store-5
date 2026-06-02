@@ -7,7 +7,7 @@ import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { PanelErrorBoundary } from "@/components/errors/PanelErrorBoundary";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { StaffNotificationToaster } from "@/components/admin/StaffNotificationToaster";
-import { requireStaffPanel } from "@/lib/auth/staff-access";
+import { requireAdminPage } from "@/lib/auth/requireAdminPage";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +17,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   try {
-  const headersList = await headers();
-  const pathname = headersList.get("x-invoke-pathname") ?? "/admin";
-  const search = headersList.get("x-invoke-search") ?? "";
-  const returnPath = `${pathname}${search}`;
-
-  await requireStaffPanel("admin", returnPath);
+  await requireAdminPage();
 
   return (
     <div className="flex min-h-screen bg-gray-50">

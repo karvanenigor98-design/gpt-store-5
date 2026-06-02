@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
-import { requireStaffApi } from "@/lib/admin/require-staff-api";
+import { requireAdminApi } from "@/lib/admin/require-staff-api";
 import {
   isNotificationUnreadForStaff,
   loadStaffReadNotificationIds,
@@ -11,7 +11,7 @@ import {
 
 /** GPT Store notifications (таблица в GPT Supabase). Subs — /api/admin/subs-store/notifications */
 export async function GET(req: NextRequest) {
-  const ctx = await requireStaffApi();
+  const ctx = await requireAdminApi();
   if (ctx instanceof NextResponse) return ctx;
 
   const siteSlug = req.nextUrl.searchParams.get("site") === "subs-store" ? "subs-store" : "gpt-store";
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireStaffApi();
+  const ctx = await requireAdminApi();
   if (ctx instanceof NextResponse) return ctx;
 
   let body: { id?: string; mark_all?: boolean; site?: string };

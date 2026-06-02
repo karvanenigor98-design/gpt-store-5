@@ -67,13 +67,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const role = await resolveServerRole(user);
-  if (role !== "admin" && role !== "operator") {
+  if (role !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const site = req.nextUrl.searchParams.get("site");
   if (site === "subs-store") {
-    const subsCtx = await requireSubsStaffContext();
+    const subsCtx = await requireSubsStaffContext({ adminOnly: true });
     if (subsCtx instanceof NextResponse) return subsCtx;
     const nextSubs = String(next);
     if (!SUBS_ORDER_STATUSES.has(nextSubs)) {

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Используйте ?list=1" }, { status: 400 });
   }
 
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ adminOnly: true });
   if (ctx instanceof NextResponse) return ctx;
 
   const { subs } = ctx;

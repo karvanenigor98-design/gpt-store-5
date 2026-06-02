@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "thread_id обязателен" }, { status: 400 });
   }
 
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ adminOnly: true });
   if (ctx instanceof NextResponse) return ctx;
 
   const { subs } = ctx;
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "thread_id и content обязательны" }, { status: 400 });
   }
 
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ adminOnly: true });
   if (ctx instanceof NextResponse) return ctx;
 
   const supabase = await createClient();
@@ -171,7 +171,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Нужны id и action=delete" }, { status: 400 });
   }
 
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ adminOnly: true });
   if (ctx instanceof NextResponse) return ctx;
 
   const { error } = await ctx.subs

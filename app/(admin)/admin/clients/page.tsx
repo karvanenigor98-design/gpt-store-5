@@ -4,9 +4,8 @@ import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { requireAdminPage } from "@/lib/auth/requireAdminPage";
 import { effectiveRoleFromProfile } from "@/lib/auth/superAdmin";
-import { redirect } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import type { UserRole } from "@/types/database";
 import { selectProfilesFlexible } from "@/lib/admin/selectProfilesFlexible";
@@ -36,14 +35,7 @@ export default async function AdminClientsPage({
     roleFilterRaw === "client" || roleFilterRaw === "operator" || roleFilterRaw === "admin"
       ? roleFilterRaw
       : "all";
-  const supabaseUser = await createClient();
-  const {
-    data: { user },
-  } = await supabaseUser.auth.getUser();
-  const role = await resolveServerRole(user);
-  if (role !== "admin" && role !== "operator") {
-    redirect("/dashboard");
-  }
+  const { role, user } = await requireAdminPage();
 
   type ProfileRow = {
     id: string;
@@ -331,7 +323,7 @@ export default async function AdminClientsPage({
   }
 
   const isSubsStoreSite = siteSlug === "subs-store";
-  const staffChatBase = role === "operator" ? "/operator/chat" : "/admin/chat";
+  const staffChatBase = "/admin/chat";
 
   const clients = mergedRows
     .filter((r) => r.id !== (user?.id ?? ""))
