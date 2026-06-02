@@ -82,13 +82,19 @@ export function ClientContextSidebar({
     setErr(null);
     void (async () => {
       try {
+        const orderFromClient = room.client_id.startsWith("order:")
+          ? room.client_id.slice("order:".length)
+          : "";
+        const isSyntheticClient =
+          room.client_id.startsWith("email:") || room.client_id.startsWith("order:");
         const params = new URLSearchParams({
-          userId: room.client_id,
           email: room.client?.email ?? "",
           sessionId: room.id ?? "",
           site: siteSlug,
         });
-        if (highlightOrderId) params.set("orderId", highlightOrderId);
+        if (!isSyntheticClient) params.set("userId", room.client_id);
+        const orderId = highlightOrderId || orderFromClient;
+        if (orderId) params.set("orderId", orderId);
         const res = await fetch(`/api/staff/client-summary?${params.toString()}`, {
           credentials: "include",
         });

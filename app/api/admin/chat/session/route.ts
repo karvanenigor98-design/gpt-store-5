@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { pickCanonicalOperatorSession } from "@/lib/chat/operatorSession";
-import { getOrCreateSubsCustomerSupportThread } from "@/lib/chat/subs-support-thread";
+import { getOrCreateSubsStaffSupportThread } from "@/lib/chat/subs-support-thread";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Database } from "@/types/database";
@@ -14,15 +14,16 @@ function normalizeStaffSiteSlug(raw: string | undefined): "gpt-store" | "subs-st
 }
 
 export async function POST(req: NextRequest) {
-  let body: { userId?: string; email?: string; site?: string };
+  let body: { userId?: string; email?: string; orderId?: string; site?: string };
   try {
-    body = (await req.json()) as { userId?: string; site?: string };
+    body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Неверный формат запроса" }, { status: 400 });
   }
 
   const explicitUserId = body.userId?.trim();
   const email = body.email?.trim().toLowerCase() ?? "";
+  const orderId = body.orderId?.trim() ?? "";
 
   const siteSlug = normalizeStaffSiteSlug(body.site?.trim());
 
@@ -60,14 +61,45 @@ export async function POST(req: NextRequest) {
         ((byCustomer?.user_id as string | null) ?? undefined) ??
         ((byAccount?.user_id as string | null) ?? undefined);
     }
-    if (!resolvedSubsUserId) {
+    if (!resolvedSubsUserId && !orderId) {
+      if (email) {
+        const [{ data: byCustomer }, { data: byAccount }] = await Promise.all([
+          subsAdmin
+            .from("orders")
+            .select("id, created_at")
+            .ilike("customer_email", email)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          subsAdmin
+            .from("orders")
+            .select("id, created_at")
+            .ilike("account_email", email)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+        const latestOrderId =
+          (byCustomer?.id as string | undefined) ?? (byAccount?.id as string | undefined);
+        if (latestOrderId) {
+          const threadByLatest = await getOrCreateSubsStaffSupportThread(subsAdmin, {
+            orderId: latestOrderId,
+          });
+          if (threadByLatest?.id) {
+            return NextResponse.json({ sessionId: threadByLatest.id, threadId: threadByLatest.id });
+          }
+        }
+      }
       return NextResponse.json(
-        { error: "Не удалось определить клиента для чата (нужен userId или email связанный с профилем/заказом)." },
+        { error: "Не удалось определить клиента для чата (нужен userId, orderId или email с заказом)." },
         { status: 400 },
       );
     }
 
-    const thread = await getOrCreateSubsCustomerSupportThread(subsAdmin, resolvedSubsUserId);
+    const thread = await getOrCreateSubsStaffSupportThread(subsAdmin, {
+      userId: resolvedSubsUserId,
+      orderId: orderId || undefined,
+    });
     if (!thread?.id) {
       return NextResponse.json({ error: "Не удалось создать тред поддержки" }, { status: 500 });
     }

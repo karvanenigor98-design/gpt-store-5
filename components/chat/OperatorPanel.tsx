@@ -41,15 +41,16 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
   }, [pendingRoomId]);
 
   const clearPendingRoomFromUrl = useCallback(() => {
-    if (!pendingRoomId && !pendingClientId && !pendingClientEmail) return;
+    if (!pendingRoomId && !pendingClientId && !pendingClientEmail && !pendingOrderId) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("thread_id");
     params.delete("session_id");
     params.delete("client_id");
     params.delete("client_email");
+    params.delete("order_id");
     const qs = params.toString();
     router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-  }, [pendingRoomId, pendingClientId, pendingClientEmail, router, searchParams]);
+  }, [pendingRoomId, pendingClientId, pendingClientEmail, pendingOrderId, router, searchParams]);
 
   useEffect(() => {
     if ((!pendingClientId && !pendingClientEmail) || pendingRoomId) return;
@@ -58,6 +59,24 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
     let cancelled = false;
 
     void (async () => {
+      if (pendingOrderId && siteSlug === "subs-store" && !pendingClientId) {
+        if (!cancelled) {
+          setSelectedRoom({
+            id: null,
+            client_id: `order:${pendingOrderId}`,
+            status: "open",
+            last_message_at: null,
+            last_message_preview: null,
+            unread_operator: 0,
+            client: {
+              email: pendingClientEmail ?? null,
+              full_name: pendingClientEmail ? `Заказ ${pendingOrderId.slice(0, 8)}` : null,
+            },
+          });
+        }
+        return;
+      }
+
       const isSubs = siteSlug === "subs-store";
       const listUrl = isSubs
         ? `/api/admin/subs-store/chat/rooms?list=1`
@@ -121,7 +140,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [pendingClientId, pendingClientEmail, pendingRoomId, selectedRoom?.client_id, siteSlug]);
+  }, [pendingClientId, pendingClientEmail, pendingOrderId, pendingRoomId, selectedRoom?.client_id, siteSlug]);
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -148,8 +167,12 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            ...(selectedRoom.client_id.startsWith("email:") ? {} : { userId: selectedRoom.client_id }),
+            ...(selectedRoom.client_id.startsWith("email:") ||
+            selectedRoom.client_id.startsWith("order:")
+              ? {}
+              : { userId: selectedRoom.client_id }),
             ...(selectedRoom.client?.email ? { email: selectedRoom.client.email } : {}),
+            ...(pendingOrderId ? { orderId: pendingOrderId } : {}),
             ...(siteSlug === "subs-store" || siteSlug === "gpt-store" ? { site: siteSlug } : {}),
           }),
         });
@@ -178,7 +201,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedRoom, siteSlug]);
+  }, [selectedRoom, siteSlug, pendingOrderId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)]">

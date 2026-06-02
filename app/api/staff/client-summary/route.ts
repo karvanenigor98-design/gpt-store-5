@@ -76,8 +76,8 @@ export async function GET(req: NextRequest) {
   const siteSlug: "gpt-store" | "subs-store" =
     siteParam === "subs-store" ? "subs-store" : "gpt-store";
 
-  if (!userId && !email && !sessionId) {
-    return NextResponse.json({ error: "Нужен userId, email или sessionId" }, { status: 400 });
+  if (!userId && !email && !sessionId && !orderId) {
+    return NextResponse.json({ error: "Нужен userId, email, orderId или sessionId" }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -106,6 +106,51 @@ export async function GET(req: NextRequest) {
       price: number;
       created_at: string;
     }[] = [];
+
+    if (orderId && !userId && !email) {
+      const { data: singleOrder } = await subs
+        .from("orders")
+        .select("id, status, tariff_id, final_price, created_at, customer_email, account_email, user_id")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (singleOrder) {
+        list = [
+          {
+            id: String(singleOrder.id),
+            status: String(singleOrder.status ?? "awaiting_payment"),
+            plan_id: String(singleOrder.tariff_id ?? "spotify"),
+            price: Number(singleOrder.final_price ?? 0),
+            created_at: String(singleOrder.created_at ?? new Date().toISOString()),
+          },
+        ];
+        const orderEmail =
+          (singleOrder.customer_email as string | null)?.trim().toLowerCase() ??
+          (singleOrder.account_email as string | null)?.trim().toLowerCase() ??
+          "";
+        return NextResponse.json({
+          profile: {
+            id: (singleOrder.user_id as string | null) ?? `order:${orderId}`,
+            email: orderEmail || null,
+            username: null,
+            telegram_id: null,
+            telegram_username: null,
+            created_at: new Date().toISOString(),
+            last_seen: null,
+            notes: null,
+            tags: [],
+            client_stage: null,
+            role: "client",
+          },
+          site_slug: siteSlug,
+          derived_stage: deriveStageFromOrders(list, siteSlug),
+          effective_stage: deriveStageFromOrders(list, siteSlug),
+          has_active_subscription: list.some((o) => ["activated", "completed"].includes(o.status)),
+          focus_order: list[0] ?? null,
+          active_order: list[0] ?? null,
+          orders: list,
+        });
+      }
+    }
 
     if (userId) {
       const { data: subsOrders } = await subs
