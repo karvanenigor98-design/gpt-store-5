@@ -11,8 +11,6 @@ export function unpaidOrderReminderEmail(params: {
   orderId: string;
 }): { subject: string; text: string; html: string } {
   const brand = getPublicBrandNameShort(params.siteSlug);
-  const product =
-    params.siteSlug === "subs-store" ? "Spotify Premium" : "ChatGPT Plus";
 
   const title =
     params.siteSlug === "subs-store"

@@ -434,7 +434,9 @@ export async function GET(request: NextRequest) {
       }
 
       const role = await syncProfileRoleForUser(user.id, user.email ?? null);
-      await upsertSiteMembership(user.id, siteParam, "customer");
+      const membershipRole =
+        role === "admin" || role === "operator" ? role : "customer";
+      await upsertSiteMembership(user.id, siteParam, membershipRole).catch(() => undefined);
       const path = resolvePostLoginPath(
         normalizeAuthReturnUrl(returnUrl, siteParam),
         role,

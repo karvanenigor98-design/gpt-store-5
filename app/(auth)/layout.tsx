@@ -97,7 +97,7 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+    <Suspense fallback={<div className="min-h-screen bg-transparent" />}>
       <AuthLayoutInner>{children}</AuthLayoutInner>
     </Suspense>
   );

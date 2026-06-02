@@ -1,14 +1,14 @@
--- ============================================================
--- Multi-site архитектура — безопасное расширение
--- Миграция 005: таблица sites, site_id в существующих таблицах,
+﻿-- ============================================================
+-- Multi-site Р°СЂС…РёС‚РµРєС‚СѓСЂР° вЂ” Р±РµР·РѕРїР°СЃРЅРѕРµ СЂР°СЃС€РёСЂРµРЅРёРµ
+-- РњРёРіСЂР°С†РёСЏ 005: С‚Р°Р±Р»РёС†Р° sites, site_id РІ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёС… С‚Р°Р±Р»РёС†Р°С…,
 --               notifications, user_site_access, analytics_events
 --
--- БЕЗОПАСНО: все новые колонки nullable, данные не удаляются
--- Запустить в Supabase Dashboard → SQL Editor
+-- Р‘Р•Р—РћРџРђРЎРќРћ: РІСЃРµ РЅРѕРІС‹Рµ РєРѕР»РѕРЅРєРё nullable, РґР°РЅРЅС‹Рµ РЅРµ СѓРґР°Р»СЏСЋС‚СЃСЏ
+-- Р—Р°РїСѓСЃС‚РёС‚СЊ РІ Supabase Dashboard в†’ SQL Editor
 -- ============================================================
 
 -- ============================================================
--- 1. Таблица sites (магазины/лендинги)
+-- 1. РўР°Р±Р»РёС†Р° sites (РјР°РіР°Р·РёРЅС‹/Р»РµРЅРґРёРЅРіРё)
 -- ============================================================
 create table if not exists public.sites (
   id              uuid primary key default gen_random_uuid(),
@@ -26,23 +26,23 @@ create table if not exists public.sites (
   updated_at      timestamptz not null default now()
 );
 
--- Вставляем два дефолтных сайта
+-- Р’СЃС‚Р°РІР»СЏРµРј РґРІР° РґРµС„РѕР»С‚РЅС‹С… СЃР°Р№С‚Р°
 insert into public.sites (slug, brand_name, product_type, support_telegram, support_email, primary_color, accent_color, seo_title)
 values
-  ('gpt-store',   'GPT STORE',   'chatgpt', '@subrfmanager',  'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE — ChatGPT Plus без иностранной карты'),
-  ('subs-store',  'Subs Store',  'spotify', '@subs_support',  'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Subs Store — Spotify Premium в России')
+  ('gpt-store',   'GPT STORE',   'chatgpt', '@subrfmanager',  'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE вЂ” ChatGPT Plus Р±РµР· РёРЅРѕСЃС‚СЂР°РЅРЅРѕР№ РєР°СЂС‚С‹'),
+  ('subs-store',  'Spotify Store',  'spotify', '@subs_support',  'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Spotify Store вЂ” Spotify Premium РІ Р РѕСЃСЃРёРё')
 on conflict (slug) do nothing;
 
 -- ============================================================
--- 2. Добавляем site_id в существующие таблицы (nullable → safe)
+-- 2. Р”РѕР±Р°РІР»СЏРµРј site_id РІ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ С‚Р°Р±Р»РёС†С‹ (nullable в†’ safe)
 -- ============================================================
 
 -- orders.site_id
 alter table public.orders
   add column if not exists site_id uuid references public.sites(id) on delete set null;
 
--- Проставляем site_id для существующих заказов на основе product поля
--- GPT STORE заказы
+-- РџСЂРѕСЃС‚Р°РІР»СЏРµРј site_id РґР»СЏ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёС… Р·Р°РєР°Р·РѕРІ РЅР° РѕСЃРЅРѕРІРµ product РїРѕР»СЏ
+-- GPT STORE Р·Р°РєР°Р·С‹
 update public.orders o
 set site_id = s.id
 from public.sites s
@@ -50,7 +50,7 @@ where s.slug = 'gpt-store'
   and o.site_id is null
   and (o.product like 'chatgpt%' or o.product not like 'spotify%');
 
--- Spotify/Subs Store заказы
+-- Spotify/Spotify Store Р·Р°РєР°Р·С‹
 update public.orders o
 set site_id = s.id
 from public.sites s
@@ -70,7 +70,7 @@ create index if not exists chat_sessions_site_id_idx on public.chat_sessions(sit
 alter table public.reviews
   add column if not exists site_id uuid references public.sites(id) on delete set null;
 
--- Все существующие отзывы считаем GPT STORE (из Telegram канала)
+-- Р’СЃРµ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ РѕС‚Р·С‹РІС‹ СЃС‡РёС‚Р°РµРј GPT STORE (РёР· Telegram РєР°РЅР°Р»Р°)
 update public.reviews r
 set site_id = s.id
 from public.sites s
@@ -80,7 +80,7 @@ where s.slug = 'gpt-store'
 create index if not exists reviews_site_id_idx on public.reviews(site_id);
 
 -- ============================================================
--- 3. Уведомления (notifications)
+-- 3. РЈРІРµРґРѕРјР»РµРЅРёСЏ (notifications)
 -- ============================================================
 create table if not exists public.notifications (
   id                uuid primary key default gen_random_uuid(),
@@ -107,7 +107,7 @@ create index if not exists notifications_is_read_idx on public.notifications(is_
 create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
 
 -- ============================================================
--- 4. Доступы операторов/админов к сайтам
+-- 4. Р”РѕСЃС‚СѓРїС‹ РѕРїРµСЂР°С‚РѕСЂРѕРІ/Р°РґРјРёРЅРѕРІ Рє СЃР°Р№С‚Р°Рј
 -- ============================================================
 create table if not exists public.user_site_access (
   id          uuid primary key default gen_random_uuid(),
@@ -123,7 +123,7 @@ create index if not exists user_site_access_user_idx on public.user_site_access(
 create index if not exists user_site_access_site_idx on public.user_site_access(site_id);
 
 -- ============================================================
--- 5. Аналитика событий
+-- 5. РђРЅР°Р»РёС‚РёРєР° СЃРѕР±С‹С‚РёР№
 -- ============================================================
 create table if not exists public.analytics_events (
   id          uuid primary key default gen_random_uuid(),
@@ -141,10 +141,10 @@ create index if not exists analytics_events_type_idx on public.analytics_events(
 create index if not exists analytics_events_created_at_idx on public.analytics_events(created_at desc);
 
 -- ============================================================
--- 6. RLS политики
+-- 6. RLS РїРѕР»РёС‚РёРєРё
 -- ============================================================
 
--- sites: все читают активные; только admin пишет
+-- sites: РІСЃРµ С‡РёС‚Р°СЋС‚ Р°РєС‚РёРІРЅС‹Рµ; С‚РѕР»СЊРєРѕ admin РїРёС€РµС‚
 alter table public.sites enable row level security;
 
 create policy "sites_select_all" on public.sites
@@ -157,7 +157,7 @@ create policy "sites_modify_admin" on public.sites
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
   );
 
--- notifications: пользователь видит свои; admin/operator видят по role и site
+-- notifications: РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РІРёРґРёС‚ СЃРІРѕРё; admin/operator РІРёРґСЏС‚ РїРѕ role Рё site
 alter table public.notifications enable row level security;
 
 create policy "notifications_select_own" on public.notifications
@@ -176,11 +176,11 @@ create policy "notifications_update_admin" on public.notifications
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'operator'))
   );
 
--- Разрешаем вставку уведомлений service role (через admin client)
+-- Р Р°Р·СЂРµС€Р°РµРј РІСЃС‚Р°РІРєСѓ СѓРІРµРґРѕРјР»РµРЅРёР№ service role (С‡РµСЂРµР· admin client)
 create policy "notifications_insert_service" on public.notifications
   for insert with check (true);
 
--- user_site_access: admin видит всё, пользователь видит свои записи
+-- user_site_access: admin РІРёРґРёС‚ РІСЃС‘, РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РІРёРґРёС‚ СЃРІРѕРё Р·Р°РїРёСЃРё
 alter table public.user_site_access enable row level security;
 
 create policy "user_site_access_select_own" on public.user_site_access
@@ -196,7 +196,7 @@ create policy "user_site_access_modify_admin" on public.user_site_access
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
   );
 
--- analytics_events: только admin/operator читают; service role пишет
+-- analytics_events: С‚РѕР»СЊРєРѕ admin/operator С‡РёС‚Р°СЋС‚; service role РїРёС€РµС‚
 alter table public.analytics_events enable row level security;
 
 create policy "analytics_select_admin" on public.analytics_events
@@ -208,12 +208,12 @@ create policy "analytics_insert_service" on public.analytics_events
   for insert with check (true);
 
 -- ============================================================
--- 7. Функция защиты super_admin от понижения роли
+-- 7. Р¤СѓРЅРєС†РёСЏ Р·Р°С‰РёС‚С‹ super_admin РѕС‚ РїРѕРЅРёР¶РµРЅРёСЏ СЂРѕР»Рё
 -- ============================================================
 create or replace function public.protect_super_admin()
 returns trigger language plpgsql security definer as $$
 begin
-  -- Блокируем только понижение с admin; разрешаем client→admin и правки других полей
+  -- Р‘Р»РѕРєРёСЂСѓРµРј С‚РѕР»СЊРєРѕ РїРѕРЅРёР¶РµРЅРёРµ СЃ admin; СЂР°Р·СЂРµС€Р°РµРј clientв†’admin Рё РїСЂР°РІРєРё РґСЂСѓРіРёС… РїРѕР»РµР№
   if lower(old.email) = lower('nbuzanov0@mail.ru')
      and old.role = 'admin'
      and new.role is distinct from 'admin' then
@@ -229,13 +229,14 @@ create trigger protect_super_admin_trigger
   for each row execute function public.protect_super_admin();
 
 -- ============================================================
--- 8. Realtime включить для notifications
+-- 8. Realtime РІРєР»СЋС‡РёС‚СЊ РґР»СЏ notifications
 -- ============================================================
--- В Supabase Dashboard → Database → Replication → включить таблицу notifications
+-- Р’ Supabase Dashboard в†’ Database в†’ Replication в†’ РІРєР»СЋС‡РёС‚СЊ С‚Р°Р±Р»РёС†Сѓ notifications
 
 -- ============================================================
--- Проверка после выполнения:
+-- РџСЂРѕРІРµСЂРєР° РїРѕСЃР»Рµ РІС‹РїРѕР»РЅРµРЅРёСЏ:
 -- SELECT slug, brand_name FROM public.sites;
 -- SELECT count(*) FROM public.orders WHERE site_id IS NOT NULL;
 -- SELECT count(*) FROM public.orders WHERE site_id IS NULL;
 -- ============================================================
+

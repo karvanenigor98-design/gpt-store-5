@@ -1,18 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { PanelErrorBoundary } from "@/components/errors/PanelErrorBoundary";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Bell, CheckCheck, Filter } from "lucide-react";
 import {
-  buildAdminNotificationHref,
   persistAdminSiteBeforeNavigate,
+  siteSlugFromAlertSiteId,
   staffPanelRootFromPathname,
   type AdminNotificationSiteSlug,
 } from "@/lib/admin/notificationNavigation";
-import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
-import { loadNotificationSoundEnabled, playNotificationPing } from "@/lib/admin/notification-sound";
+import { loadNotificationSoundEnabled } from "@/lib/admin/notification-sound";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
+import { useStaffNotifications } from "@/hooks/useStaffNotifications";
 import {
   notificationCardClass,
   notificationTitleClass,
@@ -71,140 +72,32 @@ function resolveSiteSlug(sp: URLSearchParams): AdminNotificationSiteSlug {
   return "gpt-store";
 }
 
-function NotificationsPageInner() {
+function NotificationsPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const staffRoot = staffPanelRootFromPathname(pathname);
   const siteSlug = resolveSiteSlug(searchParams);
 
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
-  const seenIdsRef = useRef<Set<string>>(new Set());
-  const bootRef = useRef(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-    const apiUrl =
-      siteSlug === "subs-store"
-        ? "/api/admin/subs-store/notifications"
-        : `/api/admin/notifications?site=${siteSlug}`;
+    setSoundEnabled(loadNotificationSoundEnabled());
+  }, []);
 
-    async function load() {
-      setLoadError(null);
-      try {
-        const r = await fetch(apiUrl, { credentials: "include" });
-        let j = {} as { items?: NotificationItem[]; error?: string };
-        try {
-          j = (await r.json()) as { items?: NotificationItem[]; error?: string };
-        } catch {
-          if (!r.ok && !cancelled) setLoadError("Некорректный ответ сервера");
-          return;
-        }
-        if (!r.ok) {
-          if (!cancelled) {
-            setLoadError(j.error ?? `Ошибка ${r.status}`);
-            setItems([]);
-          }
-          return;
-        }
-
-        const list = (j.items ?? []) as NotificationItem[];
-        if (cancelled) return;
-
-        const isBoot = !bootRef.current;
-        let hasNewUnread = false;
-        if (!isBoot) {
-          for (const row of list) {
-            if (!row.is_read && !seenIdsRef.current.has(row.id)) {
-              hasNewUnread = true;
-              if (loadNotificationSoundEnabled()) {
-                playNotificationPing();
-                break;
-              }
-            }
-          }
-        }
-        for (const row of list) seenIdsRef.current.add(row.id);
-        bootRef.current = true;
-
-        setItems(list);
-        if (hasNewUnread) refreshStaffNavBadges();
-      } catch {
-        if (!cancelled) {
-          setLoadError("Не удалось загрузить уведомления");
-          setItems([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    setLoading(true);
-    bootRef.current = false;
-    seenIdsRef.current = new Set();
-    void load();
-    const intv = window.setInterval(() => void load(), 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intv);
-    };
-  }, [siteSlug]);
+  const { items, unread: unreadCount, loading, loadError, markRead, markAllRead } =
+    useStaffNotifications({
+      siteSlug,
+      staffRoot,
+      soundEnabled,
+      soundVolume: 10,
+    });
 
   const filteredItems = items.filter((i) => {
     if (filter === "unread") return !i.is_read;
     if (filter !== "all") return i.type === filter;
     return true;
   });
-
-  async function markRead(id: string) {
-    if (siteSlug === "subs-store") {
-      const r = await fetch("/api/admin/subs-store/notifications", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      if (r.ok) {
-        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, is_read: true } : i)));
-        refreshStaffNavBadges();
-      }
-      return;
-    }
-    const r = await fetch("/api/admin/notifications", {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, site: siteSlug }),
-    });
-    if (r.ok) {
-      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, is_read: true } : i)));
-      refreshStaffNavBadges();
-    }
-  }
-
-  async function markAllRead() {
-    if (siteSlug === "subs-store") {
-      await fetch("/api/admin/subs-store/notifications", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mark_all: true }),
-      });
-    } else {
-      await fetch("/api/admin/notifications", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mark_all: true, site: siteSlug }),
-      });
-    }
-    setItems((prev) => prev.map((i) => ({ ...i, is_read: true })));
-    refreshStaffNavBadges();
-  }
-
-  const unreadCount = items.filter((i) => !i.is_read).length;
 
   return (
     <div className="p-6 lg:p-8">
@@ -221,7 +114,7 @@ function NotificationsPageInner() {
         {unreadCount > 0 && (
           <button
             type="button"
-            onClick={markAllRead}
+            onClick={() => void markAllRead()}
             className="flex items-center gap-2 rounded-lg border border-[#10a37f]/30 px-4 py-2 text-sm font-medium text-[#10a37f] hover:bg-[#10a37f]/5 transition-colors"
           >
             <CheckCheck size={16} />
@@ -258,39 +151,30 @@ function NotificationsPageInner() {
 
       <div className="space-y-2">
         {loadError && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 py-8 text-center text-sm text-amber-900">
             {loadError}
-          </p>
+          </div>
         )}
         {loading && <div className="py-12 text-center text-sm text-gray-400">Загрузка...</div>}
-        {!loading && filteredItems.length === 0 && (
+        {!loadError && !loading && filteredItems.length === 0 && (
           <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center">
             <Bell size={32} className="mx-auto mb-3 text-gray-300" />
             <p className="text-sm font-medium text-gray-500">Уведомлений нет</p>
             <p className="mt-1 text-xs text-gray-400">Они появятся здесь, когда придут</p>
           </div>
         )}
-        {filteredItems.map((item) => {
-          const href = buildAdminNotificationHref(
-            {
-              siteSlug,
-              entity_type: item.entity_type,
-              entity_id: item.entity_id,
-              type: item.type,
-            },
-            staffRoot,
-          );
-          return (
+        {filteredItems.map((item) => (
             <Link
-              key={item.id}
-              href={href}
+              key={`${item.site_id ?? "gpt-store"}:${item.id}`}
+              href={item.href}
               className={notificationCardClass(item.is_read, siteSlug)}
               onClick={() => {
-                persistAdminSiteBeforeNavigate(siteSlug);
-                if (!item.is_read) void markRead(item.id);
+                const eventSite = siteSlugFromAlertSiteId(item.site_id ?? null);
+                persistAdminSiteBeforeNavigate(eventSite);
+                if (!item.is_read) void markRead(item.id, eventSite);
               }}
             >
-              <div className="mt-0.5 flex-shrink-0 text-lg">{TYPE_ICONS[item.type] ?? "🔔"}</div>
+              <div className="mt-0.5 flex-shrink-0 text-lg">{TYPE_ICONS[item.type ?? ""] ?? "🔔"}</div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <p className={notificationTitleClass(item.is_read)}>{item.title}</p>
@@ -302,8 +186,18 @@ function NotificationsPageInner() {
                   {item.message}
                 </p>
                 <div className="mt-1.5 flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      item.site_id === "subs-store"
+                        ? "bg-[#1DB954]/15 text-[#0d8f4a]"
+                        : "bg-[#10a37f]/10 text-[#0f7d62]",
+                    )}
+                  >
+                    {item.site_id === "subs-store" ? "SPOTIFY STORE" : "GPT STORE"}
+                  </span>
                   <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                    {TYPE_LABELS[item.type] ?? item.type}
+                    {TYPE_LABELS[item.type ?? ""] ?? item.type}
                   </span>
                   <span className="text-[11px] text-gray-400">
                     {new Date(item.created_at).toLocaleString("ru-RU", {
@@ -316,8 +210,7 @@ function NotificationsPageInner() {
                 </div>
               </div>
             </Link>
-          );
-        })}
+        ))}
       </div>
     </div>
   );
@@ -325,14 +218,11 @@ function NotificationsPageInner() {
 
 export default function NotificationsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="p-6">
-          <p className="text-sm text-gray-500">Загрузка уведомлений…</p>
-        </div>
-      }
+    <PanelErrorBoundary
+      title="Не удалось открыть раздел уведомлений"
+      className="m-6 rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-800"
     >
-      <NotificationsPageInner />
-    </Suspense>
+      <NotificationsPageContent />
+    </PanelErrorBoundary>
   );
 }

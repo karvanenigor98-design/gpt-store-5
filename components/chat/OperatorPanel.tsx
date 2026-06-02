@@ -23,6 +23,8 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
   const pendingRoomId =
     searchParams.get("thread_id") ?? searchParams.get("session_id");
   const pendingClientId = searchParams.get("client_id");
+  const pendingClientEmail = searchParams.get("client_email");
+  const pendingOrderId = searchParams.get("order_id");
 
   const [tab, setTab] = useState<"clients" | "team">("clients");
   const [selectedRoom, setSelectedRoom] = useState<ChatRoomListItem | null>(null);
@@ -39,18 +41,19 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
   }, [pendingRoomId]);
 
   const clearPendingRoomFromUrl = useCallback(() => {
-    if (!pendingRoomId && !pendingClientId) return;
+    if (!pendingRoomId && !pendingClientId && !pendingClientEmail) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("thread_id");
     params.delete("session_id");
     params.delete("client_id");
+    params.delete("client_email");
     const qs = params.toString();
     router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-  }, [pendingRoomId, pendingClientId, router, searchParams]);
+  }, [pendingRoomId, pendingClientId, pendingClientEmail, router, searchParams]);
 
   useEffect(() => {
-    if (!pendingClientId || pendingRoomId) return;
-    if (selectedRoom?.client_id === pendingClientId) return;
+    if ((!pendingClientId && !pendingClientEmail) || pendingRoomId) return;
+    if (pendingClientId && selectedRoom?.client_id === pendingClientId) return;
 
     let cancelled = false;
 
@@ -64,7 +67,11 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
         const res = await fetch(listUrl, { credentials: "include" });
         if (res.ok) {
           const rooms = (await res.json()) as ChatRoomListItem[];
-          const existing = rooms.find((r) => r.client_id === pendingClientId);
+          const existing = rooms.find((r) =>
+            pendingClientId
+              ? r.client_id === pendingClientId
+              : ((r.client?.email ?? "").toLowerCase() === (pendingClientEmail ?? "").toLowerCase()),
+          );
           if (existing && !cancelled) {
             setSelectedRoom(existing);
             return;
@@ -72,7 +79,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
         }
 
         const summaryRes = await fetch(
-          `/api/staff/client-summary?userId=${encodeURIComponent(pendingClientId)}&site=${siteSlug === "subs-store" ? "subs-store" : "gpt-store"}`,
+          `/api/staff/client-summary?${pendingClientId ? `userId=${encodeURIComponent(pendingClientId)}` : `email=${encodeURIComponent(pendingClientEmail ?? "")}`}&site=${siteSlug === "subs-store" ? "subs-store" : "gpt-store"}`,
           { credentials: "include" },
         );
         const summaryJson = summaryRes.ok
@@ -85,13 +92,13 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
         if (!cancelled) {
           setSelectedRoom({
             id: null,
-            client_id: pendingClientId,
+            client_id: pendingClientId ?? `email:${pendingClientEmail ?? "unknown"}`,
             status: "open",
             last_message_at: null,
             last_message_preview: null,
             unread_operator: 0,
             client: {
-              email: prof?.email ?? null,
+              email: prof?.email ?? pendingClientEmail ?? null,
               full_name: prof?.username ?? prof?.email ?? null,
             },
           });
@@ -100,12 +107,12 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
         if (!cancelled) {
           setSelectedRoom({
             id: null,
-            client_id: pendingClientId,
+            client_id: pendingClientId ?? `email:${pendingClientEmail ?? "unknown"}`,
             status: "open",
             last_message_at: null,
             last_message_preview: null,
             unread_operator: 0,
-            client: { email: null, full_name: null },
+            client: { email: pendingClientEmail ?? null, full_name: null },
           });
         }
       }
@@ -114,7 +121,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [pendingClientId, pendingRoomId, selectedRoom?.client_id, siteSlug]);
+  }, [pendingClientId, pendingClientEmail, pendingRoomId, selectedRoom?.client_id, siteSlug]);
 
   useEffect(() => {
     if (!selectedRoom) {
@@ -141,7 +148,8 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            userId: selectedRoom.client_id,
+            ...(selectedRoom.client_id.startsWith("email:") ? {} : { userId: selectedRoom.client_id }),
+            ...(selectedRoom.client?.email ? { email: selectedRoom.client.email } : {}),
             ...(siteSlug === "subs-store" || siteSlug === "gpt-store" ? { site: siteSlug } : {}),
           }),
         });
@@ -241,6 +249,13 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
                   {resolveError}
                 </div>
               )}
+              {pendingOrderId && selectedRoom && sessionId && !resolving && (
+                <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+                  Чат по заказу{" "}
+                  <span className="font-mono font-semibold">{pendingOrderId.slice(0, 8)}…</span>
+                  — карточка заказа справа
+                </div>
+              )}
               {selectedRoom && sessionId && !resolving && !resolveError && (
                 <ChatWindow
                   key={sessionId}
@@ -268,6 +283,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
               room={selectedRoom}
               staffBasePath={staffBase}
               siteSlug={siteSlug === "subs-store" ? "subs-store" : "gpt-store"}
+              highlightOrderId={pendingOrderId}
             />
           </div>
         </div>

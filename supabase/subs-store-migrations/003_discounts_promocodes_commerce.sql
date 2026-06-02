@@ -1,5 +1,5 @@
--- Subs Store (отдельный Supabase): скидки на витрину + промокоды на checkout.
--- Выполнить в SQL Editor проекта Subs Store.
+﻿-- Spotify Store (РѕС‚РґРµР»СЊРЅС‹Р№ Supabase): СЃРєРёРґРєРё РЅР° РІРёС‚СЂРёРЅСѓ + РїСЂРѕРјРѕРєРѕРґС‹ РЅР° checkout.
+-- Р’С‹РїРѕР»РЅРёС‚СЊ РІ SQL Editor РїСЂРѕРµРєС‚Р° Spotify Store.
 
 CREATE TABLE IF NOT EXISTS public.discounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -43,3 +43,4 @@ ALTER TABLE public.promocodes ADD COLUMN IF NOT EXISTS tariff_slugs text[];
 ALTER TABLE public.promocodes ADD COLUMN IF NOT EXISTS used_count integer DEFAULT 0;
 ALTER TABLE public.promocodes ADD COLUMN IF NOT EXISTS expires_at timestamptz;
 ALTER TABLE public.promocodes ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+

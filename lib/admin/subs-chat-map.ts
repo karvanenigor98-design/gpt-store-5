@@ -20,6 +20,10 @@ export function mapSubsChatMessageToChatMessage(row: {
   attachment_url: string | null;
   attachment_type: string | null;
   read_at: string | null;
+  reply_to_message_id?: string | null;
+  is_deleted?: boolean | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   created_at: string;
 }): ChatMessage {
   const attachments =
@@ -35,6 +39,10 @@ export function mapSubsChatMessageToChatMessage(row: {
     attachments,
     is_read: Boolean(row.read_at),
     is_auto_reply: ["system", "auto", "bot"].includes((row.author_role ?? "").toLowerCase()),
+    reply_to_message_id: row.reply_to_message_id ?? null,
+    is_deleted: Boolean(row.is_deleted),
+    deleted_at: row.deleted_at ?? null,
+    deleted_by: row.deleted_by ?? null,
     created_at: row.created_at,
   };
 }

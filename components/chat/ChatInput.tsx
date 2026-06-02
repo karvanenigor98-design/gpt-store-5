@@ -1,15 +1,24 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, type ChangeEvent, type KeyboardEvent } from "react";
 import { validateMessage, validateFile, MAX_MESSAGE_LENGTH } from "@/lib/chat/constants";
 import type { ChatUiVariant } from "@/components/chat/MessageBubble";
 import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
-  onSend: (content: string, attachment?: { url: string; type: string; name: string }) => Promise<void>;
+  onSend: (
+    content: string,
+    attachment?: { url: string; type: string; name: string },
+    replyToMessageId?: string | null,
+  ) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
   variant?: ChatUiVariant;
+  replyTo?: { id: string; author: string; content: string } | null;
+  onCancelReply?: () => void;
+  /** Вставить текст из быстрых ответов оператора. */
+  insertText?: string | null;
+  onInsertConsumed?: () => void;
 }
 
 export function ChatInput({
@@ -17,6 +26,10 @@ export function ChatInput({
   disabled,
   placeholder = "Напишите сообщение...",
   variant = "gpt",
+  replyTo = null,
+  onCancelReply,
+  insertText = null,
+  onInsertConsumed,
 }: ChatInputProps) {
   const isSubs = variant === "subs";
   const accent = isSubs ? "#1DB954" : "#10a37f";
@@ -38,7 +51,7 @@ export function ChatInput({
     setSending(true);
     setError(null);
     try {
-      await onSend(text.trim(), preview ?? undefined);
+      await onSend(text.trim(), preview ?? undefined, replyTo?.id ?? null);
       setText("");
       setPreview(null);
       textRef.current?.focus();
@@ -49,7 +62,22 @@ export function ChatInput({
     }
   };
 
+  useEffect(() => {
+    if (!insertText) return;
+    setText(insertText);
+    setError(null);
+    onInsertConsumed?.();
+    textRef.current?.focus();
+  }, [insertText, onInsertConsumed]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape") {
+      if (replyTo) {
+        e.preventDefault();
+        onCancelReply?.();
+      }
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -115,6 +143,30 @@ export function ChatInput({
             type="button"
             onClick={() => setPreview(null)}
             className="text-gray-400 transition-colors hover:text-red-500"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {replyTo && (
+        <div
+          className="flex items-start gap-2 rounded-xl border px-3 py-2"
+          style={{ borderColor: `${accent}4d`, backgroundColor: `${accent}12` }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className={cn("text-xs font-semibold", isSubs ? "text-gray-200" : "text-gray-700")}>
+              Ответ: {replyTo.author}
+            </p>
+            <p className={cn("truncate text-xs", isSubs ? "text-gray-400" : "text-gray-500")}>
+              {replyTo.content}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="text-gray-400 transition-colors hover:text-red-500"
+            aria-label="Отменить ответ"
           >
             ×
           </button>
@@ -224,7 +276,7 @@ export function ChatInput({
           isSubs ? "text-gray-600" : "text-gray-400",
         )}
       >
-        Enter — отправить · Shift+Enter — новая строка
+        Enter — отправить · Shift+Enter — новая строка · Esc — отменить ответ
       </p>
     </div>
   );

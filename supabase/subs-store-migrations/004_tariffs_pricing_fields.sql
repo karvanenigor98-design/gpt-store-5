@@ -1,5 +1,5 @@
--- Subs Store: поля тарифов для витрины и админки (без destructive SQL).
--- Выполнить в SQL Editor проекта Subs Store.
+﻿-- Spotify Store: РїРѕР»СЏ С‚Р°СЂРёС„РѕРІ РґР»СЏ РІРёС‚СЂРёРЅС‹ Рё Р°РґРјРёРЅРєРё (Р±РµР· destructive SQL).
+-- Р’С‹РїРѕР»РЅРёС‚СЊ РІ SQL Editor РїСЂРѕРµРєС‚Р° Spotify Store.
 
 ALTER TABLE public.tariffs ADD COLUMN IF NOT EXISTS duration_months integer;
 ALTER TABLE public.tariffs ADD COLUMN IF NOT EXISTS old_price integer;
@@ -15,3 +15,4 @@ ALTER TABLE public.tariffs ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}':
 
 CREATE INDEX IF NOT EXISTS tariffs_category_sort_idx ON public.tariffs (category, sort_order);
 CREATE INDEX IF NOT EXISTS tariffs_flags_idx ON public.tariffs (is_popular, is_best_value) WHERE is_active = true;
+

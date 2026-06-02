@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- Migration 007: Fix site_id column types for promocodes and landing_discounts
 --
 -- PROBLEM:
@@ -6,7 +6,7 @@
 --   Migration 006_tariffs_and_faq_supplement tried to add UUID FK site_id on the same tables.
 --   Depending on which ran first, the column type may be inconsistent.
 --
---   Application code uses TEXT slug (gpt-store / subs-store) for these tables —
+--   Application code uses TEXT slug (gpt-store / subs-store) for these tables вЂ”
 --   this is intentional and correct (simpler, no UUID FK dependency).
 --
 -- FIX:
@@ -15,7 +15,7 @@
 --   If the column is UUID, safely convert to TEXT preserving existing data.
 --
 -- SAFE: uses IF EXISTS checks, no data deleted, backward compatible.
--- Run in Supabase Dashboard → SQL Editor
+-- Run in Supabase Dashboard в†’ SQL Editor
 -- ============================================================
 
 -- ============================================================
@@ -31,7 +31,7 @@ BEGIN
       AND table_name = 'promocodes'
       AND column_name = 'site_id'
   ) THEN
-    -- Column doesn't exist yet — add it as TEXT
+    -- Column doesn't exist yet вЂ” add it as TEXT
     ALTER TABLE public.promocodes
       ADD COLUMN site_id text NOT NULL DEFAULT 'gpt-store';
 
@@ -42,7 +42,7 @@ BEGIN
       AND column_name = 'site_id'
       AND data_type = 'uuid'
   ) THEN
-    -- Column exists as UUID (from 006_tariffs_and_faq_supplement) — convert to TEXT
+    -- Column exists as UUID (from 006_tariffs_and_faq_supplement) вЂ” convert to TEXT
     -- First drop the FK constraint if it exists
     ALTER TABLE public.promocodes
       DROP CONSTRAINT IF EXISTS promocodes_site_id_fkey;
@@ -107,8 +107,8 @@ CREATE INDEX IF NOT EXISTS idx_landing_discounts_site_id ON public.landing_disco
 
 INSERT INTO public.sites (slug, brand_name, product_type, support_telegram, support_email, primary_color, accent_color, seo_title)
 VALUES
-  ('gpt-store',  'GPT STORE',  'chatgpt', '@subrfmanager', 'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE — ChatGPT Plus без иностранной карты'),
-  ('subs-store', 'Subs Store', 'spotify',  '@subs_support',  'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Subs Store — Spotify Premium в России')
+  ('gpt-store',  'GPT STORE',  'chatgpt', '@subrfmanager', 'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE вЂ” ChatGPT Plus Р±РµР· РёРЅРѕСЃС‚СЂР°РЅРЅРѕР№ РєР°СЂС‚С‹'),
+  ('subs-store', 'Spotify Store', 'spotify',  '@subs_support',  'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Spotify Store вЂ” Spotify Premium РІ Р РѕСЃСЃРёРё')
 ON CONFLICT (slug) DO NOTHING;
 
 
@@ -124,7 +124,7 @@ WHERE s.slug = 'gpt-store'
   AND o.site_id IS NULL
   AND (o.product NOT LIKE 'spotify%' OR o.product IS NULL);
 
--- Subs Store / Spotify orders
+-- Spotify Store / Spotify orders
 UPDATE public.orders o
 SET site_id = s.id
 FROM public.sites s
@@ -152,7 +152,7 @@ BEGIN
       )
     ON CONFLICT (user_id, site_slug) DO NOTHING;
 
-    -- Subs Store customers from orders
+    -- Spotify Store customers from orders
     INSERT INTO public.site_memberships (user_id, site_slug, role)
     SELECT DISTINCT o.user_id, 'subs-store', 'customer'
     FROM public.orders o
@@ -269,3 +269,4 @@ END $$;
 -- SELECT site_slug, count(*) FROM public.site_memberships GROUP BY site_slug;
 -- -- Should show customer counts per site
 -- ============================================================
+

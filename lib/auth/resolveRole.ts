@@ -6,8 +6,27 @@ function parseEmails(value: string | undefined): Set<string> {
     value
       .split(",")
       .map((email) => email.trim().toLowerCase())
-      .filter(Boolean)
+      .filter(Boolean),
   );
+}
+
+function singleEmail(value: string | undefined): string | null {
+  const t = value?.trim().toLowerCase();
+  return t || null;
+}
+
+function adminEmailsFromEnv(): Set<string> {
+  const out = parseEmails(process.env.ADMIN_EMAILS);
+  const single = singleEmail(process.env.ADMIN_EMAIL);
+  if (single) out.add(single);
+  return out;
+}
+
+function operatorEmailsFromEnv(): Set<string> {
+  const out = parseEmails(process.env.OPERATOR_EMAILS);
+  const single = singleEmail(process.env.OPERATOR_EMAIL);
+  if (single) out.add(single);
+  return out;
 }
 
 function canonicalEmail(email: string | null | undefined): string {
@@ -19,16 +38,12 @@ export function resolveRoleByEmail(email: string | null | undefined): UserRole {
   const canonical = canonicalEmail(email);
 
   // Точечное распределение ролей для локального E2E-теста
-  // По запросу: buzanovnikita30@gmail.com всегда клиент.
   if (canonical === canonicalEmail("nikitabuzanov15@mailru")) return "admin";
   if (canonical === canonicalEmail("buzanovnikita30@gmailcom")) return "client";
 
   if (normalized) {
-    const adminEmails = parseEmails(process.env.ADMIN_EMAILS);
-    if (adminEmails.has(normalized)) return "admin";
-
-    const operatorEmails = parseEmails(process.env.OPERATOR_EMAILS);
-    if (operatorEmails.has(normalized)) return "operator";
+    if (adminEmailsFromEnv().has(normalized)) return "admin";
+    if (operatorEmailsFromEnv().has(normalized)) return "operator";
 
     const clientEmails = parseEmails(process.env.CLIENT_EMAILS);
     if (clientEmails.has(normalized)) return "client";
@@ -36,4 +51,3 @@ export function resolveRoleByEmail(email: string | null | undefined): UserRole {
 
   return "client";
 }
-

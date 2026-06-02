@@ -43,15 +43,35 @@ export async function GET(req: NextRequest) {
     .eq("author_role", "customer")
     .is("read_at", null);
 
-  await markStaffChatNotificationsRead(threadId, "subs-store");
+  await markStaffChatNotificationsRead(subs, {
+    entityId: threadId,
+    userId: ctx.user.id,
+  });
 
   const list = (messages ?? []).map((row) => mapSubsChatMessageToChatMessage(row as Parameters<typeof mapSubsChatMessageToChatMessage>[0]));
+  const byId = new Map(list.map((m) => [m.id, m]));
+  const withReply = list.map((m) => {
+    const replyToId = (m as { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
+    if (!replyToId) return m;
+    const target = byId.get(replyToId);
+    return {
+      ...m,
+      reply_to_message: target
+        ? {
+            id: target.id,
+            sender_type: target.sender_type,
+            content: target.content,
+            is_deleted: (target as { is_deleted?: boolean }).is_deleted ?? false,
+          }
+        : { id: replyToId, sender_type: "auto", content: "", is_deleted: true },
+    };
+  });
 
-  return NextResponse.json({ messages: list });
+  return NextResponse.json({ messages: withReply });
 }
 
 export async function POST(req: NextRequest) {
-  let body: { thread_id?: string; content?: string };
+  let body: { thread_id?: string; content?: string; reply_to_message_id?: string | null };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -60,6 +80,7 @@ export async function POST(req: NextRequest) {
 
   const threadId = body.thread_id?.trim();
   const content = body.content?.trim() ?? "";
+  const replyToMessageId = body.reply_to_message_id?.trim() || null;
   if (!threadId || !content) {
     return NextResponse.json({ error: "thread_id и content обязательны" }, { status: 400 });
   }
@@ -92,6 +113,7 @@ export async function POST(req: NextRequest) {
       author_id: null,
       author_role: authorRole,
       content,
+      ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
     })
     .select("*")
     .single();
@@ -134,4 +156,38 @@ export async function POST(req: NextRequest) {
     ok: true,
     message: mapSubsChatMessageToChatMessage(inserted as Parameters<typeof mapSubsChatMessageToChatMessage>[0]),
   });
+}
+
+export async function PATCH(req: NextRequest) {
+  let body: { id?: string; action?: "delete" };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Неверный JSON" }, { status: 400 });
+  }
+
+  const messageId = body.id?.trim();
+  if (!messageId || body.action !== "delete") {
+    return NextResponse.json({ error: "Нужны id и action=delete" }, { status: 400 });
+  }
+
+  const ctx = await requireSubsStaffContext();
+  if (ctx instanceof NextResponse) return ctx;
+
+  const { error } = await ctx.subs
+    .from("chat_messages")
+    .update({
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: ctx.user.id,
+      content: "Сообщение удалено",
+      attachment_url: null,
+      attachment_type: null,
+    })
+    .eq("id", messageId);
+
+  if (error) {
+    return NextResponse.json({ error: "Не удалось удалить сообщение" }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
 }

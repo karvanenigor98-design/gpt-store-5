@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   isNotificationUnreadForStaff,
   loadStaffReadNotificationIds,
-  markAllStaffBroadcastNotificationsRead,
+  markAllStaffNotificationsReadForUser,
   markStaffNotificationRead,
 } from "@/lib/admin/staff-notification-reads";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
@@ -55,11 +55,18 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.mark_all) {
-    await markAllStaffBroadcastNotificationsRead(ctx.subs, {
+    const result = await markAllStaffNotificationsReadForUser(ctx.subs, {
       userId: ctx.user.id,
+      role: ctx.role,
       siteSlug: "subs-store",
     });
-    return NextResponse.json({ ok: true });
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? "Не удалось отметить уведомления" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ ok: true, marked: result.marked });
   }
 
   const id = body.id?.trim();

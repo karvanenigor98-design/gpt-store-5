@@ -143,7 +143,7 @@ export async function markStaffNotificationRead(
     return;
   }
 
-  await admin.from("notification_reads").upsert(
+  const { error } = await admin.from("notification_reads").upsert(
     {
       notification_id: params.notificationId,
       user_id: params.userId,
@@ -151,50 +151,113 @@ export async function markStaffNotificationRead(
     },
     { onConflict: "notification_id,user_id" },
   );
+  if (error && !error.message.toLowerCase().includes("notification_reads")) {
+    console.error("[markStaffNotificationRead]", error.message);
+  }
 }
 
+export type MarkAllStaffNotificationsResult = {
+  ok: boolean;
+  marked: number;
+  error?: string;
+};
+
+/**
+ * Пометить все непрочитанные staff-уведомления для текущего пользователя на сайте.
+ * Та же логика, что GET / unread badge: broadcast → notification_reads, личные → is_read.
+ */
+export async function markAllStaffNotificationsReadForUser(
+  admin: SupabaseClient,
+  params: { userId: string; role: UserRole; siteSlug: "gpt-store" | "subs-store" },
+): Promise<MarkAllStaffNotificationsResult> {
+  const siteId = await getSiteUUID(params.siteSlug);
+  const readIds = await loadStaffReadNotificationIds(admin, params.userId);
+  const now = new Date().toISOString();
+
+  let q = admin
+    .from("notifications")
+    .select("id, recipient_user_id, recipient_role, is_read, type");
+
+  if (params.siteSlug === "gpt-store" && siteId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
+  }
+
+  const { data, error: loadErr } = await q;
+  if (loadErr) {
+    return { ok: false, marked: 0, error: loadErr.message };
+  }
+
+  const rows = (data ?? []) as (NotifRow & { type?: string })[];
+  const forReadsTable: string[] = [];
+  const forGlobalRead: string[] = [];
+
+  for (const row of rows) {
+    if (row.type === "chat_reply") continue;
+    if (!matchesRecipient(row, params.userId, params.role)) continue;
+    if (!isNotificationUnreadForStaff(row, params.userId, params.role, readIds)) continue;
+
+    if (row.recipient_user_id === params.userId && !isStaffInboxNotification(row)) {
+      forGlobalRead.push(row.id);
+    } else {
+      forReadsTable.push(row.id);
+    }
+  }
+
+  const CHUNK = 80;
+
+  for (let i = 0; i < forReadsTable.length; i += CHUNK) {
+    const chunk = forReadsTable.slice(i, i + CHUNK);
+    const { error: readsErr } = await admin.from("notification_reads").upsert(
+      chunk.map((notification_id) => ({
+        notification_id,
+        user_id: params.userId,
+        read_at: now,
+      })),
+      { onConflict: "notification_id,user_id" },
+    );
+    if (readsErr) {
+      const msg = readsErr.message ?? "notification_reads upsert failed";
+      if (msg.toLowerCase().includes("notification_reads")) {
+        // Таблица ещё не создана — fallback только для строк без чужого recipient (broadcast GPT)
+        const fallbackIds = chunk.filter((id) => {
+          const row = rows.find((r) => r.id === id);
+          return row && !row.recipient_user_id;
+        });
+        if (fallbackIds.length) {
+          await admin.from("notifications").update({ is_read: true }).in("id", fallbackIds);
+        }
+        continue;
+      }
+      console.error("[markAllStaffNotificationsReadForUser]", msg);
+      return { ok: false, marked: 0, error: msg };
+    }
+  }
+
+  if (forGlobalRead.length) {
+    for (let i = 0; i < forGlobalRead.length; i += CHUNK) {
+      const chunk = forGlobalRead.slice(i, i + CHUNK);
+      const { error: updErr } = await admin
+        .from("notifications")
+        .update({ is_read: true })
+        .in("id", chunk);
+      if (updErr) {
+        return { ok: false, marked: 0, error: updErr.message };
+      }
+    }
+  }
+
+  return { ok: true, marked: forReadsTable.length + forGlobalRead.length };
+}
+
+/** @deprecated Используйте markAllStaffNotificationsReadForUser */
 export async function markAllStaffBroadcastNotificationsRead(
   admin: SupabaseClient,
   params: { userId: string; siteSlug: "gpt-store" | "subs-store" },
 ): Promise<void> {
-  const siteId = await getSiteUUID(params.siteSlug);
-  const readIds = await loadStaffReadNotificationIds(admin, params.userId);
-
-  let q = admin
-    .from("notifications")
-    .select("id, recipient_user_id, recipient_role, is_read, type")
-    .is("recipient_user_id", null);
-
-  if (siteId) {
-    if (params.siteSlug === "gpt-store") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
-    } else {
-      q = q.eq("site_id", siteId);
-    }
-  }
-
-  const { data } = await q;
-  const toMark = (data ?? []).filter(
-    (row) =>
-      (row as { type?: string }).type !== "chat_reply" &&
-      !readIds.has(String((row as { id: string }).id)),
-  );
-
-  if (!toMark.length) return;
-
-  await admin.from("notification_reads").upsert(
-    toMark.map((row) => ({
-      notification_id: (row as { id: string }).id,
-      user_id: params.userId,
-      read_at: new Date().toISOString(),
-    })),
-    { onConflict: "notification_id,user_id" },
-  );
-
-  await admin
-    .from("notifications")
-    .update({ is_read: true })
-    .eq("recipient_user_id", params.userId)
-    .eq("is_read", false);
+  await markAllStaffNotificationsReadForUser(admin, {
+    userId: params.userId,
+    role: "admin",
+    siteSlug: params.siteSlug,
+  });
 }

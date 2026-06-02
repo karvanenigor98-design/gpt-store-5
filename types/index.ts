@@ -43,6 +43,16 @@ export type ChatMessage = {
   attachments: unknown | null;
   is_read: boolean;
   is_auto_reply: boolean;
+  reply_to_message_id?: string | null;
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  reply_to_message?: {
+    id: string;
+    sender_type: import("./database").ChatSenderType;
+    content: string;
+    is_deleted?: boolean;
+  } | null;
   created_at: string;
 };
 

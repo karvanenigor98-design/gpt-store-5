@@ -1,15 +1,15 @@
--- ============================================================
+﻿-- ============================================================
 -- Migration 008: Ensure complete site context setup
 --
--- Idempotent — safe to run multiple times.
--- Run in Supabase Dashboard → SQL Editor
+-- Idempotent вЂ” safe to run multiple times.
+-- Run in Supabase Dashboard в†’ SQL Editor
 -- ============================================================
 
 -- 1. Ensure sites table exists and is seeded (idempotent)
 INSERT INTO public.sites (slug, brand_name, product_type, support_telegram, support_email, primary_color, accent_color, seo_title)
 VALUES
-  ('gpt-store',  'GPT STORE',  'chatgpt', '@subrfmanager', 'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE — ChatGPT Plus без иностранной карты'),
-  ('subs-store', 'Subs Store', 'spotify',  '@subs_support',  'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Subs Store — Spotify Premium в России')
+  ('gpt-store',  'GPT STORE',  'chatgpt', '@subrfmanager', 'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE вЂ” ChatGPT Plus Р±РµР· РёРЅРѕСЃС‚СЂР°РЅРЅРѕР№ РєР°СЂС‚С‹'),
+  ('subs-store', 'Spotify Store', 'spotify',  '@subs_support',  'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Spotify Store вЂ” Spotify Premium РІ Р РѕСЃСЃРёРё')
 ON CONFLICT (slug) DO NOTHING;
 
 -- 2. Backfill orders.site_id (from product field) if not already set
@@ -112,7 +112,7 @@ WHERE o.user_id IS NOT NULL
   )
 ON CONFLICT (user_id, site_slug) DO NOTHING;
 
--- Subs Store customers
+-- Spotify Store customers
 INSERT INTO public.site_memberships (user_id, site_slug, role)
 SELECT DISTINCT o.user_id, 'subs-store', 'customer'
 FROM public.orders o
@@ -173,3 +173,4 @@ CREATE INDEX IF NOT EXISTS idx_landing_discounts_site_id ON public.landing_disco
 -- SELECT column_name, data_type FROM information_schema.columns
 --   WHERE table_name IN ('promocodes','landing_discounts') AND column_name = 'site_id';
 -- ============================================================
+

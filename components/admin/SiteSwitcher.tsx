@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, Globe } from "lucide-react";
 import { SITES, getSiteBySlug, type SiteDefinition } from "@/lib/sites";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ export function SiteSwitcher({
   variant = "default",
   showManageLink = true,
 }: Props) {
+  const searchParams = useSearchParams();
   const [selectedSite, setSelectedSite] = useState<SiteDefinition>(SITES[0]);
   const [open, setOpen] = useState(false);
   const [accessibleSlugs, setAccessibleSlugs] = useState<string[] | null>(null);
@@ -59,7 +61,7 @@ export function SiteSwitcher({
   }, []);
 
   useEffect(() => {
-    const urlSiteSlug = new URLSearchParams(window.location.search).get("site");
+    const urlSiteSlug = searchParams.get("site");
     if (urlSiteSlug === "gpt-store" || urlSiteSlug === "subs-store") {
       const fromUrl = getSiteBySlug(urlSiteSlug);
       setSelectedSite(fromUrl);
@@ -72,7 +74,7 @@ export function SiteSwitcher({
     }
     const saved = getAdminSelectedSite();
     setSelectedSite(saved);
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!accessibleSlugs?.length) return;

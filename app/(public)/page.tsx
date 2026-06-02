@@ -22,7 +22,7 @@ import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
 import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
 import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
-import { mergePublicReviews, sortLandingReviewsTopRatedThenNew } from "@/lib/reviews/merge-public-reviews";
+import { mergePublicReviews } from "@/lib/reviews/merge-public-reviews";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -50,10 +50,7 @@ export default async function HomePage() {
     loadGptTelegramCuratedReviewsAsync(),
     loadGptPublishedDbReviews("gpt-store", 200),
   ]);
-  const reviews = sortLandingReviewsTopRatedThenNew(
-    mergePublicReviews(curated, fromDb, 300),
-    10,
-  );
+  const reviews = mergePublicReviews(curated, fromDb, 300);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;

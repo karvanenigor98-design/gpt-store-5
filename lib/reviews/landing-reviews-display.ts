@@ -98,12 +98,11 @@ export type LandingMainReviewsPrepared<T extends LandingReviewLike> = {
 export function prepareLandingMainReviews<T extends LandingReviewLike>(
   items: T[],
 ): LandingMainReviewsPrepared<T> {
-  const fromMay = filterReviewsFromMay(items);
-  let base = fromMay.length >= 4 ? fromMay : items;
-
-  const sorted = sortLandingReviewsMayFirst(base);
+  const withDbRating = items.filter((item) => hasExplicitRating(item));
+  const base = withDbRating.length > 0 ? withDbRating : items;
+  const sorted = sortLandingReviewsNewestFirst(base);
   const rated = applyLandingRatings49(sorted);
-  const pool = ensureSubFiveInPreview(rated, 4);
+  const pool = rated;
 
   return {
     pool,

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { tryCreateClient } from "@/lib/supabase/client";
+import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { getOrdersLastSeenAt } from "@/lib/admin/orders-last-seen";
 import { STAFF_NAV_BADGES_REFRESH } from "@/lib/admin/staff-nav-badges-client";
 
@@ -17,7 +18,7 @@ const POLL_MS = 5000;
 
 export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNavBadges {
   const [badges, setBadges] = useState<StaffNavBadges>(EMPTY);
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => tryCreateClient(), []);
 
   const reload = useCallback(async () => {
     try {
@@ -51,7 +52,35 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
   }, [reload]);
 
   useEffect(() => {
-    if (siteSlug !== "gpt-store") return;
+    if (siteSlug === "subs-store") {
+      const subs = tryCreateSubsBrowserClient();
+      if (!subs) return;
+
+      const channel = subs
+        .channel(`staff-nav-badges-subs`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications" },
+          () => void reload(),
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "notifications" },
+          () => void reload(),
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "orders" },
+          () => void reload(),
+        )
+        .subscribe();
+
+      return () => {
+        void subs.removeChannel(channel);
+      };
+    }
+
+    if (!supabase) return;
 
     const channel = supabase
       .channel(`staff-nav-badges-${siteSlug}`)

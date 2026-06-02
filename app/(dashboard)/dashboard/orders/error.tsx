@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function OrdersPageError({
   error,
@@ -10,15 +11,9 @@ export default function OrdersPageError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const [site, setSite] = useState<"gpt-store" | "subs-store">("subs-store");
-  const [orderId, setOrderId] = useState("");
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setSite(params.get("site") === "gpt-store" ? "gpt-store" : "subs-store");
-    setOrderId(params.get("order_id") ?? params.get("highlight") ?? "");
-  }, []);
-
+  const searchParams = useSearchParams();
+  const site = searchParams.get("site") === "gpt-store" ? "gpt-store" : "subs-store";
+  const orderId = searchParams.get("order_id") ?? searchParams.get("highlight") ?? "";
   const ordersHref = `/dashboard/orders?site=${site}${orderId ? `&order_id=${encodeURIComponent(orderId)}` : ""}`;
   const loginReturn = encodeURIComponent(ordersHref);
   const isSubs = site === "subs-store";

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { isRedirectError } from "next/dist/client/components/redirect";
 
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
+import { PanelErrorBoundary } from "@/components/errors/PanelErrorBoundary";
 import { OperatorSidebar } from "@/components/admin/OperatorSidebar";
+import { StaffNotificationToaster } from "@/components/admin/StaffNotificationToaster";
 import { requireStaffPanel } from "@/lib/auth/staff-access";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +34,11 @@ export default async function OperatorLayout({ children }: { children: React.Rea
         </Suspense>
         <div className="flex min-w-0 flex-1 flex-col">
           <Suspense fallback={null}>
-            <AdminAlertsBar />
+            <PanelErrorBoundary title="Не удалось загрузить панель уведомлений">
+              <AdminAlertsBar />
+            </PanelErrorBoundary>
           </Suspense>
+          <StaffNotificationToaster />
           {children}
         </div>
       </div>

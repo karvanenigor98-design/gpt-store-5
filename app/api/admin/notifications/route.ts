@@ -1,31 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
+import { requireStaffApi } from "@/lib/admin/require-staff-api";
 import {
   isNotificationUnreadForStaff,
   loadStaffReadNotificationIds,
-  markAllStaffBroadcastNotificationsRead,
+  markAllStaffNotificationsReadForUser,
   markStaffNotificationRead,
 } from "@/lib/admin/staff-notification-reads";
-import { resolveServerRole } from "@/lib/auth/server-role";
-import { createAdminClient, createClient } from "@/lib/supabase/server";
-
-async function requireStaff() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = await resolveServerRole(user);
-  if (role !== "admin" && role !== "operator") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  return { user, role, admin: createAdminClient() };
-}
 
 /** GPT Store notifications (таблица в GPT Supabase). Subs — /api/admin/subs-store/notifications */
 export async function GET(req: NextRequest) {
-  const ctx = await requireStaff();
+  const ctx = await requireStaffApi();
   if (ctx instanceof NextResponse) return ctx;
 
   const siteSlug = req.nextUrl.searchParams.get("site") === "subs-store" ? "subs-store" : "gpt-store";
@@ -70,7 +56,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireStaff();
+  const ctx = await requireStaffApi();
   if (ctx instanceof NextResponse) return ctx;
 
   let body: { id?: string; mark_all?: boolean; site?: string };
@@ -84,11 +70,18 @@ export async function PATCH(req: NextRequest) {
   const siteId = await getSiteUUID(siteSlug);
 
   if (body.mark_all) {
-    await markAllStaffBroadcastNotificationsRead(ctx.admin, {
+    const result = await markAllStaffNotificationsReadForUser(ctx.admin, {
       userId: ctx.user.id,
+      role: ctx.role,
       siteSlug,
     });
-    return NextResponse.json({ ok: true });
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? "Не удалось отметить уведомления" },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ ok: true, marked: result.marked });
   }
 
   const id = body.id?.trim();

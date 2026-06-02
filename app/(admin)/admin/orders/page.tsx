@@ -16,6 +16,7 @@ import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { UnpaidOrdersEmailCampaign } from "@/components/admin/UnpaidOrdersEmailCampaign";
 import { MarkOrdersSeenOnVisit } from "@/components/admin/MarkOrdersSeenOnVisit";
 import { AdminOrdersLiveRefresh } from "@/components/admin/AdminOrdersLiveRefresh";
+import { StaffOrderChatLink } from "@/components/admin/StaffOrderChatLink";
 
 export const metadata: Metadata = { title: "Admin · Заказы" };
 
@@ -144,6 +145,7 @@ export default async function AdminOrdersPage({
                 <th className="px-4 py-3">Сумма</th>
                 <th className="px-4 py-3">Статус</th>
                 <th className="px-4 py-3 min-w-[160px]">Изменить</th>
+                <th className="px-4 py-3">Чат</th>
                 <th className="px-4 py-3">Оплата</th>
                 <th className="px-4 py-3">Дата</th>
               </tr>
@@ -180,6 +182,14 @@ export default async function AdminOrdersPage({
                     </td>
                     <td className="px-4 py-3 align-top">
                       <SubsOrderStatusSelect orderId={order.id} initialStatus={order.status} siteSlug="subs-store" />
+                    </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      <StaffOrderChatLink
+                        siteSlug="subs-store"
+                        orderId={order.id}
+                        userId={order.user_id}
+                        email={email}
+                      />
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600">
                       {SUBS_PAY_LABELS[order.payment_status] ?? order.payment_status}
@@ -280,6 +290,7 @@ export default async function AdminOrdersPage({
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3 min-w-[148px]">Изменить</th>
               <th className="px-4 py-3">Дата</th>
+              <th className="px-4 py-3">Чат</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -317,6 +328,14 @@ export default async function AdminOrdersPage({
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {new Date(order.created_at).toLocaleDateString("ru")}
+                  </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                    <StaffOrderChatLink
+                      siteSlug="gpt-store"
+                      orderId={order.id}
+                      userId={order.user_id}
+                      email={clientEmail}
+                    />
                   </td>
                 </tr>
               );

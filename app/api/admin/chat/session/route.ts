@@ -14,17 +14,15 @@ function normalizeStaffSiteSlug(raw: string | undefined): "gpt-store" | "subs-st
 }
 
 export async function POST(req: NextRequest) {
-  let body: { userId?: string; site?: string };
+  let body: { userId?: string; email?: string; site?: string };
   try {
     body = (await req.json()) as { userId?: string; site?: string };
   } catch {
     return NextResponse.json({ error: "Неверный формат запроса" }, { status: 400 });
   }
 
-  const userId = body.userId?.trim();
-  if (!userId) {
-    return NextResponse.json({ error: "userId обязателен" }, { status: 400 });
-  }
+  const explicitUserId = body.userId?.trim();
+  const email = body.email?.trim().toLowerCase() ?? "";
 
   const siteSlug = normalizeStaffSiteSlug(body.site?.trim());
 
@@ -36,7 +34,40 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
-    const thread = await getOrCreateSubsCustomerSupportThread(subsAdmin, userId);
+    let resolvedSubsUserId = explicitUserId;
+    if (!resolvedSubsUserId && email) {
+      const [{ data: profile }, { data: byCustomer }, { data: byAccount }] = await Promise.all([
+        subsAdmin.from("profiles").select("id").ilike("email", email).limit(1).maybeSingle(),
+        subsAdmin
+          .from("orders")
+          .select("user_id,created_at")
+          .ilike("customer_email", email)
+          .not("user_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        subsAdmin
+          .from("orders")
+          .select("user_id,created_at")
+          .ilike("account_email", email)
+          .not("user_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      resolvedSubsUserId =
+        (profile?.id as string | undefined) ??
+        ((byCustomer?.user_id as string | null) ?? undefined) ??
+        ((byAccount?.user_id as string | null) ?? undefined);
+    }
+    if (!resolvedSubsUserId) {
+      return NextResponse.json(
+        { error: "Не удалось определить клиента для чата (нужен userId или email связанный с профилем/заказом)." },
+        { status: 400 },
+      );
+    }
+
+    const thread = await getOrCreateSubsCustomerSupportThread(subsAdmin, resolvedSubsUserId);
     if (!thread?.id) {
       return NextResponse.json({ error: "Не удалось создать тред поддержки" }, { status: 500 });
     }
@@ -58,7 +89,32 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const existing = await pickCanonicalOperatorSession(admin, userId, siteSlug);
+  let resolvedUserId = explicitUserId;
+  if (!resolvedUserId && email) {
+    const byEmail = await admin.from("profiles").select("id").ilike("email", email).limit(1).maybeSingle();
+    resolvedUserId = byEmail.data?.id ?? undefined;
+  }
+  if (!resolvedUserId && email) {
+    const siteUuid = siteSlug ? await getSiteUUID(siteSlug) : null;
+    let byOrder = admin
+      .from("orders")
+      .select("user_id, created_at")
+      .ilike("account_email", email)
+      .not("user_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (siteUuid) byOrder = byOrder.eq("site_id", siteUuid);
+    const byOrderRes = await byOrder.maybeSingle();
+    resolvedUserId = byOrderRes.data?.user_id ?? undefined;
+  }
+  if (!resolvedUserId) {
+    return NextResponse.json(
+      { error: "Не удалось определить клиента для чата (нужен userId или email связанный с профилем/заказом)." },
+      { status: 400 },
+    );
+  }
+
+  const existing = await pickCanonicalOperatorSession(admin, resolvedUserId, siteSlug);
 
   if (existing?.id) {
     if (existing.status !== "open") {
@@ -72,7 +128,7 @@ export async function POST(req: NextRequest) {
 
   const siteUuid = siteSlug ? await getSiteUUID(siteSlug) : null;
   const insertRow: Database["public"]["Tables"]["chat_sessions"]["Insert"] = {
-    user_id: userId,
+    user_id: resolvedUserId,
     type: "operator",
     status: "open",
     ...(siteUuid ? { site_id: siteUuid } : {}),

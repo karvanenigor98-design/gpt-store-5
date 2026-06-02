@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { profileRoleToSiteMembershipRole } from "@/lib/auth/staffRoleRestore";
 import { upsertSiteMembership } from "@/lib/auth/siteMembership";
+import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { syncSubsProfileRoleForUser } from "@/lib/auth/subsProfileSync";
 import { clearSiteUiLogout, type SiteSlug } from "@/lib/auth/siteUiSession";
 import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
@@ -42,7 +44,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await upsertSiteMembership(user.id, siteSlug, "customer");
+  let membershipRole: "customer" | "operator" | "admin" = "customer";
+  try {
+    const profileRole = await syncProfileRoleForUser(user.id, user.email ?? null);
+    membershipRole = profileRoleToSiteMembershipRole(profileRole);
+  } catch {
+    /* не блокируем вход */
+  }
+
+  await upsertSiteMembership(user.id, siteSlug, membershipRole);
 
   const res = NextResponse.json({ ok: true, site: siteSlug });
   clearSiteUiLogout(res, siteSlug as SiteSlug);

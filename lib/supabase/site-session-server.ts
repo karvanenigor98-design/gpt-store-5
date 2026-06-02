@@ -29,7 +29,7 @@ export async function createSiteSessionClient(siteSlug: SiteSlug): Promise<SiteS
   const gpt = await tryCreateClient();
   if (!gpt) {
     throw new Error(
-      "gpt_auth_env_missing:NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY должны быть в .env.local",
+      "gpt_auth_env_missing:NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY должны быть настроены",
     );
   }
   return { backend: "gpt", browserLike: gpt };

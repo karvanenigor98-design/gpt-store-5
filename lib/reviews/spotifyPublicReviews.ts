@@ -4,7 +4,6 @@ import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
 import { isSpotifySuitableReview } from "./is-spotify-suitable-review";
 import { loadSpotifyTelegramCuratedReviews } from "./load-spotify-telegram-curated";
 import { loadSubsPublishedDbReviews } from "./load-published-db-reviews";
-import { sortLandingReviewsTopRatedThenNew } from "./merge-public-reviews";
 import { reviewSortTimestamp } from "./review-sanitize";
 
 function normalizeAuthorKey(value: string): string {
@@ -98,10 +97,7 @@ export async function getSpotifyPublicReviews(limit = 200): Promise<SpotifyLandi
 
   const fromDb = filterSuitable(subsReviews);
 
-  const merged = sortLandingReviewsTopRatedThenNew(
-    dedupeReviews([...curated, ...fromDb]),
-    10,
-  );
+  const merged = sortSpotifyReviewsNewestFirst(dedupeReviews([...curated, ...fromDb]));
 
   if (!merged.length) {
     return sortSpotifyReviewsNewestFirst(filterSuitable(fallbackReviews())).slice(0, limit);

@@ -62,6 +62,7 @@ export async function PATCH(req: NextRequest) {
     const updateRow: Record<string, unknown> = {
       status: "approved",
       is_published: true,
+      published_at: now,
       rating,
       updated_at: now,
     };

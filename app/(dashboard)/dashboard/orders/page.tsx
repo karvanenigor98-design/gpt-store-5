@@ -17,6 +17,7 @@ import {
 import { loadCustomerOrdersWithFocus } from "@/lib/dashboard/load-customer-orders";
 import { isSubsStoreBackendConfigured } from "@/lib/supabase/subs-store-admin";
 import { cn } from "@/lib/utils";
+import { resolvePageSearchParams } from "@/lib/next/resolve-page-search-params";
 
 export const metadata: Metadata = { title: "Мои заказы" };
 export const dynamic = "force-dynamic";
@@ -24,9 +25,11 @@ export const dynamic = "force-dynamic";
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ site?: string; highlight?: string; highlightOrder?: string; order_id?: string }>;
+  searchParams:
+    | Promise<{ site?: string; highlight?: string; highlightOrder?: string; order_id?: string }>
+    | { site?: string; highlight?: string; highlightOrder?: string; order_id?: string };
 }) {
-  const params = await searchParams;
+  const params = await resolvePageSearchParams(searchParams);
   const siteSlug: SiteSlug = await resolveCustomerSiteSlug({
     siteParam: params.site,
     pathname: "/dashboard/orders",

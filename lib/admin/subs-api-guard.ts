@@ -27,12 +27,14 @@ function parseEmailSet(value: string | undefined): Set<string> {
   );
 }
 
-/** Локальный dev/staff: ADMIN_EMAIL, ADMIN_EMAILS, OPERATOR_EMAILS из .env.local */
+/** Локальный dev/staff: ADMIN_EMAIL(S), OPERATOR_EMAIL(S) из env */
 export function hasEnvListedStaffAccess(email: string | null | undefined): boolean {
   const n = normalizeAuthEmail(email);
   if (!n) return false;
   const direct = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   if (direct && n === direct) return true;
+  const opDirect = process.env.OPERATOR_EMAIL?.trim().toLowerCase();
+  if (opDirect && n === opDirect) return true;
   return parseEmailSet(process.env.ADMIN_EMAILS).has(n) || parseEmailSet(process.env.OPERATOR_EMAILS).has(n);
 }
 
@@ -70,6 +72,24 @@ export async function requireSubsStaffContext(options?: {
   }
 
   const gptAdmin = createAdminClient();
+  if (role === "operator") {
+    const canUseSubsByEmail = isSuperAdminEmail(user.email) || hasEnvListedStaffAccess(user.email);
+    if (!canUseSubsByEmail) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (gptAdmin.from("site_memberships") as any)
+          .select("site_slug")
+          .eq("user_id", user.id)
+          .eq("site_slug", "subs-store")
+          .maybeSingle();
+        if (!data) {
+          return NextResponse.json({ error: "Нет доступа к SPOTIFY STORE" }, { status: 403 });
+        }
+      } catch {
+        return NextResponse.json({ error: "Нет доступа к SPOTIFY STORE" }, { status: 403 });
+      }
+    }
+  }
   return { user, role, gptAdmin, subs };
 }
 
@@ -83,8 +103,8 @@ export async function listAccessibleAdminSiteSlugs(
 
   const subsConfigured = Boolean(createSubsStoreAdminClient());
 
-  /** Админ и оператор — оба лендинга, если Subs Supabase подключён. */
-  if ((role === "operator" || role === "admin") && subsConfigured) {
+  /** Админ видит оба магазина, если Subs подключён. */
+  if (role === "admin" && subsConfigured) {
     return ["gpt-store", "subs-store"];
   }
 

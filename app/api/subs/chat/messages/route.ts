@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mapSubsChatMessageToChatMessage } from "@/lib/admin/subs-chat-map";
-import { insertSubsStoreChatAutoReply } from "@/lib/chat/subsAutoReply";
 import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
 import { isSubsPublicAuthConfigured } from "@/lib/supabase/subs-auth-env";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
@@ -80,12 +79,29 @@ export async function GET(req: NextRequest) {
   const list = (messages ?? []).map((row) =>
     mapSubsChatMessageToChatMessage(row as Parameters<typeof mapSubsChatMessageToChatMessage>[0]),
   );
+  const byId = new Map(list.map((m) => [m.id, m]));
+  const withReply = list.map((m) => {
+    const replyToId = (m as ChatMessage & { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
+    if (!replyToId) return m;
+    const target = byId.get(replyToId);
+    return {
+      ...m,
+      reply_to_message: target
+        ? {
+            id: target.id,
+            sender_type: target.sender_type,
+            content: target.content,
+            is_deleted: (target as ChatMessage & { is_deleted?: boolean }).is_deleted ?? false,
+          }
+        : { id: replyToId, sender_type: "auto", content: "", is_deleted: true },
+    } as ChatMessage;
+  });
 
-  return NextResponse.json({ messages: list as ChatMessage[] });
+  return NextResponse.json({ messages: withReply as ChatMessage[] });
 }
 
 export async function POST(req: NextRequest) {
-  let body: { thread_id?: string; content?: string };
+  let body: { thread_id?: string; content?: string; reply_to_message_id?: string | null };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -94,6 +110,7 @@ export async function POST(req: NextRequest) {
 
   const threadId = body.thread_id?.trim();
   const content = body.content?.trim() ?? "";
+  const replyToMessageId = body.reply_to_message_id?.trim() || null;
   if (!threadId || !content) {
     return jsonDiagnostic(400, "Укажите thread_id и текст сообщения", "missing_body");
   }
@@ -136,6 +153,7 @@ export async function POST(req: NextRequest) {
       author_id: user.id,
       author_role: "customer",
       content,
+      ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
     })
     .select("*")
     .single();
@@ -167,16 +185,9 @@ export async function POST(req: NextRequest) {
     inserted as Parameters<typeof mapSubsChatMessageToChatMessage>[0],
   );
 
-  let autoReply: ChatMessage | null = null;
-  try {
-    autoReply = await insertSubsStoreChatAutoReply(admin, threadId, content);
-  } catch (err) {
-    console.error("[subs/chat/messages] auto-reply:", err);
-  }
-
   return NextResponse.json({
     ok: true,
     message,
-    autoReply,
+    autoReply: null as ChatMessage | null,
   });
 }

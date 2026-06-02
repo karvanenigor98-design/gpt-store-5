@@ -65,13 +65,18 @@ export async function PATCH(req: NextRequest) {
   if (body.action === "approve") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let fetchQ = (ctx.admin.from("reviews") as any)
-      .select("id, rating, content")
+      .select("id, rating, content, site_id")
       .eq("id", id);
     if (siteId) {
       fetchQ = fetchQ.eq("site_id", siteId);
     }
     const { data: existingRow } = await fetchQ.maybeSingle();
-    const existing = existingRow as { id: string; rating: number | null; content: string } | null;
+    const existing = existingRow as {
+      id: string;
+      rating: number | null;
+      content: string;
+      site_id?: string | null;
+    } | null;
     if (!existing) {
       return NextResponse.json({ error: "Отзыв не найден" }, { status: 404 });
     }
@@ -91,17 +96,20 @@ export async function PATCH(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const updatePayload: Record<string, unknown> = {
+      status: "approved",
+      rating,
+      published_at: now,
+      updated_at: now,
+    };
+    if (siteId && !existing.site_id) {
+      updatePayload.site_id = siteId;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = (ctx.admin.from("reviews") as any)
-      .update({
-        status: "approved",
-        rating,
-        published_at: now,
-        updated_at: now,
-      })
-      .eq("id", id);
+    let query = (ctx.admin.from("reviews") as any).update(updatePayload).eq("id", id);
     if (siteId) {
-      query = query.eq("site_id", siteId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).or(`site_id.eq.${siteId},site_id.is.null`);
     }
     const { error } = (await query) as { error: { message?: string } | null };
     if (error) {

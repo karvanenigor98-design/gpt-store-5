@@ -50,6 +50,19 @@ function pickFocusOrder<T extends { status: string; created_at: string }>(
   return open ?? list[0] ?? null;
 }
 
+function resolveFocusOrder<T extends { id: string; status: string; created_at: string }>(
+  list: T[],
+  siteSlug: "gpt-store" | "subs-store",
+  preferredOrderId?: string | null,
+): T | null {
+  const preferred = preferredOrderId?.trim();
+  if (preferred) {
+    const hit = list.find((o) => o.id === preferred);
+    if (hit) return hit;
+  }
+  return pickFocusOrder(list, siteSlug);
+}
+
 function statusLabel(siteSlug: "gpt-store" | "subs-store", status: string): string {
   return siteSlug === "subs-store" ? subsOrderStatusLabelRu(status) : gptOrderStatusLabelRu(status);
 }
@@ -58,6 +71,7 @@ export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId")?.trim();
   const email = req.nextUrl.searchParams.get("email")?.trim().toLowerCase() ?? "";
   const sessionId = req.nextUrl.searchParams.get("sessionId")?.trim() ?? "";
+  const orderId = req.nextUrl.searchParams.get("orderId")?.trim() ?? "";
   const siteParam = req.nextUrl.searchParams.get("site");
   const siteSlug: "gpt-store" | "subs-store" =
     siteParam === "subs-store" ? "subs-store" : "gpt-store";
@@ -149,7 +163,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const focusOrder = pickFocusOrder(list, siteSlug);
+    const focusOrder = resolveFocusOrder(list, siteSlug, orderId);
     const derived = deriveStageFromOrders(list, siteSlug);
     const hasActive = list.some((o) => ["activated", "completed"].includes(o.status));
 
@@ -293,7 +307,7 @@ export async function GET(req: NextRequest) {
     created_at: String(o.created_at),
   }));
 
-  const focusOrder = pickFocusOrder(list, siteSlug);
+  const focusOrder = resolveFocusOrder(list, siteSlug, orderId);
   const derived = deriveStageFromOrders(list, siteSlug);
   const stage =
     profile.client_stage && STAGES.includes(profile.client_stage as (typeof STAGES)[number])

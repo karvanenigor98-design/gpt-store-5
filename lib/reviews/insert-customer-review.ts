@@ -69,7 +69,7 @@ export async function insertCustomerReview(params: {
   const siteId = await getSiteUUID("gpt-store");
 
   const row: Record<string, unknown> = {
-    site_id: siteId,
+    site_id: siteId ?? undefined,
     author_name: params.authorName,
     author_username: params.authorUsername ?? null,
     content: params.content,

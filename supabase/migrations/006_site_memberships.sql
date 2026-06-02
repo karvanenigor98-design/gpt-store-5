@@ -1,10 +1,10 @@
--- ============================================================
+﻿-- ============================================================
 -- Migration 006: site_memberships + site_id for discounts/promocodes
 -- Tracks which sites each customer has registered with.
 -- Uses text slug (not UUID FK) for simplicity and independence.
 --
 -- SAFE: new table, new nullable columns, no destructive ops.
--- Run in Supabase Dashboard → SQL Editor
+-- Run in Supabase Dashboard в†’ SQL Editor
 -- ============================================================
 
 -- ============================================================
@@ -56,7 +56,7 @@ where o.user_id is not null
   )
 on conflict (user_id, site_slug) do nothing;
 
--- Subs Store customers: users with spotify orders
+-- Spotify Store customers: users with spotify orders
 insert into public.site_memberships (user_id, site_slug, role)
 select distinct o.user_id, 'subs-store', 'customer'
 from public.orders o
@@ -103,3 +103,4 @@ create index if not exists idx_promocodes_site_id
 --   WHERE table_name = 'landing_discounts' AND column_name = 'site_id';
 -- SELECT column_name FROM information_schema.columns
 --   WHERE table_name = 'promocodes' AND column_name = 'site_id';
+

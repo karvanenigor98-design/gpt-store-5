@@ -5,10 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { reachLandingGoal, type LandingGoalSite } from "@/lib/analytics/reach-landing-goal";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
-import {
-  dispatchLandingStickyVisible,
-  LANDING_MOBILE_CHAT_SLOT_ID,
-} from "@/lib/landing/landing-mobile-dock";
 
 type LandingStickyMobileCtaProps = {
   site: LandingGoalSite;
@@ -86,13 +82,6 @@ export function LandingStickyMobileCta({
     };
   }, []);
 
-  useEffect(() => {
-    dispatchLandingStickyVisible(visible);
-    return () => {
-      dispatchLandingStickyVisible(false);
-    };
-  }, [visible]);
-
   const handleClick = () => {
     reachLandingGoal("landing_sticky_cta_click", { site, source: "sticky_bar" });
     reachLandingGoal("landing_scroll_to_pricing", { site, source: "sticky_bar" });
@@ -117,13 +106,13 @@ export function LandingStickyMobileCta({
             className="pointer-events-auto mx-auto flex w-full max-w-lg items-center gap-2 px-3 pt-2"
             style={{
               paddingLeft: "max(0.75rem, env(safe-area-inset-left))",
-              paddingRight: "max(0.75rem, env(safe-area-inset-right))",
+              paddingRight: "calc(4.75rem + max(0.75rem, env(safe-area-inset-right)))",
             }}
           >
             <button
               type="button"
               onClick={handleClick}
-              className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-white shadow-lg"
+              className="flex min-h-[3rem] min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-white shadow-lg"
               style={{
                 background: accentColor,
                 boxShadow: `0 6px 24px ${accentColor}55`,
@@ -138,14 +127,9 @@ export function LandingStickyMobileCta({
               <span className="truncate">{label}</span>
               <ArrowRight size={16} className="shrink-0" />
             </button>
-            <div
-              id={LANDING_MOBILE_CHAT_SLOT_ID}
-              className="flex h-12 w-12 shrink-0 items-center justify-center"
-              aria-hidden={false}
-            />
           </div>
           <div
-            className="pointer-events-none mt-1 h-2 w-full"
+            className="pointer-events-none mt-1 h-3 w-full"
             style={{
               background: isDark
                 ? "linear-gradient(to top, rgba(10,10,10,0.95), transparent)"

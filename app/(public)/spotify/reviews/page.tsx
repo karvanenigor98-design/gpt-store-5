@@ -25,7 +25,7 @@ export default async function SpotifyPublicReviewsPage({
   const { author } = await searchParams;
   const [{ payload }, reviews] = await Promise.all([
     getSpotifyLandingPageData(),
-    getSpotifyPublicReviews(500),
+    getSpotifyPublicReviews(5000),
   ]);
 
   const authorFilter = author?.trim().toLowerCase();
@@ -54,7 +54,7 @@ export default async function SpotifyPublicReviewsPage({
               </Link>
               <h1 className="font-heading mt-3 text-3xl font-bold text-white">Отзывы клиентов</h1>
               <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
-                Все отзывы из Telegram. У каждого — ссылка на профиль пользователя.
+                Здесь только опубликованные отзывы из модерации SPOTIFY STORE.
               </p>
             </div>
             {authorFilter && (

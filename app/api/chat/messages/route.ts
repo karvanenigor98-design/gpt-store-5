@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
-import { resolveSupportAutoReply } from "@/lib/chat/scriptedFaq";
 import { markStaffChatNotificationsRead } from "@/lib/admin/mark-staff-notifications-read";
+import { createAdminClient } from "@/lib/supabase/server";
+import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { resolveHumanSenderType } from "@/lib/chat/messageSender";
 import { isStaffSessionParticipant } from "@/lib/chat/staffSession";
 import {
@@ -100,6 +101,23 @@ export async function GET(req: NextRequest) {
   }
 
   const list = (messages ?? []) as ChatMessage[];
+  const byId = new Map(list.map((m) => [m.id, m]));
+  const withReply = list.map((m) => {
+    const replyToId = (m as ChatMessage & { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
+    if (!replyToId) return m;
+    const target = byId.get(replyToId);
+    return {
+      ...m,
+      reply_to_message: target
+        ? {
+            id: target.id,
+            sender_type: target.sender_type,
+            content: target.content,
+            is_deleted: (target as ChatMessage & { is_deleted?: boolean }).is_deleted ?? false,
+          }
+        : { id: replyToId, sender_type: "auto", content: "", is_deleted: true },
+    } as ChatMessage;
+  });
 
   if (isStaff) {
     await supabaseAdmin
@@ -110,7 +128,13 @@ export async function GET(req: NextRequest) {
       .eq("is_read", false);
     const subsChat =
       session.site_id != null ? await isChatSessionForSubsStore(session.site_id) : false;
-    await markStaffChatNotificationsRead(sessionId, subsChat ? "subs-store" : "gpt-store");
+    const notifAdmin = subsChat ? createSubsStoreAdminClient() : createAdminClient();
+    if (notifAdmin) {
+      await markStaffChatNotificationsRead(notifAdmin, {
+        entityId: sessionId,
+        userId: user.id,
+      });
+    }
   } else {
     await supabaseAdmin
       .from("chat_messages")
@@ -119,7 +143,7 @@ export async function GET(req: NextRequest) {
       .in("sender_type", ["operator", "admin", "auto", "ai"]);
   }
 
-  return NextResponse.json({ messages: list });
+  return NextResponse.json({ messages: withReply });
 }
 
 export async function POST(req: NextRequest) {
@@ -127,6 +151,7 @@ export async function POST(req: NextRequest) {
     session_id?: string;
     content?: string;
     attachment?: { url: string; type: string; name: string } | null;
+    reply_to_message_id?: string | null;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -186,17 +211,23 @@ export async function POST(req: NextRequest) {
 
   const senderType = resolveHumanSenderType(role);
   const attachments: Json | null = body.attachment ? (body.attachment as unknown as Json) : null;
+  const replyToMessageId = body.reply_to_message_id?.trim() || null;
+
+  const insertPayload = {
+    session_id: sessionId,
+    sender_id: user.id,
+    sender_type: senderType,
+    content: content || (body.attachment ? `📎 ${body.attachment.name}` : " "),
+    attachments,
+    is_read: false,
+    ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
+  };
 
   const { data: inserted, error: insErr } = await supabaseAdmin
     .from("chat_messages")
-    .insert({
-      session_id: sessionId,
-      sender_id: user.id,
-      sender_type: senderType,
-      content: content || (body.attachment ? `📎 ${body.attachment.name}` : " "),
-      attachments,
-      is_read: false,
-    })
+    // reply_to/deleted columns are introduced by migration 015; generated types may lag.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert(insertPayload as any)
     .select("*")
     .single();
 
@@ -277,27 +308,66 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let autoReply: ChatMessage | null = null;
-
-  if (!isStaff && (session.type === "operator" || session.type === "ai")) {
-    const scriptedAnswer = resolveSupportAutoReply(content, "gpt-store");
-
-    const { data: autoRow } = await supabaseAdmin
-      .from("chat_messages")
-      .insert({
-        session_id: sessionId,
-        sender_type: "auto",
-        content: scriptedAnswer,
-        is_auto_reply: true,
-      })
-      .select("*")
-      .single();
-    autoReply = (autoRow ?? null) as ChatMessage | null;
-  }
-
   return NextResponse.json({
     ok: true,
     message: inserted as ChatMessage,
-    autoReply,
+    autoReply: null,
   });
+}
+
+export async function PATCH(req: NextRequest) {
+  let body: { id?: string; action?: "delete" };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Неверный формат запроса" }, { status: 400 });
+  }
+
+  const messageId = body.id?.trim();
+  if (!messageId || body.action !== "delete") {
+    return NextResponse.json({ error: "Нужны id и action=delete" }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const role = await resolveServerRole(user);
+  const isStaff = role === "admin" || role === "operator";
+  if (!isStaff) {
+    return NextResponse.json({ error: "Нет доступа" }, { status: 403 });
+  }
+
+  const { data: row, error: rowErr } = await supabaseAdmin
+    .from("chat_messages")
+    .select("id")
+    .eq("id", messageId)
+    .maybeSingle();
+  if (rowErr || !row?.id) {
+    return NextResponse.json({ error: "Сообщение не найдено" }, { status: 404 });
+  }
+
+  const deletePayload = {
+    is_deleted: true,
+    deleted_at: new Date().toISOString(),
+    deleted_by: user.id,
+    content: "Сообщение удалено",
+    attachments: null,
+  };
+
+  const { error: updateErr } = await supabaseAdmin
+    .from("chat_messages")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(deletePayload as any)
+    .eq("id", messageId);
+
+  if (updateErr) {
+    return NextResponse.json({ error: "Не удалось удалить сообщение" }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
 }

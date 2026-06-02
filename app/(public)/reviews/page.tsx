@@ -5,8 +5,7 @@ import { LandingFooter } from "@/components/layout/LandingFooter";
 import { getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { resolveSearchParams } from "@/lib/next-search-params";
 import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
-import { loadGptTelegramCuratedReviewsAsync } from "@/lib/reviews/load-gpt-telegram-curated";
-import { mergePublicReviews, sortLandingReviewsTopRatedThenNew } from "@/lib/reviews/merge-public-reviews";
+import { sortLandingReviewsNewestFirst } from "@/lib/reviews/landing-reviews-display";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { telegramProfileUrl } from "@/lib/reviews/telegram-profile-url";
 
@@ -24,15 +23,8 @@ export const runtime = "nodejs";
 
 async function loadReviewsSafe(): Promise<PublicReview[]> {
   try {
-    const [curated, fromDb] = await Promise.all([
-      loadGptTelegramCuratedReviewsAsync(),
-      loadGptPublishedDbReviews("gpt-store", 500),
-    ]);
-    const merged = sortLandingReviewsTopRatedThenNew(
-      mergePublicReviews(curated, fromDb, 500),
-      10,
-    );
-    if (merged.length > 0) return merged;
+    const published = await loadGptPublishedDbReviews("gpt-store", 5000);
+    if (published.length > 0) return sortLandingReviewsNewestFirst(published);
   } catch (err) {
     console.error("[reviews] load failed:", err);
   }
@@ -79,7 +71,7 @@ export default async function PublicReviewsPage({
           <div>
             <h1 className="font-heading text-3xl font-bold text-gray-900">Отзывы клиентов</h1>
             <p className="mt-2 text-sm text-gray-500">
-              Все отзывы из Telegram. У каждого — ссылка на профиль в Telegram.
+              Здесь только опубликованные отзывы из модерации GPT STORE.
             </p>
           </div>
           {authorFilter && (

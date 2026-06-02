@@ -14,9 +14,6 @@ export default function Error({
   }, [error]);
 
   const isDev = process.env.NODE_ENV === "development";
-  const detail = [error.message, error.digest ? `digest: ${error.digest}` : ""]
-    .filter(Boolean)
-    .join(" · ");
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
@@ -33,11 +30,6 @@ export default function Error({
           <>Попробуйте обновить страницу. Если ошибка повторяется — напишите в поддержку в личном кабинете.</>
         )}
       </p>
-      {detail ? (
-        <p className="mt-4 max-w-lg break-all rounded-lg bg-gray-100 px-3 py-2 font-mono text-[11px] text-gray-700">
-          {detail}
-        </p>
-      ) : null}
       <button
         type="button"
         onClick={() => reset()}

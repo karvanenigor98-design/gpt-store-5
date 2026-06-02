@@ -9,15 +9,16 @@ import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { loadCustomerOrdersForUser } from "@/lib/dashboard/load-customer-orders";
 import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
+import { resolvePageSearchParams } from "@/lib/next/resolve-page-search-params";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ site?: string }>;
+  searchParams: Promise<{ site?: string }> | { site?: string };
 }) {
-  const params = await searchParams;
+  const params = await resolvePageSearchParams(searchParams);
   const siteSlug: SiteSlug = await resolveCustomerSiteSlug({
     siteParam: params.site,
     pathname: "/dashboard",

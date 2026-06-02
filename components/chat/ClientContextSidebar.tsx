@@ -9,6 +9,7 @@ import { StaffOrderStatusSelect } from "@/components/admin/StaffOrderStatusSelec
 import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
 import { subsOrderStatusLabelRu } from "@/lib/admin/subs-order-status-labels";
 import { staffNavHref } from "@/lib/admin/staffNavHref";
+import { cn } from "@/lib/utils";
 
 type OrderRow = {
   id: string;
@@ -53,13 +54,20 @@ interface Props {
   room: ChatRoomListItem | null;
   staffBasePath: string;
   siteSlug?: "gpt-store" | "subs-store";
+  /** Заказ из URL (?order_id=) — подсветить в карточке. */
+  highlightOrderId?: string | null;
 }
 
 function statusLabel(siteSlug: "gpt-store" | "subs-store", status: string): string {
   return siteSlug === "subs-store" ? subsOrderStatusLabelRu(status) : gptOrderStatusLabelRu(status);
 }
 
-export function ClientContextSidebar({ room, staffBasePath, siteSlug = "gpt-store" }: Props) {
+export function ClientContextSidebar({
+  room,
+  staffBasePath,
+  siteSlug = "gpt-store",
+  highlightOrderId = null,
+}: Props) {
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -80,6 +88,7 @@ export function ClientContextSidebar({ room, staffBasePath, siteSlug = "gpt-stor
           sessionId: room.id ?? "",
           site: siteSlug,
         });
+        if (highlightOrderId) params.set("orderId", highlightOrderId);
         const res = await fetch(`/api/staff/client-summary?${params.toString()}`, {
           credentials: "include",
         });
@@ -98,7 +107,7 @@ export function ClientContextSidebar({ room, staffBasePath, siteSlug = "gpt-stor
     return () => {
       cancelled = true;
     };
-  }, [room?.client_id, room?.client?.email, room?.id, siteSlug]);
+  }, [room?.client_id, room?.client?.email, room?.id, siteSlug, highlightOrderId]);
 
   const resolvedSite = data?.site_slug ?? siteSlug;
   const focusOrder = data?.focus_order ?? data?.active_order ?? null;
@@ -159,7 +168,14 @@ export function ClientContextSidebar({ room, staffBasePath, siteSlug = "gpt-stor
                   </p>
                 </div>
                 {focusOrder ? (
-                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div
+                    className={cn(
+                      "rounded-xl border bg-white p-3",
+                      highlightOrderId && focusOrder.id === highlightOrderId
+                        ? "border-[#10a37f] ring-2 ring-[#10a37f]/25"
+                        : "border-gray-200",
+                    )}
+                  >
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                       Текущий заказ
                     </p>
@@ -179,6 +195,12 @@ export function ClientContextSidebar({ room, staffBasePath, siteSlug = "gpt-stor
                         siteSlug={resolvedSite}
                       />
                     </div>
+                    <Link
+                      href={`${staffNavHref(`${staffBasePath}/orders`, resolvedSite)}&highlight=${encodeURIComponent(focusOrder.id)}`}
+                      className="mt-3 inline-flex items-center rounded-md border border-gray-200 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Открыть заказ
+                    </Link>
                   </div>
                 ) : null}
                 <div>

@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo } from "react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { fadeUp } from "@/lib/motion-config";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
@@ -9,7 +9,6 @@ import { prepareLandingMainReviews } from "@/lib/reviews/landing-reviews-display
 import { shouldHideUsername } from "@/lib/reviews/review-sanitize";
 
 const PREVIEW_COUNT = 4;
-const ROTATE_MS = 10_000;
 
 type ReviewsSectionProps = {
   reviews: PublicReview[];
@@ -50,29 +49,14 @@ function ReviewCard({ review }: { review: PublicReview }) {
 }
 
 export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectionProps) {
-  const [startIndex, setStartIndex] = useState(0);
-
   const { pool, averageLabel, count } = useMemo(
     () => prepareLandingMainReviews(reviews.length ? reviews : []),
     [reviews],
   );
 
-  useEffect(() => {
-    if (pool.length <= PREVIEW_COUNT) return;
-    const id = window.setInterval(() => {
-      setStartIndex((i) => (i + PREVIEW_COUNT) % pool.length);
-    }, ROTATE_MS);
-    return () => window.clearInterval(id);
-  }, [pool.length]);
-
   const previewReviews = useMemo(() => {
-    if (pool.length <= PREVIEW_COUNT) return pool;
-    const out: PublicReview[] = [];
-    for (let i = 0; i < PREVIEW_COUNT; i++) {
-      out.push(pool[(startIndex + i) % pool.length]!);
-    }
-    return out;
-  }, [pool, startIndex]);
+    return pool.slice(0, PREVIEW_COUNT) as PublicReview[];
+  }, [pool]);
 
   const leftCol = previewReviews.filter((_, i) => i % 2 === 0);
   const rightCol = previewReviews.filter((_, i) => i % 2 !== 0);
@@ -113,51 +97,42 @@ export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectio
 
         <div className="hidden items-start gap-6 md:flex">
           <div className="flex flex-1 flex-col gap-6">
-            <AnimatePresence mode="popLayout">
-              {leftCol.map((review) => (
-                <motion.div
-                  key={`${review.id}-${startIndex}`}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <ReviewCard review={review} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-          <div className="mt-10 flex flex-1 flex-col gap-6">
-            <AnimatePresence mode="popLayout">
-              {rightCol.map((review) => (
-                <motion.div
-                  key={`${review.id}-${startIndex}-r`}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <ReviewCard review={review} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4 md:hidden">
-          <AnimatePresence mode="wait">
-            {previewReviews.map((review) => (
+            {leftCol.map((review) => (
               <motion.div
-                key={`${review.id}-${startIndex}-m`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
+                key={review.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
               >
                 <ReviewCard review={review} />
               </motion.div>
             ))}
-          </AnimatePresence>
+          </div>
+          <div className="mt-10 flex flex-1 flex-col gap-6">
+            {rightCol.map((review) => (
+              <motion.div
+                key={`${review.id}-r`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+              >
+                <ReviewCard review={review} />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 md:hidden">
+          {previewReviews.map((review) => (
+            <motion.div
+              key={`${review.id}-m`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ReviewCard review={review} />
+            </motion.div>
+          ))}
         </div>
 
         <div className="mt-8 flex justify-center">

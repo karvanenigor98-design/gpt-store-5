@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import Link from "next/link";
 

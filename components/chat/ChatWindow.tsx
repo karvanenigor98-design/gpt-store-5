@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatMessage, Profile } from "@/types";
 import { MessageBubble, type ChatUiVariant } from "@/components/chat/MessageBubble";
@@ -11,6 +12,8 @@ import {
   getInstantFaqAnswer,
   OPERATOR_CHAT_QUICK_REPLIES,
 } from "@/lib/chat/scriptedFaq";
+import { firstUnreadMessageId, replyAuthorLabel } from "@/lib/chat/message-utils";
+import { STAFF_CHAT_QUICK_REPLIES } from "@/lib/chat/staff-quick-replies";
 import { playChatMessagePing } from "@/lib/admin/notification-sound";
 import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
 import { cn } from "@/lib/utils";
@@ -63,6 +66,11 @@ export function ChatWindow({
   const [headerPulse, setHeaderPulse] = useState(false);
   const [faqTyping, setFaqTyping] = useState(false);
   const [faqSending, setFaqSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [staffInsertText, setStaffInsertText] = useState<string | null>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [initialScrollDone, setInitialScrollDone] = useState(false);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const forceScrollRef = useRef(false);
@@ -79,6 +87,23 @@ export function ChatWindow({
     const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     return distanceToBottom < 120;
   }, []);
+
+  const updateScrollDownVisible = useCallback(() => {
+    setShowScrollDown(!isNearBottom());
+  }, [isNearBottom]);
+
+  const firstUnreadId = useMemo(
+    () => firstUnreadMessageId(messages, viewerIsStaff),
+    [messages, viewerIsStaff],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && replyTo) setReplyTo(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [replyTo]);
 
   const loadMessages = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -124,11 +149,29 @@ export function ChatWindow({
 
   useEffect(() => {
     void loadMessages();
+    setInitialScrollDone(false);
   }, [loadMessages]);
 
   useEffect(() => {
     const lastMessageId = messages.at(-1)?.id ?? null;
     const hasNewMessage = lastMessageId !== null && lastMessageId !== lastSeenMessageIdRef.current;
+
+    if (!initialScrollDone && messages.length > 0) {
+      if (firstUnreadId) {
+        setHighlightMessageId(firstUnreadId);
+        window.setTimeout(
+          () => setHighlightMessageId((prev) => (prev === firstUnreadId ? null : prev)),
+          2500,
+        );
+        const target = document.querySelector(`[data-message-id="${firstUnreadId}"]`) as HTMLElement | null;
+        target?.scrollIntoView({ behavior: "auto", block: "center" });
+      } else {
+        scrollToBottom(false);
+      }
+      setInitialScrollDone(true);
+      updateScrollDownVisible();
+      return;
+    }
 
     if (messages.length > 0 && (forceScrollRef.current || (hasNewMessage && isNearBottom()))) {
       scrollToBottom(messages.length > 1);
@@ -136,7 +179,8 @@ export function ChatWindow({
 
     forceScrollRef.current = false;
     lastSeenMessageIdRef.current = lastMessageId;
-  }, [messages, scrollToBottom, isNearBottom]);
+    updateScrollDownVisible();
+  }, [messages, scrollToBottom, isNearBottom, firstUnreadId, initialScrollDone, updateScrollDownVisible]);
 
   useEffect(() => {
     if (siteSlug === "subs-store") return;
@@ -210,7 +254,11 @@ export function ChatWindow({
   }, []);
 
   const postChatMessage = useCallback(
-    async (text: string, attachment?: { url: string; type: string; name: string }) => {
+    async (
+      text: string,
+      attachment?: { url: string; type: string; name: string },
+      replyToMessageId?: string | null,
+    ) => {
       const isSubs = siteSlug === "subs-store";
       const subsStaff = isSubs && viewerIsStaff;
       const res = await fetch(
@@ -225,11 +273,12 @@ export function ChatWindow({
           credentials: "include",
           body: JSON.stringify(
             isSubs
-              ? { thread_id: sessionId, content: text.trim() }
+              ? { thread_id: sessionId, content: text.trim(), reply_to_message_id: replyToMessageId ?? null }
               : {
                   session_id: sessionId,
                   content: text.trim(),
                   attachment: attachment ?? null,
+                  reply_to_message_id: replyToMessageId ?? null,
                 },
           ),
         },
@@ -248,8 +297,9 @@ export function ChatWindow({
   const handleSend = async (
     text: string,
     attachment?: { url: string; type: string; name: string },
+    replyToMessageId?: string | null,
   ) => {
-    const data = await postChatMessage(text, attachment);
+    const data = await postChatMessage(text, attachment, replyToMessageId);
     const toAdd: ChatMessage[] = [];
     if (data.message) toAdd.push(data.message);
     if (data.autoReply) toAdd.push(data.autoReply);
@@ -258,8 +308,40 @@ export function ChatWindow({
       setMessages((prev) => mergeById(prev, toAdd));
       scrollToBottom(true);
     }
+    setReplyTo(null);
     void loadMessages({ silent: true });
   };
+
+  const handleDelete = useCallback(
+    async (msg: ChatMessage) => {
+      if (!viewerIsStaff) return;
+      if (!window.confirm("Удалить сообщение?")) return;
+      const isSubs = siteSlug === "subs-store";
+      const url = isSubs ? "/api/admin/subs-store/chat/messages" : "/api/chat/messages";
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: msg.id, action: "delete" }),
+      });
+      if (!res.ok) return;
+      void loadMessages({ silent: true });
+    },
+    [viewerIsStaff, siteSlug, loadMessages],
+  );
+
+  const handleJumpToMessage = useCallback((messageId: string) => {
+    if (!messageId) return;
+    const target = document.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null;
+    if (!target) {
+      setError("Исходное сообщение не найдено");
+      window.setTimeout(() => setError((prev) => (prev === "Исходное сообщение не найдено" ? null : prev)), 1600);
+      return;
+    }
+    setHighlightMessageId(messageId);
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => setHighlightMessageId((prev) => (prev === messageId ? null : prev)), 2200);
+  }, []);
 
   /** Кнопки FAQ: сразу вопрос клиента, через ~1 с — автоответ, параллельно сохранение в БД. */
   const handleQuickFaqClick = async (faqMessage: string) => {
@@ -411,10 +493,12 @@ export function ChatWindow({
       </div>
       )}
 
+      <div className="relative min-h-0 flex-1">
       <div
         ref={messagesContainerRef}
+        onScroll={updateScrollDownVisible}
         className={cn(
-          "min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-4",
+          "h-full space-y-4 overflow-y-auto p-3 sm:p-4",
           isSubs ? "bg-[#0d0d0d]" : "bg-gray-50",
         )}
       >
@@ -478,12 +562,32 @@ export function ChatWindow({
                 <div className={cn("h-px flex-1", isSubs ? "bg-white/10" : "bg-gray-200")} />
               </div>
               {dayMsgs.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  isOwn={messageIsOwn(msg, currentUser.id, viewerIsStaff, siteSlug)}
-                  variant={chatVariant}
-                />
+                <div key={msg.id} data-message-id={msg.id}>
+                  {firstUnreadId && msg.id === firstUnreadId && (
+                    <div className="mb-2 mt-1 flex items-center gap-2">
+                      <div className={cn("h-px flex-1", isSubs ? "bg-[#1DB954]/35" : "bg-[#10a37f]/35")} />
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                          isSubs ? "bg-[#1DB954]/15 text-[#1DB954]" : "bg-[#10a37f]/10 text-[#0f7d62]",
+                        )}
+                      >
+                        Непрочитанные сообщения
+                      </span>
+                      <div className={cn("h-px flex-1", isSubs ? "bg-[#1DB954]/35" : "bg-[#10a37f]/35")} />
+                    </div>
+                  )}
+                  <MessageBubble
+                    message={msg}
+                    isOwn={messageIsOwn(msg, currentUser.id, viewerIsStaff, siteSlug)}
+                    variant={chatVariant}
+                    canModerate={viewerIsStaff}
+                    onReply={(m) => setReplyTo(m)}
+                    onDelete={handleDelete}
+                    onJumpToMessage={handleJumpToMessage}
+                    highlight={highlightMessageId === msg.id}
+                  />
+                </div>
               ))}
             </div>
           ))}
@@ -506,7 +610,54 @@ export function ChatWindow({
         <div ref={bottomRef} />
       </div>
 
+      {showScrollDown && !loading && (
+        <button
+          type="button"
+          onClick={() => {
+            forceScrollRef.current = true;
+            scrollToBottom(true);
+            setShowScrollDown(false);
+          }}
+          className={cn(
+            "absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full shadow-lg transition-opacity",
+            isSubs ? "bg-[#1DB954] text-white hover:bg-[#1ed760]" : "bg-[#10a37f] text-white hover:bg-[#0d8f68]",
+          )}
+          title="К последним сообщениям"
+          aria-label="К последним сообщениям"
+        >
+          <ChevronDown className="h-5 w-5" />
+        </button>
+      )}
+      </div>
+
       <div className={cn("sticky bottom-0 z-20", isSubs ? "bg-[#111111]" : "bg-white")}>
+        {!error && viewerIsStaff && !closed && (
+          <div
+            className={cn(
+              "border-t px-3 pt-2",
+              isSubs ? "border-white/10 bg-[#111111]" : "border-gray-100 bg-white",
+            )}
+          >
+            <div className="flex flex-wrap gap-1.5 pb-2 md:flex-nowrap md:overflow-x-auto">
+              {STAFF_CHAT_QUICK_REPLIES.map(({ label, message }) => (
+                <button
+                  key={message}
+                  type="button"
+                  onClick={() => setStaffInsertText(message)}
+                  className={cn(
+                    "max-w-full rounded-full border px-3 py-1.5 text-xs font-medium transition-colors md:shrink-0",
+                    isSubs
+                      ? "border-[#1DB954]/40 text-[#1DB954] hover:bg-[#1DB954]/10"
+                      : "border-[#10a37f]/40 text-[#0f7d62] hover:bg-[#10a37f]/8",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!error && !viewerIsStaff && !closed && (
           <div
             className={cn(
@@ -546,6 +697,20 @@ export function ChatWindow({
           disabled={closed}
           placeholder={closed ? "Чат закрыт" : "Напишите сообщение…"}
           variant={chatVariant}
+          replyTo={
+            replyTo
+              ? {
+                  id: replyTo.id,
+                  author: messageIsOwn(replyTo, currentUser.id, viewerIsStaff, siteSlug)
+                    ? "Вы"
+                    : replyAuthorLabel(replyTo),
+                  content: replyTo.content,
+                }
+              : null
+          }
+          onCancelReply={() => setReplyTo(null)}
+          insertText={staffInsertText}
+          onInsertConsumed={() => setStaffInsertText(null)}
         />
       </div>
     </div>

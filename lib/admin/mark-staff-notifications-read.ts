@@ -1,43 +1,44 @@
-import { createAdminClient } from "@/lib/supabase/server";
-import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
-import type { NotificationType } from "@/types/database";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Пометить уведомления, привязанные к чату, как прочитанные (после открытия диалога). */
+import { markStaffNotificationRead } from "@/lib/admin/staff-notification-reads";
+
+/** Пометить уведомления, привязанные к чату, как прочитанные для текущего staff (per-user). */
 export async function markStaffChatNotificationsRead(
-  entityId: string,
-  siteSlug: "gpt-store" | "subs-store",
+  admin: SupabaseClient,
+  params: {
+    entityId: string;
+    userId: string;
+  },
 ): Promise<void> {
-  if (!entityId.trim()) return;
+  const entityId = params.entityId.trim();
+  if (!entityId) return;
 
-  if (siteSlug === "subs-store") {
-    const subs = createSubsStoreAdminClient();
-    if (!subs) return;
-    await subs
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("entity_id", entityId)
-      .eq("type", "new_chat_message")
-      .eq("is_read", false);
-    return;
-  }
-
-  const admin = createAdminClient();
-  await admin
+  const { data } = await admin
     .from("notifications")
-    .update({ is_read: true })
+    .select("id")
     .eq("entity_id", entityId)
-    .in("type", ["new_chat_message"])
-    .eq("is_read", false);
+    .eq("type", "new_chat_message");
+
+  for (const row of data ?? []) {
+    await markStaffNotificationRead(admin, {
+      notificationId: String((row as { id: string }).id),
+      userId: params.userId,
+    });
+  }
 }
 
-/** Пометить уведомления по заказу прочитанными. */
+/** Пометить уведомления по заказу прочитанными для текущего staff (per-user). */
 export async function markStaffOrderNotificationsRead(
-  orderId: string,
-  siteSlug: "gpt-store" | "subs-store",
+  admin: SupabaseClient,
+  params: {
+    orderId: string;
+    userId: string;
+  },
 ): Promise<void> {
-  if (!orderId.trim()) return;
+  const orderId = params.orderId.trim();
+  if (!orderId) return;
 
-  const types: NotificationType[] = [
+  const types = [
     "new_order",
     "payment_success",
     "payment_failed",
@@ -46,23 +47,16 @@ export async function markStaffOrderNotificationsRead(
     "order_needs_data",
   ];
 
-  if (siteSlug === "subs-store") {
-    const subs = createSubsStoreAdminClient();
-    if (!subs) return;
-    await subs
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("entity_id", orderId)
-      .in("type", types)
-      .eq("is_read", false);
-    return;
-  }
-
-  const admin = createAdminClient();
-  await admin
+  const { data } = await admin
     .from("notifications")
-    .update({ is_read: true })
+    .select("id")
     .eq("entity_id", orderId)
-    .in("type", types)
-    .eq("is_read", false);
+    .in("type", types);
+
+  for (const row of data ?? []) {
+    await markStaffNotificationRead(admin, {
+      notificationId: String((row as { id: string }).id),
+      userId: params.userId,
+    });
+  }
 }

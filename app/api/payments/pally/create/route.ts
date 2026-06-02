@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { resolveGptCheckoutPlan, upsertGptPendingOrder } from "@/lib/checkout/resolve-gpt-checkout";
 import { ensureGptProfile } from "@/lib/orders/create-gpt-order";
@@ -129,7 +129,10 @@ export async function POST(request: NextRequest) {
 
     await admin
       .from("orders")
-      .update({ payment_id: payment.paymentId, pally_order_id: payment.paymentId })
+      .update({
+        payment_id: payment.paymentId,
+        pally_order_id: payment.paymentId,
+      })
       .eq("id", order.id);
 
     if (user.email) {

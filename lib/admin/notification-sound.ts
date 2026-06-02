@@ -7,8 +7,8 @@ export const NOTIFICATION_VOLUME_MIN = 1;
 export const NOTIFICATION_VOLUME_MAX = 10;
 export const NOTIFICATION_VOLUME_DEFAULT = 10;
 
-/** Пик gain на Web Audio при volume=10 (0.06 было почти неслышно). */
-const PEAK_GAIN_AT_MAX = 0.42;
+/** Пик gain на Web Audio при volume=10. */
+const PEAK_GAIN_AT_MAX = 0.72;
 
 export function clampNotificationVolume(value: number): number {
   if (!Number.isFinite(value)) return NOTIFICATION_VOLUME_DEFAULT;
@@ -93,13 +93,26 @@ export function playNotificationPing(options?: NotificationPingOptions): void {
     g.connect(ctx.destination);
     o.frequency.value = freq;
     const t0 = ctx.currentTime;
-    const dur = 0.22;
+    const dur = 0.28;
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0001), t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0001), t0 + 0.015);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.start(t0);
     o.stop(t0 + dur);
-    window.setTimeout(() => void ctx.close(), 400);
+
+    const o2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    o2.type = "sine";
+    o2.frequency.value = freq * 1.25;
+    o2.connect(g2);
+    g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.0001, t0 + 0.08);
+    g2.gain.exponentialRampToValueAtTime(Math.max(peak * 0.55, 0.0001), t0 + 0.1);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.05);
+    o2.start(t0 + 0.08);
+    o2.stop(t0 + dur + 0.06);
+
+    window.setTimeout(() => void ctx.close(), 500);
   } catch {
     /* noop */
   }

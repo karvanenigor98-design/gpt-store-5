@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { tryCreateClient } from "@/lib/supabase/server";
 import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
 import {
   applySiteUiLogoutFromRequest,
@@ -24,15 +24,20 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(new URL(redirectPath, request.url));
 
   if (global) {
-    const supabase = await createClient();
-    await supabase.auth.signOut({ scope: "global" });
+    const gpt = await tryCreateClient();
+    if (gpt) await gpt.auth.signOut({ scope: "global" }).catch(() => undefined);
     const subs = await createSubsAuthServerClient();
-    if (subs) {
-      await subs.auth.signOut({ scope: "global" });
-    }
+    if (subs) await subs.auth.signOut({ scope: "global" }).catch(() => undefined);
     clearAllSiteUiLogouts(response);
   } else {
-    // Выход только с текущего магазина — Supabase-сессия остаётся для другого лендинга.
+    // Выход с текущего магазина: сбрасываем Supabase-сессию этого проекта + UI-флаг.
+    if (site === "subs-store") {
+      const subs = await createSubsAuthServerClient();
+      if (subs) await subs.auth.signOut({ scope: "local" }).catch(() => undefined);
+    } else {
+      const gpt = await tryCreateClient();
+      if (gpt) await gpt.auth.signOut({ scope: "local" }).catch(() => undefined);
+    }
     applySiteUiLogoutFromRequest(request, response);
   }
 

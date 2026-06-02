@@ -9,22 +9,10 @@ import {
   countSubsStoreUnreadNotifications,
 } from "@/lib/admin/staff-notification-unread-count";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
+import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
-import { resolveServerRole } from "@/lib/auth/server-role";
-import { createAdminClient, createClient } from "@/lib/supabase/server";
-
-async function requireStaff() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = await resolveServerRole(user);
-  if (role !== "admin" && role !== "operator") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  return { user, role, admin: createAdminClient() };
-}
+import { requireStaffApi } from "@/lib/admin/require-staff-api";
+import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 function parseOrdersSince(raw: string | null): string | null {
   if (!raw?.trim()) return null;
@@ -40,16 +28,30 @@ export async function GET(req: NextRequest) {
   if (siteSlug === "subs-store") {
     const ctx = await requireSubsStaffContext();
     if (ctx instanceof NextResponse) return ctx;
-    const { subs, user, role } = ctx;
+    const { subs, gptAdmin, user, role } = ctx;
 
     let ordersQ = subs.from("orders").select("id", { count: "exact", head: true });
     if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
     const ordersRes = await ordersQ;
 
-    const [chatUnread, notifUnread] = await Promise.all([
-      countSubsStoreUnreadClientMessages(subs),
-      countSubsStoreUnreadNotifications(subs, { userId: user.id, role }),
-    ]);
+    const accessible = await listAccessibleAdminSiteSlugs(user, gptAdmin, role);
+    const notifTasks: Promise<number>[] = [];
+    if (accessible.includes("subs-store")) {
+      notifTasks.push(countSubsStoreUnreadNotifications(subs, { userId: user.id, role }));
+    }
+    if (accessible.includes("gpt-store")) {
+      notifTasks.push(
+        countGptStoreUnreadNotifications(gptAdmin, {
+          userId: user.id,
+          role,
+          siteSlug: "gpt-store",
+        }),
+      );
+    }
+    const notifCounts = await Promise.all(notifTasks);
+    const notifUnread = notifCounts.reduce((sum, n) => sum + n, 0);
+
+    const chatUnread = await countSubsStoreUnreadClientMessages(subs);
 
     return NextResponse.json({
       notifications: notifUnread,
@@ -58,23 +60,40 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const ctx = await requireStaff();
+  const ctx = await requireStaffApi();
   if (ctx instanceof NextResponse) return ctx;
   const { admin, user, role } = ctx;
 
+  const accessible = await listAccessibleAdminSiteSlugs(user, admin, role);
   const gptSiteId = await getSiteUUID("gpt-store");
   let ordersQ = admin.from("orders").select("id", { count: "exact", head: true });
   if (gptSiteId) ordersQ = ordersQ.eq("site_id", gptSiteId);
   if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
 
-  const [ordersRes, chatUnread, notifUnread] = await Promise.all([
+  const notifTasks: Promise<number>[] = [];
+  if (accessible.includes("gpt-store")) {
+    notifTasks.push(
+      countGptStoreUnreadNotifications(admin, {
+        userId: user.id,
+        role,
+        siteSlug: "gpt-store",
+      }),
+    );
+  }
+  if (accessible.includes("subs-store")) {
+    const subs = createSubsStoreAdminClient();
+    if (subs) {
+      notifTasks.push(
+        countSubsStoreUnreadNotifications(subs, { userId: user.id, role }),
+      );
+    }
+  }
+  const notifCounts = await Promise.all(notifTasks);
+  const notifUnread = notifCounts.reduce((sum, n) => sum + n, 0);
+
+  const [ordersRes, chatUnread] = await Promise.all([
     ordersQ,
     countGptStoreUnreadClientMessages(admin, "gpt-store"),
-    countGptStoreUnreadNotifications(admin, {
-      userId: user.id,
-      role,
-      siteSlug: "gpt-store",
-    }),
   ]);
 
   return NextResponse.json({

@@ -5,6 +5,13 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 const FALLBACK_COLORS = ["#10a37f", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
+const MIN_PUBLIC_REVIEW_RATING = 1;
+const MIN_PUBLIC_REVIEW_TEXT_LENGTH = 12;
+
+function isMissingColumnError(message: string | null | undefined): boolean {
+  const m = String(message ?? "").toLowerCase();
+  return m.includes("column") || m.includes("does not exist") || m.includes("schema cache");
+}
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -39,12 +46,12 @@ function mapGptRow(
   idx: number,
 ): PublicReview | null {
   const text = (item.content ?? "").trim();
-  if (text.length < 6) return null;
+  if (text.length < MIN_PUBLIC_REVIEW_TEXT_LENGTH) return null;
   const rating =
     item.rating != null && Number.isFinite(item.rating)
       ? Math.min(5, Math.max(1, Math.round(Number(item.rating))))
       : null;
-  if (!rating) return null;
+  if (!rating || rating < MIN_PUBLIC_REVIEW_RATING) return null;
 
   const { displayName: authorName, username: resolvedUsername } = resolveReviewAuthorDisplay({
     authorName: item.author_name?.trim() || "Клиент",
@@ -83,7 +90,7 @@ export async function loadGptPublishedDbReviews(
     .select(
       "id, author_name, author_username, content, rating, telegram_date, published_at, created_at, original_url",
     )
-    .eq("status", "approved")
+    .in("status", ["approved", "published"])
     .not("rating", "is", null)
     .not("content", "is", null)
     .order("published_at", { ascending: false, nullsFirst: false })
@@ -91,13 +98,47 @@ export async function loadGptPublishedDbReviews(
     .limit(limit);
 
   if (siteId) {
-    query = query.eq("site_id", siteId);
+    if (siteSlug === "gpt-store") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof query;
+    } else {
+      query = query.eq("site_id", siteId);
+    }
   }
 
-  const { data, error } = (await query) as {
+  let { data, error } = (await query) as {
     data: Record<string, unknown>[] | null;
     error: { message: string } | null;
   };
+
+  if (error && isMissingColumnError(error.message)) {
+    // Legacy-safe fallback: published_at/site_id may be absent in older schemas.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let fallbackQuery = (admin.from("reviews") as any)
+      .select("id, author_name, author_username, content, rating, telegram_date, created_at, original_url, status")
+      .in("status", ["approved", "published"])
+      .not("rating", "is", null)
+      .not("content", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (siteId && siteSlug === "gpt-store") {
+      try {
+        // If site_id exists — keep strict GPT filter + legacy null rows.
+        fallbackQuery = fallbackQuery.or(`site_id.eq.${siteId},site_id.is.null`);
+      } catch {
+        /* site_id absent — keep fallback query as-is */
+      }
+    }
+
+    const fallback = (await fallbackQuery) as {
+      data: Record<string, unknown>[] | null;
+      error: { message: string } | null;
+    };
+    data = fallback.data;
+    error = fallback.error;
+  }
+
   if (error || !data?.length) return [];
 
   const out: PublicReview[] = [];
@@ -129,13 +170,22 @@ export async function loadSubsPublishedDbReviews(limit = 200): Promise<PublicRev
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let { data, error } = (await (subs.from("reviews") as any)
     .select("id,name,text,rating,created_at,published_at,status,is_published")
-    .eq("status", "approved")
     .eq("is_published", true)
     .not("rating", "is", null)
+    .not("text", "is", null)
+    .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(limit)) as { data: Record<string, unknown>[] | null; error: { message: string } | null };
 
+  if (!error && data?.length) {
+    data = data.filter((row) => {
+      const status = (row as { status?: string }).status;
+      return !status || status === "approved" || status === "published";
+    });
+  }
+
   if (error?.message?.toLowerCase().includes("column")) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fallback = (await (subs.from("reviews") as any)
       .select("id,name,text,rating,created_at,is_published")
       .eq("is_published", true)
@@ -159,8 +209,9 @@ export async function loadSubsPublishedDbReviews(limit = 200): Promise<PublicRev
       published_at?: string | null;
     };
     const text = String(row.text ?? "").trim();
-    if (text.length < 6) continue;
+    if (text.length < MIN_PUBLIC_REVIEW_TEXT_LENGTH) continue;
     const rating = Math.min(5, Math.max(1, Math.round(Number(row.rating))));
+    if (rating < MIN_PUBLIC_REVIEW_RATING) continue;
     const authorName = (row.name && String(row.name).trim()) || "Клиент";
     const authorKey = normalizeAuthorKey(authorName);
     const sortTs = row.published_at ?? row.created_at ?? null;

@@ -3,6 +3,8 @@
 import type { ChatMessage } from "@/types";
 import { formatTime, isImageType, sanitizeText } from "@/lib/chat/constants";
 import { cn } from "@/lib/utils";
+import { CornerDownRight, MoreVertical } from "lucide-react";
+import { replyAuthorLabel, truncateForPreview } from "@/lib/chat/message-utils";
 
 export type ChatUiVariant = "gpt" | "subs";
 
@@ -10,6 +12,11 @@ interface MessageBubbleProps {
   message: ChatMessage;
   isOwn: boolean;
   variant?: ChatUiVariant;
+  canModerate?: boolean;
+  onReply?: (message: ChatMessage) => void;
+  onDelete?: (message: ChatMessage) => void;
+  onJumpToMessage?: (messageId: string) => void;
+  highlight?: boolean;
 }
 
 type Attachment = { url?: string; type?: string; name?: string };
@@ -42,12 +49,22 @@ function avatarLetter(msg: ChatMessage): string {
   return label.slice(0, 1).toUpperCase();
 }
 
-export function MessageBubble({ message, isOwn, variant = "gpt" }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  isOwn,
+  variant = "gpt",
+  canModerate = false,
+  onReply,
+  onDelete,
+  onJumpToMessage,
+  highlight = false,
+}: MessageBubbleProps) {
   const isSubs = variant === "subs";
   const isAI = message.sender_type === "ai";
   const isAuto = message.sender_type === "auto" || message.is_auto_reply;
   const label = !isOwn ? senderLabel(message) : null;
   const att = getAttachment(message);
+  const canShowMenu = Boolean(onReply) || (canModerate && Boolean(onDelete));
 
   return (
     <div
@@ -74,7 +91,12 @@ export function MessageBubble({ message, isOwn, variant = "gpt" }: MessageBubble
         </div>
       )}
 
-      <div className="flex min-w-0 flex-col gap-0.5">
+      <div
+        className={cn(
+          "group relative flex min-w-0 flex-col gap-0.5 rounded-xl",
+          highlight && (isSubs ? "ring-1 ring-[#1DB954]/55" : "ring-1 ring-[#10a37f]/50"),
+        )}
+      >
         {!isOwn && label && (
           <span className={cn("px-1 text-xs", isSubs ? "text-gray-500" : "text-gray-400")}>{label}</span>
         )}
@@ -99,6 +121,31 @@ export function MessageBubble({ message, isOwn, variant = "gpt" }: MessageBubble
                     : "rounded-tl-sm border border-gray-100 bg-white text-gray-800 shadow-sm",
           )}
         >
+          {message.reply_to_message && (
+            <button
+              type="button"
+              onClick={() => {
+                if (message.reply_to_message?.id) onJumpToMessage?.(message.reply_to_message.id);
+              }}
+              className={cn(
+                "mb-2 flex w-full gap-1.5 rounded-lg border px-2 py-1.5 text-left text-xs transition-colors hover:opacity-90",
+                isSubs ? "border-white/10 bg-black/25 text-gray-300" : "border-black/10 bg-black/5 text-gray-600",
+                onJumpToMessage && "cursor-pointer",
+              )}
+            >
+              <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+              <span className="min-w-0">
+                <span className="block font-semibold opacity-80">
+                  {replyAuthorLabel(message.reply_to_message, { selfLabel: "Вы" })}
+                </span>
+                <span className="line-clamp-2">
+                  {message.reply_to_message.is_deleted
+                    ? "Сообщение удалено"
+                    : truncateForPreview(message.reply_to_message.content ?? "")}
+                </span>
+              </span>
+            </button>
+          )}
           {att?.url && (
             <div className="mb-2">
               {att.type && isImageType(att.type) ? (
@@ -132,6 +179,46 @@ export function MessageBubble({ message, isOwn, variant = "gpt" }: MessageBubble
             />
           )}
         </div>
+
+        {canShowMenu && (
+          <div
+            className={cn(
+              "absolute -top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100",
+              isOwn ? "-left-8" : "-right-8",
+            )}
+          >
+            <details className="relative">
+              <summary className="list-none cursor-pointer rounded-md border border-black/10 bg-white/90 p-1 text-gray-500 hover:bg-white">
+                <MoreVertical className="h-3.5 w-3.5" />
+              </summary>
+              <div
+                className={cn(
+                  "absolute mt-1 min-w-[120px] rounded-md border border-black/10 bg-white p-1 shadow-lg",
+                  isOwn ? "right-0" : "left-0",
+                )}
+              >
+                {onReply && (
+                  <button
+                    type="button"
+                    onClick={() => onReply(message)}
+                    className="block w-full rounded px-2 py-1 text-left text-xs text-gray-700 hover:bg-gray-100"
+                  >
+                    Ответить
+                  </button>
+                )}
+                {canModerate && onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(message)}
+                    className="block w-full rounded px-2 py-1 text-left text-xs text-red-600 hover:bg-red-50"
+                  >
+                    Удалить
+                  </button>
+                )}
+              </div>
+            </details>
+          </div>
+        )}
 
         <div
           className={cn("flex items-center gap-1 px-1", isOwn ? "justify-end" : "justify-start")}

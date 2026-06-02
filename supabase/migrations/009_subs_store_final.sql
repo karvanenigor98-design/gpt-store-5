@@ -1,6 +1,6 @@
--- ============================================================
--- Migration 009: Subs Store final setup
--- Idempotent — safe to run multiple times.
+﻿-- ============================================================
+-- Migration 009: Spotify Store final setup
+-- Idempotent вЂ” safe to run multiple times.
 -- Run in: Supabase Dashboard -> SQL Editor -> paste -> Run
 -- ============================================================
 
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.sites (
 INSERT INTO public.sites (slug, brand_name, product_type, support_telegram, support_email, primary_color, accent_color, seo_title)
 VALUES
   ('gpt-store',  'GPT STORE',  'chatgpt', '@subrfmanager', 'nbuzanov0@mail.ru', '#10a37f', '#10a37f', 'GPT STORE - ChatGPT Plus bez inostrannoj karty'),
-  ('subs-store', 'Subs Store', 'spotify',  '@subs_support', 'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Subs Store - Spotify Premium v Rossii')
+  ('subs-store', 'Spotify Store', 'spotify',  '@subs_support', 'nbuzanov0@mail.ru', '#1DB954', '#1DB954', 'Spotify Store - Spotify Premium v Rossii')
 ON CONFLICT (slug) DO UPDATE
   SET brand_name       = EXCLUDED.brand_name,
       product_type     = EXCLUDED.product_type,
@@ -238,3 +238,4 @@ ON CONFLICT (user_id, site_slug) DO UPDATE SET role = 'admin', updated_at = now(
 --   SELECT site_slug, count(*) FROM public.site_memberships GROUP BY site_slug;
 --   SELECT count(*) FROM public.orders WHERE site_id IS NOT NULL;
 -- ============================================================
+
