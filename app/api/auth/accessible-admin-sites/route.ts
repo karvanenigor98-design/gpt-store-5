@@ -22,8 +22,8 @@ export async function GET() {
   }
 
   const role = await resolveServerRole(user);
-  if (role !== "admin") {
-    return NextResponse.json({ sites: [] as const });
+  if (role !== "admin" && role !== "operator") {
+    return NextResponse.json({ sites: ["gpt-store"] as const });
   }
 
   const gptAdmin = tryCreateAdminClient();

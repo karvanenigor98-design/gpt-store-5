@@ -43,13 +43,3 @@ export async function requireStaffApi(): Promise<StaffApiContext | NextResponse>
 
   return { user, role, admin };
 }
-
-/** GPT admin API: только role=admin (операторы — /operator и свои API). */
-export async function requireAdminApi(): Promise<StaffApiContext | NextResponse> {
-  const ctx = await requireStaffApi();
-  if (ctx instanceof NextResponse) return ctx;
-  if (ctx.role !== "admin") {
-    return NextResponse.json({ error: "Только администратор" }, { status: 403 });
-  }
-  return ctx;
-}

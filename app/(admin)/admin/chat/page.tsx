@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { OperatorPanel } from "@/components/chat/OperatorPanel";
-import { requireAdminPage } from "@/lib/auth/requireAdminPage";
-import { createAdminClient } from "@/lib/supabase/server";
+import { resolveServerRole } from "@/lib/auth/server-role";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getSiteBySlug } from "@/lib/sites";
 import type { Profile } from "@/types";
@@ -20,7 +20,19 @@ export default async function AdminChatPage({
   const siteSlug = resolveAdminSiteSlug(params);
   const site = getSiteBySlug(siteSlug);
 
-  const { user, role } = await requireAdminPage();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?returnUrl=/admin/chat");
+  }
+
+  const role = await resolveServerRole(user);
+  if (role !== "admin" && role !== "operator") {
+    redirect("/dashboard");
+  }
 
   const admin = createAdminClient();
   const { data: profileRow } = await admin

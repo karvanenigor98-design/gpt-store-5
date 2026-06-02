@@ -1,4 +1,3 @@
-import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -10,7 +9,6 @@ import type { UserRole } from "@/types/database";
  */
 export async function requireAdminPage(): Promise<{
   role: "admin";
-  user: User;
 }> {
   const supabase = await tryCreateClient();
   if (!supabase) {
@@ -30,5 +28,5 @@ export async function requireAdminPage(): Promise<{
   if (role !== "admin") {
     redirect("/dashboard?site=gpt-store");
   }
-  return { role: "admin", user };
+  return { role: "admin" };
 }

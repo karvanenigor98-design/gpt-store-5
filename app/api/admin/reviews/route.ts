@@ -15,7 +15,7 @@ async function requireStaff() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const role = await resolveServerRole(user);
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return { user, admin: createAdminClient() };

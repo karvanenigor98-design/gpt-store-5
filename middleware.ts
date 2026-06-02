@@ -253,29 +253,41 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (gptUser && path.startsWith("/admin")) {
+  const isDashboardHome =
+    path === "/dashboard" ||
+    path === "/cabinet" ||
+    path === "/dashboard/" ||
+    path === "/cabinet/";
+
+  if (
+    gptUser &&
+    isDashboardHome &&
+    !request.nextUrl.searchParams.has("view") &&
+    request.nextUrl.searchParams.get("view") !== "client"
+  ) {
     const role = await resolveServerRole(gptUser);
-    if (role !== "admin") {
-      const target =
-        role === "operator"
-          ? `/operator${path.replace(/^\/admin/, "")}${request.nextUrl.search}`
-          : `/dashboard?site=gpt-store`;
-      return redirectPreservingCookies(new URL(target, request.url), supabaseResponse);
+    if (role === "admin") {
+      return redirectPreservingCookies(new URL("/admin", request.url), supabaseResponse);
+    }
+    if (role === "operator") {
+      return redirectPreservingCookies(new URL("/operator", request.url), supabaseResponse);
     }
   }
 
-  if (gptUser && path.startsWith("/operator")) {
+  if (gptUser && (path.startsWith("/admin") || path.startsWith("/operator"))) {
     const role = await resolveServerRole(gptUser);
-    if (role === "admin") {
-      const suffix = path.replace(/^\/operator/, "") || "";
+
+    if (path.startsWith("/admin") && role === "operator") {
+      const suffix = path.replace(/^\/admin/, "") || "";
       return redirectPreservingCookies(
-        new URL(`/admin${suffix}${request.nextUrl.search}`, request.url),
+        new URL(`/operator${suffix}${request.nextUrl.search}`, request.url),
         supabaseResponse,
       );
     }
-    if (role !== "operator") {
+    if (path.startsWith("/operator") && role === "admin") {
+      const suffix = path.replace(/^\/operator/, "") || "";
       return redirectPreservingCookies(
-        new URL("/dashboard?site=gpt-store", request.url),
+        new URL(`/admin${suffix}${request.nextUrl.search}`, request.url),
         supabaseResponse,
       );
     }

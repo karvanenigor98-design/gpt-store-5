@@ -6,7 +6,7 @@ import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 
 /** Список тарифов Subs Store (slug, title, price) для промокодов и страницы /admin/tariffs — чтение доступно операторам. */
 export async function GET() {
-  const ctx = await requireSubsStaffContext({ adminOnly: true });
+  const ctx = await requireSubsStaffContext();
   if (ctx instanceof NextResponse) return ctx;
 
   const { items, error } = await fetchSubsTariffsForAdmin(ctx.subs);

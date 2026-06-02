@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, ShoppingBag, MessageCircle, User, Star, Bell } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, MessageCircle, User, Star, Bell, Shield } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { getSiteBySlug, type SiteSlug } from '@/lib/sites'
 import { useClientNotificationsContext } from '@/components/dashboard/ClientNotificationsContext'
@@ -19,6 +19,8 @@ export const DASHBOARD_NAV_ITEMS = [
 interface NavProps {
   /** Server-resolved site slug (from cookie). */
   defaultSiteSlug: SiteSlug;
+  /** Ссылка на /admin или /operator для staff (GPT Auth). */
+  staffPanelHref?: '/admin' | '/operator' | null;
 }
 
 function resolveSiteSlug(defaultSiteSlug?: SiteSlug): SiteSlug {
@@ -34,7 +36,7 @@ function navItemActive(pathname: string, base: string): boolean {
   return pathname === base || pathname.startsWith(`${base}/`)
 }
 
-export function DashboardNav({ defaultSiteSlug }: NavProps) {
+export function DashboardNav({ defaultSiteSlug, staffPanelHref }: NavProps) {
   const pathname = usePathname()
   const siteSlug = resolveSiteSlug(defaultSiteSlug)
   const site = getSiteBySlug(siteSlug)
@@ -44,6 +46,15 @@ export function DashboardNav({ defaultSiteSlug }: NavProps) {
 
   return (
     <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
+      {staffPanelHref ? (
+        <Link
+          href={staffPanelHref}
+          className="mb-2 flex items-center gap-2.5 rounded-lg border border-[#10a37f]/40 bg-[#10a37f]/15 px-3 py-2.5 text-sm font-semibold text-[#6ee7b7] transition-colors hover:bg-[#10a37f]/25"
+        >
+          <Shield size={16} className="text-[#10a37f]" />
+          Админ-панель
+        </Link>
+      ) : null}
       {DASHBOARD_NAV_ITEMS.map((item) => {
         const href = item.base + siteQuery
         const isActive = navItemActive(pathname, item.base)
@@ -78,7 +89,7 @@ export function DashboardNav({ defaultSiteSlug }: NavProps) {
   )
 }
 
-export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
+export function DashboardMobileNav({ defaultSiteSlug, staffPanelHref }: NavProps) {
   const pathname = usePathname()
   const siteSlug = resolveSiteSlug(defaultSiteSlug)
   const site = getSiteBySlug(siteSlug)
@@ -97,6 +108,17 @@ export function DashboardMobileNav({ defaultSiteSlug }: NavProps) {
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.35rem)' }}
       aria-label="Навигация кабинета"
     >
+      {staffPanelHref ? (
+        <Link
+          href={staffPanelHref}
+          className="flex min-h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 py-1.5 text-[10px] font-semibold leading-tight text-[#10a37f]"
+        >
+          <span className="flex items-center justify-center rounded-xl bg-[#10a37f]/15 px-2 py-1">
+            <Shield size={20} strokeWidth={2.5} />
+          </span>
+          <span className="max-w-full truncate text-center">Админ</span>
+        </Link>
+      ) : null}
       {DASHBOARD_NAV_ITEMS.map((item) => {
         const href = item.base + siteQuery
         const isActive = navItemActive(pathname, item.base)
