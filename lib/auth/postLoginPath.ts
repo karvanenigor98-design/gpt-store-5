@@ -1,3 +1,7 @@
+import {
+  isStaffClientCabinetView,
+  staffPanelHomeForRole,
+} from "@/lib/auth/staff-cabinet-access";
 import type { UserRole } from "@/types/database";
 
 /**
@@ -9,12 +13,13 @@ export function resolvePostLoginPath(returnUrl: string, role: UserRole): string 
     returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/dashboard";
 
   if (role === "admin" || role === "operator") {
-    const staffBase = role === "admin" ? "/admin" : "/operator";
+    const staffBase = staffPanelHomeForRole(role)!;
     if (safe.startsWith("/dashboard/chat")) {
       return `${staffBase}/chat`;
     }
     if (safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) {
-      return safe;
+      if (isStaffClientCabinetView(safe)) return safe;
+      return staffBase;
     }
     if (
       safe === "/" ||

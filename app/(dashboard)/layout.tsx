@@ -17,6 +17,7 @@ import { isSiteUiLoggedOut, type SiteSlug } from "@/lib/auth/siteUiSession";
 import { getSiteBySlug } from "@/lib/sites";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
+import { resolveStaffAwayFromClientCabinet } from "@/lib/auth/staff-cabinet-access";
 import { resolveDashboardStaffContext } from "@/lib/auth/resolve-dashboard-staff";
 
 export const dynamic = "force-dynamic";
@@ -102,14 +103,10 @@ export default async function DashboardLayout({
   const fallbackLandingPath = site.landingPath;
 
   const staff = await resolveDashboardStaffContext(siteSlug, user);
-  const isCabinetHome =
-    invokePath === "/dashboard" ||
-    invokePath === "/cabinet" ||
-    invokePath === "/dashboard/" ||
-    invokePath === "/cabinet/";
   const viewClient = invokeSearch.includes("view=client");
-  if (staff.panelHref && isCabinetHome && !viewClient) {
-    redirect(staff.panelHref);
+  const staffAway = resolveStaffAwayFromClientCabinet(staff.role, invokePath, invokeSearch);
+  if (staffAway) {
+    redirect(staffAway);
   }
 
   return (
@@ -136,7 +133,10 @@ export default async function DashboardLayout({
         </div>
 
         <Suspense fallback={<nav className="hidden flex-1 md:flex" aria-hidden />}>
-          <DashboardNav defaultSiteSlug={siteSlug} staffPanelHref={staff.panelHref} />
+          <DashboardNav
+            defaultSiteSlug={siteSlug}
+            staffPanelHref={viewClient ? staff.panelHref : null}
+          />
         </Suspense>
 
         <div className="border-t border-white/10 px-3 py-3">
@@ -221,7 +221,10 @@ export default async function DashboardLayout({
         </main>
       </div>
       <Suspense fallback={null}>
-        <DashboardMobileNav defaultSiteSlug={siteSlug} staffPanelHref={staff.panelHref} />
+        <DashboardMobileNav
+          defaultSiteSlug={siteSlug}
+          staffPanelHref={viewClient ? staff.panelHref : null}
+        />
       </Suspense>
       <AppNotificationToaster />
     </div>

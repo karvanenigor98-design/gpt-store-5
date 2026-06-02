@@ -1,6 +1,10 @@
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
+import {
+  isStaffClientCabinetView,
+  staffPanelHomeForRole,
+} from "@/lib/auth/staff-cabinet-access";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { tryCreateClient } from "@/lib/supabase/server";
@@ -9,9 +13,7 @@ import type { UserRole } from "@/types/database";
 export type StaffPanel = "admin" | "operator";
 
 export function staffPanelHome(role: UserRole): "/admin" | "/operator" | null {
-  if (role === "admin") return "/admin";
-  if (role === "operator") return "/operator";
-  return null;
+  return staffPanelHomeForRole(role);
 }
 
 export function staffLoginUrl(returnPath: string): string {
@@ -28,14 +30,20 @@ export function resolveStaffAuthRedirect(role: UserRole, returnUrl: string | nul
   if (role === "admin") {
     if (safe.startsWith("/operator")) return "/admin";
     if (safe.startsWith("/admin")) return safe;
-    if (safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) return safe;
+    if ((safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) && !isStaffClientCabinetView(safe)) {
+      return "/admin";
+    }
+    if (isStaffClientCabinetView(safe)) return safe;
     return "/admin";
   }
 
   if (role === "operator") {
     if (safe.startsWith("/admin")) return safe.replace(/^\/admin/, "/operator") || "/operator";
     if (safe.startsWith("/operator")) return safe;
-    if (safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) return safe;
+    if ((safe.startsWith("/dashboard") || safe.startsWith("/cabinet")) && !isStaffClientCabinetView(safe)) {
+      return "/operator";
+    }
+    if (isStaffClientCabinetView(safe)) return safe;
     return "/operator";
   }
 

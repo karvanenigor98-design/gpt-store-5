@@ -4,6 +4,7 @@ import {
   buildSpotifyLinkPreviewHtml,
   isLinkPreviewBot,
 } from "@/lib/brand/spotify-link-preview-html";
+import { resolveStaffAwayFromClientCabinet } from "@/lib/auth/staff-cabinet-access";
 import { resolveStaffAuthRedirect } from "@/lib/auth/staff-access";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import {
@@ -253,29 +254,27 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const isDashboardHome =
-    path === "/dashboard" ||
-    path === "/cabinet" ||
-    path === "/dashboard/" ||
-    path === "/cabinet/";
-
-  if (
-    gptUser &&
-    isDashboardHome &&
-    !request.nextUrl.searchParams.has("view") &&
-    request.nextUrl.searchParams.get("view") !== "client"
-  ) {
+  if (gptUser && (path.startsWith("/dashboard") || path.startsWith("/cabinet"))) {
     const role = await resolveServerRole(gptUser);
-    if (role === "admin") {
-      return redirectPreservingCookies(new URL("/admin", request.url), supabaseResponse);
-    }
-    if (role === "operator") {
-      return redirectPreservingCookies(new URL("/operator", request.url), supabaseResponse);
+    const staffAway = resolveStaffAwayFromClientCabinet(
+      role,
+      path,
+      request.nextUrl.search || "",
+    );
+    if (staffAway) {
+      return redirectPreservingCookies(new URL(staffAway, request.url), supabaseResponse);
     }
   }
 
   if (gptUser && (path.startsWith("/admin") || path.startsWith("/operator"))) {
     const role = await resolveServerRole(gptUser);
+
+    if (role !== "admin" && role !== "operator") {
+      return redirectPreservingCookies(
+        new URL("/dashboard?site=gpt-store", request.url),
+        supabaseResponse,
+      );
+    }
 
     if (path.startsWith("/admin") && role === "operator") {
       const suffix = path.replace(/^\/admin/, "") || "";
