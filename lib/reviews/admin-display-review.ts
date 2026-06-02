@@ -13,12 +13,14 @@ export function formatReviewAuthorLikeAdmin(input: {
 }): { authorName: string; authorUsername: string | null; initials: string } {
   const username = input.authorUsername?.replace(/^@+/, "").trim() || null;
   const rawName = (input.authorName ?? "").trim();
-  const authorName = rawName || username || "Аноним";
+  /** Как в админке: имя отдельно, @ник отдельно (не подставляем username в заголовок). */
+  const authorName = rawName || "Аноним";
+  const initialsSource = authorName !== "Аноним" ? authorName : username || authorName;
 
   return {
     authorName,
     authorUsername: username,
-    initials: initialsFromName(authorName),
+    initials: initialsFromName(initialsSource),
   };
 }
 

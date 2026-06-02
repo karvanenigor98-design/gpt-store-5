@@ -7,6 +7,7 @@ import { getSiteBySlug } from "@/lib/sites";
 import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
 import { createSubsStoreAdminClient, isSubsStoreBackendConfigured } from "@/lib/supabase/subs-store-admin";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { formatReviewAuthorLikeAdmin } from "@/lib/reviews/admin-display-review";
 import {
   loadGptAdminReviews,
   loadSubsAdminReviews,
@@ -91,14 +92,19 @@ export default async function AdminReviewsPage({
         <p className="max-w-xl text-sm text-gray-600">{setupHint}</p>
       ) : (
         <div className="space-y-3">
-          {reviews.map((review) => (
+          {reviews.map((review) => {
+            const { authorName, authorUsername } = formatReviewAuthorLikeAdmin({
+              authorName: review.author_name,
+              authorUsername: review.author_username,
+            });
+            return (
             <div key={review.id} className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-900">
-                    {review.author_name ?? "Аноним"}
-                    {review.author_username && (
-                      <span className="ml-2 text-xs text-gray-500">@{review.author_username}</span>
+                    {authorName}
+                    {authorUsername && (
+                      <span className="ml-2 text-xs text-gray-500">@{authorUsername}</span>
                     )}
                     {review.rating != null && (
                       <span className="ml-2 text-amber-500">{"★".repeat(review.rating)}</span>
@@ -119,7 +125,8 @@ export default async function AdminReviewsPage({
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
           {reviews.length === 0 && (
             <p className="text-sm text-gray-500">
               {status === "pending"

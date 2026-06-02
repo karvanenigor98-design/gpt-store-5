@@ -34,7 +34,7 @@ export async function loadGptAdminReviews(
     .select("id,author_name,author_username,content,telegram_date,created_at,published_at,status,rating")
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(5000);
 
   if (Array.isArray(statusFilter)) {
     query = query.in("status", statusFilter);
@@ -55,7 +55,7 @@ export async function loadGptAdminReviews(
     let fallbackQuery = (admin.from("reviews") as any)
       .select("id,author_name,author_username,content,telegram_date,created_at,status,rating")
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(5000);
     if (Array.isArray(statusFilter)) {
       fallbackQuery = fallbackQuery.in("status", statusFilter);
     } else {
