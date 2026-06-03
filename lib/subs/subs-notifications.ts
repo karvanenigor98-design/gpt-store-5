@@ -25,6 +25,8 @@ function staffInboxEmailsFromEnv(): string[] {
   const out: string[] = [];
   const direct = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   if (direct) out.push(direct);
+  const operatorDirect = process.env.OPERATOR_EMAIL?.trim().toLowerCase();
+  if (operatorDirect) out.push(operatorDirect);
   for (const raw of [process.env.ADMIN_EMAILS, process.env.OPERATOR_EMAILS]) {
     if (!raw?.trim()) continue;
     for (const e of raw.split(",")) {

@@ -54,18 +54,23 @@ async function userSiteAccessMap(): Promise<Map<string, Set<string>>> {
   return map;
 }
 
-function parseEnvStaffEmails(): string[] {
-  const out: string[] = [];
-  const direct = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  if (direct) out.push(direct);
-  for (const raw of [process.env.ADMIN_EMAILS, process.env.OPERATOR_EMAILS]) {
-    if (!raw?.trim()) continue;
-    for (const e of raw.split(",")) {
-      const n = e.trim().toLowerCase();
-      if (n) out.push(n);
-    }
-  }
-  return [...new Set(out)];
+function parseEnvStaffEmails(): { email: string; role: "admin" | "operator" }[] {
+  const out: { email: string; role: "admin" | "operator" }[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw: string | undefined, role: "admin" | "operator") => {
+    const n = raw?.trim().toLowerCase();
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    out.push({ email: n, role });
+  };
+
+  push(process.env.ADMIN_EMAIL, "admin");
+  for (const e of (process.env.ADMIN_EMAILS ?? "").split(",")) push(e, "admin");
+  push(process.env.OPERATOR_EMAIL, "operator");
+  for (const e of (process.env.OPERATOR_EMAILS ?? "").split(",")) push(e, "operator");
+
+  return out;
 }
 
 /** Staff с доступом к siteSlug; исключает автора действия. */
@@ -87,21 +92,29 @@ export async function collectStaffRecipientsForSite(
     if (excludeId && row.id === excludeId) continue;
     if (excludeEmail && email === excludeEmail) continue;
 
+    const role = row.role === "admin" ? "admin" : "operator";
+
+    /** Все операторы — на любую витрину (GPT + Spotify), без site_memberships. */
+    if (role === "operator") {
+      seen.add(email);
+      out.push({ userId: row.id, email, role });
+      continue;
+    }
+
     const pseudoUser = { id: row.id, email } as User;
     const sites = await listAccessibleAdminSiteSlugs(pseudoUser, gptAdmin, row.role);
     if (!sites.includes(siteSlug as "gpt-store" | "subs-store")) {
       const explicit = accessMap.get(row.id);
       if (explicit && !explicit.has(siteSlug)) continue;
-      if (!explicit && row.role !== "admin") continue;
+      if (!explicit) continue;
     }
 
-    const role = row.role === "admin" ? "admin" : "operator";
     seen.add(email);
     out.push({ userId: row.id, email, role });
   }
 
   const subs = createSubsStoreAdminClient();
-  if (subs && siteSlug === "subs-store") {
+  if (subs) {
     try {
       const { data } = await subs
         .from("profiles")
@@ -125,13 +138,32 @@ export async function collectStaffRecipientsForSite(
     }
   }
 
-  for (const email of parseEnvStaffEmails()) {
+  for (const { email, role } of parseEnvStaffEmails()) {
     if (seen.has(email)) continue;
     if (excludeEmail && email === excludeEmail) continue;
     seen.add(email);
-    out.push({ userId: null, email, role: "admin" });
+    out.push({ userId: null, email, role });
   }
 
+  return out;
+}
+
+/** Все staff-email (GPT + Subs), без дублей — для legacy notifyStaffEmails. */
+export async function collectStaffEmailsForAllSites(options?: {
+  excludeEmail?: string | null;
+}): Promise<string[]> {
+  const excludeEmail = normalizeAuthEmail(options?.excludeEmail);
+  const merged = [
+    ...(await collectStaffRecipientsForSite("gpt-store", { excludeEmail })),
+    ...(await collectStaffRecipientsForSite("subs-store", { excludeEmail })),
+  ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of merged) {
+    if (seen.has(r.email)) continue;
+    seen.add(r.email);
+    out.push(r.email);
+  }
   return out;
 }
 

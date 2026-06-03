@@ -5,6 +5,7 @@ import {
   emailStaffNewReview,
   emailStaffOrderProblem,
 } from "@/lib/email/notify-hooks";
+import { collectStaffEmailsForAllSites } from "@/lib/email/recipients";
 import {
   notifyAdminEmailFailure,
   sendTransactionalEmailMany,
@@ -32,6 +33,7 @@ export function resolveAdminNotificationEmail(): string | null {
 export function resolveStaffNotificationEmails(): string[] {
   const candidates = [
     process.env.ADMIN_EMAIL,
+    process.env.OPERATOR_EMAIL,
     process.env.SUPPORT_NOTIFICATION_EMAIL,
     ...(process.env.ADMIN_EMAILS ?? "").split(","),
     ...(process.env.OPERATOR_EMAILS ?? "").split(","),
@@ -57,8 +59,13 @@ export async function notifyStaffEmails(
   text: string,
   extraEmails?: string[],
 ): Promise<void> {
+  const fromProfiles = await collectStaffEmailsForAllSites();
   const recipients = Array.from(
-    new Set([...resolveStaffNotificationEmails(), ...(extraEmails ?? [])].map((x) => x.trim().toLowerCase()).filter(Boolean)),
+    new Set(
+      [...resolveStaffNotificationEmails(), ...fromProfiles, ...(extraEmails ?? [])]
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   );
   if (!recipients.length) {
     console.warn("[Email] notifyStaffEmails: нет получателей (ADMIN_EMAIL / profiles admin|operator)");
