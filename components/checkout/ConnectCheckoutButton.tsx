@@ -4,6 +4,7 @@ import { useState, type AnchorHTMLAttributes, type MouseEvent, type ReactNode } 
 import { useRouter } from "next/navigation";
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
 import { buildCheckoutPath } from "@/lib/checkout/checkout-intent";
 import { navigateToCheckoutOrAuth } from "@/lib/checkout/checkout-auth";
 
@@ -32,6 +33,9 @@ export function ConnectCheckoutButton({
     if (busy) return;
     setBusy(true);
     try {
+      if (siteSlug === "gpt-store") {
+        reachGptFunnelGoal("gpt_select_plan", { planId, source: "landing_pricing" });
+      }
       await navigateToCheckoutOrAuth({
         siteSlug,
         planId,

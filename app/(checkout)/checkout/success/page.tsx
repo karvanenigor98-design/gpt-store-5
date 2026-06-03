@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { GptFunnelSuccessGoal } from "@/components/analytics/GptFunnelSuccessGoal";
 import { CheckoutAfterPaymentRedirect } from "@/components/checkout/CheckoutAfterPaymentRedirect";
 import { CheckoutSuccessOrderRedirect } from "@/components/checkout/CheckoutSuccessOrderRedirect";
 import { reconcileUnpaidOrderPayment } from "@/lib/payments/reconcile-unpaid-order";
@@ -28,21 +29,27 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
 
   if (!orderId) {
     return (
-      <Suspense
-        fallback={
-          <div className="text-center text-sm text-gray-500">Переходим в кабинет…</div>
-        }
-      >
-        <CheckoutSuccessOrderRedirect />
-      </Suspense>
+      <>
+        <GptFunnelSuccessGoal siteSlug={siteSlug} />
+        <Suspense
+          fallback={
+            <div className="text-center text-sm text-gray-500">Переходим в кабинет…</div>
+          }
+        >
+          <CheckoutSuccessOrderRedirect />
+        </Suspense>
+      </>
     );
   }
 
   await reconcileUnpaidOrderPayment({ siteSlug, orderId }).catch(() => undefined);
 
   return (
-    <Suspense fallback={<div className="text-center text-sm text-gray-500">Подтверждаем оплату…</div>}>
-      <CheckoutAfterPaymentRedirect orderId={orderId} siteSlug={siteSlug} />
-    </Suspense>
+    <>
+      <GptFunnelSuccessGoal siteSlug={siteSlug} orderId={orderId} />
+      <Suspense fallback={<div className="text-center text-sm text-gray-500">Подтверждаем оплату…</div>}>
+        <CheckoutAfterPaymentRedirect orderId={orderId} siteSlug={siteSlug} />
+      </Suspense>
+    </>
   );
 }

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
 import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
 import { useCheckoutAuthGate } from "@/hooks/useCheckoutAuthGate";
+import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
 import { buildCheckoutAuthUrl, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 
 const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
@@ -37,6 +38,13 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   );
   const plansHashRef = useRef(JSON.stringify(runtimePlans));
   const selectedPlanIdRef = useRef<string | null>(null);
+  const checkoutStartGoalFired = useRef(false);
+
+  useEffect(() => {
+    if (!authGate.ready || checkoutStartGoalFired.current) return;
+    checkoutStartGoalFired.current = true;
+    reachGptFunnelGoal("gpt_checkout_start", { source: "checkout_page" });
+  }, [authGate.ready]);
 
   useEffect(() => {
     if (!authGate.ready || !authGate.intent) return;
@@ -68,6 +76,10 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     if (found) {
       setSelectedPlan(found);
       setStep((current) => (current > 1 ? current : 2));
+      reachGptFunnelGoal("gpt_select_plan", {
+        planId: found.id,
+        source: "checkout_url_or_intent",
+      });
     }
   }, [searchParams, runtimePlans, authGate.ready, authGate.intent]);
 
@@ -149,6 +161,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
   async function onPaymentSubmit() {
     if (!selectedPlan || selectedPlan.inStock === false || !accountEmail || !agreeTerms) return;
+    reachGptFunnelGoal("gpt_click_pay", { planId: selectedPlan.id, source: "checkout_step3" });
     setIsSubmitting(true);
     setError(null);
 
@@ -268,6 +281,10 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
                   onClick={() => {
                     if (plan.inStock === false) return;
                     setSelectedPlan(plan);
+                    reachGptFunnelGoal("gpt_select_plan", {
+                      planId: plan.id,
+                      source: "checkout_step1",
+                    });
                   }}
                   disabled={plan.inStock === false}
                   className={cn(
