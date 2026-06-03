@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSafePathname } from "@/lib/client/useSafePathname";
 import {
+  buildGptStoreMetrikaInlineScript,
   getGptStoreYmId,
   isGptStoreMetrikaPath,
 } from "@/lib/analytics/gpt-store-metrika";
@@ -15,52 +16,32 @@ declare global {
 }
 
 const YM_ID = getGptStoreYmId();
+const SCRIPT_MARKER = "data-gpt-store-metrika";
 
 export function YandexMetrika() {
   const pathname = useSafePathname();
   const searchParams = useSearchParams();
   const siteQuery = searchParams.get("site");
   const active = isGptStoreMetrikaPath(pathname, siteQuery);
-  const scriptLoaded = useRef(false);
-  const inited = useRef(false);
+  const injected = useRef(false);
 
   useEffect(() => {
     if (!YM_ID || !active) return;
 
     const sendHit = () => window.ym?.(YM_ID, "hit", pathname);
 
-    if (!scriptLoaded.current) {
-      scriptLoaded.current = true;
+    if (!injected.current && !document.head.querySelector(`script[${SCRIPT_MARKER}]`)) {
+      injected.current = true;
       const script = document.createElement("script");
-      script.src = "https://mc.yandex.ru/metrika/tag.js";
-      script.async = true;
+      script.type = "text/javascript";
+      script.setAttribute(SCRIPT_MARKER, "1");
+      script.innerHTML = buildGptStoreMetrikaInlineScript(YM_ID);
       document.head.appendChild(script);
-      script.onload = () => {
-        if (inited.current) return;
-        inited.current = true;
-        window.ym?.(YM_ID, "init", {
-          clickmap: true,
-          trackLinks: true,
-          accurateTrackBounce: true,
-          webvisor: true,
-        });
-        sendHit();
-      };
       return;
     }
 
-    if (inited.current) sendHit();
+    if (typeof window.ym === "function") sendHit();
   }, [active, pathname]);
 
-  if (!YM_ID || !active) return null;
-
-  return (
-    <noscript>
-      <img
-        src={`https://mc.yandex.ru/watch/${YM_ID}`}
-        style={{ position: "absolute", left: "-9999px" }}
-        alt=""
-      />
-    </noscript>
-  );
+  return null;
 }

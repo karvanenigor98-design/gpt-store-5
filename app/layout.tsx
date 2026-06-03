@@ -4,6 +4,7 @@ import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getMetadataBase } from "@/lib/app-url";
 import { CookieBanner } from "@/components/ui/CookieBanner";
+import { GptStoreYandexMetrikaHead } from "@/components/analytics/GptStoreYandexMetrikaHead";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
 import "./globals.css";
@@ -43,6 +44,9 @@ export default function RootLayout({
       className={cn(unbounded.variable, golos.variable)}
       suppressHydrationWarning
     >
+      <head>
+        <GptStoreYandexMetrikaHead />
+      </head>
       <body className="min-h-screen bg-white font-sans text-foreground antialiased">
         <div className="relative" style={{ zIndex: 1 }}>
           <Suspense fallback={null}>
