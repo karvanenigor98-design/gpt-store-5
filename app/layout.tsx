@@ -50,8 +50,10 @@ export default function RootLayout({
           </Suspense>
           {children}
         </div>
-        <CookieBanner />
-        <YandexMetrika />
+        <Suspense fallback={null}>
+          <CookieBanner />
+          <YandexMetrika />
+        </Suspense>
       </body>
     </html>
   );

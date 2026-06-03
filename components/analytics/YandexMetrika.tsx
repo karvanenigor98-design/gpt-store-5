@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSafePathname } from "@/lib/client/useSafePathname";
+import {
+  getGptStoreYmId,
+  isGptStoreMetrikaPath,
+} from "@/lib/analytics/gpt-store-metrika";
 
 declare global {
   interface Window {
@@ -9,35 +14,45 @@ declare global {
   }
 }
 
-const YM_ID = Number(process.env.NEXT_PUBLIC_YM_ID);
+const YM_ID = getGptStoreYmId();
 
 export function YandexMetrika() {
   const pathname = useSafePathname();
+  const searchParams = useSearchParams();
+  const siteQuery = searchParams.get("site");
+  const active = isGptStoreMetrikaPath(pathname, siteQuery);
+  const scriptLoaded = useRef(false);
+  const inited = useRef(false);
 
   useEffect(() => {
-    if (!YM_ID) return;
+    if (!YM_ID || !active) return;
 
-    const script = document.createElement("script");
-    script.src = "https://mc.yandex.ru/metrika/tag.js";
-    script.async = true;
-    document.head.appendChild(script);
+    const sendHit = () => window.ym?.(YM_ID, "hit", pathname);
 
-    script.onload = () => {
-      window.ym?.(YM_ID, "init", {
-        clickmap: true,
-        trackLinks: true,
-        accurateTrackBounce: true,
-        webvisor: true,
-      });
-    };
-  }, []);
+    if (!scriptLoaded.current) {
+      scriptLoaded.current = true;
+      const script = document.createElement("script");
+      script.src = "https://mc.yandex.ru/metrika/tag.js";
+      script.async = true;
+      document.head.appendChild(script);
+      script.onload = () => {
+        if (inited.current) return;
+        inited.current = true;
+        window.ym?.(YM_ID, "init", {
+          clickmap: true,
+          trackLinks: true,
+          accurateTrackBounce: true,
+          webvisor: true,
+        });
+        sendHit();
+      };
+      return;
+    }
 
-  useEffect(() => {
-    if (!YM_ID) return;
-    window.ym?.(YM_ID, "hit", pathname);
-  }, [pathname]);
+    if (inited.current) sendHit();
+  }, [active, pathname]);
 
-  if (!YM_ID) return null;
+  if (!YM_ID || !active) return null;
 
   return (
     <noscript>

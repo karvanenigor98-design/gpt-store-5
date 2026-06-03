@@ -18,13 +18,16 @@ export const LANDING_METRIKA_GOALS: LandingGoalName[] = [
   "landing_hero_ab_h1",
 ];
 
+import { getGptStoreYmId } from "@/lib/analytics/gpt-store-metrika";
+
 export function reachLandingGoal(
   goal: LandingGoalName,
   params?: { site?: LandingGoalSite; source?: string },
 ): void {
   if (typeof window === "undefined") return;
+  if (params?.site === "subs-store") return;
 
-  const ymId = Number(process.env.NEXT_PUBLIC_YM_ID);
+  const ymId = getGptStoreYmId();
   if (!ymId || typeof window.ym !== "function") return;
 
   try {

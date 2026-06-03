@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { useSafePathname } from "@/lib/client/useSafePathname";
+import {
+  getGptStoreYmId,
+  isGptStoreMetrikaPath,
+} from "@/lib/analytics/gpt-store-metrika";
 
 const STORAGE_KEY = "cookie_consent";
 
 export function CookieBanner() {
   const [show, setShow] = useState(false);
+  const pathname = useSafePathname();
+  const searchParams = useSearchParams();
+  const siteQuery = searchParams.get("site");
+  const metrikaActive = isGptStoreMetrikaPath(pathname, siteQuery);
+  const ymId = getGptStoreYmId();
 
   useEffect(() => {
     const consent = localStorage.getItem(STORAGE_KEY);
@@ -17,9 +28,13 @@ export function CookieBanner() {
   function accept() {
     localStorage.setItem(STORAGE_KEY, "accepted");
     setShow(false);
-    // Инициализируем Метрику если она ещё не запущена
-    if (typeof window !== "undefined" && window.ym && process.env.NEXT_PUBLIC_YM_ID) {
-      window.ym(Number(process.env.NEXT_PUBLIC_YM_ID), "init", {
+    if (
+      metrikaActive &&
+      ymId &&
+      typeof window !== "undefined" &&
+      typeof window.ym === "function"
+    ) {
+      window.ym(ymId, "init", {
         clickmap: true,
         trackLinks: true,
         accurateTrackBounce: true,
