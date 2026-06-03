@@ -1,7 +1,8 @@
+import { buildYandexMetrikaInlineScript } from "@/lib/analytics/yandex-metrika-snippet";
+
 /** Счётчик Я.Метрики только для витрины GPT STORE (не Subs / админка / кабинет). */
 
-export function getGptStoreYmId(): number | null {
-  const raw =
+export function getGptStoreYmId(): number | null {  const raw =
     process.env.NEXT_PUBLIC_GPT_STORE_YM_ID ?? process.env.NEXT_PUBLIC_YM_ID;
   const id = Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
@@ -34,14 +35,5 @@ export function parseSiteQueryFromSearch(search: string | null): string | null {
   return site === "subs-store" || site === "gpt-store" ? site : null;
 }
 
-/** Официальный inline-код Я.Метрики (как в кабинете счётчика). */
-export function buildGptStoreMetrikaInlineScript(ymId: number): string {
-  return `(function(m,e,t,r,i,k,a){
-        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-        m[i].l=1*new Date();
-        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=${ymId}', 'ym');
-
-    ym(${ymId}, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});`;
-}
+/** @deprecated используйте buildYandexMetrikaInlineScript */
+export const buildGptStoreMetrikaInlineScript = buildYandexMetrikaInlineScript;

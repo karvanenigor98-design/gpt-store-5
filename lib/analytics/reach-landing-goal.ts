@@ -19,15 +19,16 @@ export const LANDING_METRIKA_GOALS: LandingGoalName[] = [
 ];
 
 import { getGptStoreYmId } from "@/lib/analytics/gpt-store-metrika";
+import { getSubsStoreYmId } from "@/lib/analytics/subs-store-metrika";
 
 export function reachLandingGoal(
   goal: LandingGoalName,
   params?: { site?: LandingGoalSite; source?: string },
 ): void {
   if (typeof window === "undefined") return;
-  if (params?.site === "subs-store") return;
 
-  const ymId = getGptStoreYmId();
+  const ymId =
+    params?.site === "subs-store" ? getSubsStoreYmId() : getGptStoreYmId();
   if (!ymId || typeof window.ym !== "function") return;
 
   try {

@@ -5,9 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { useSafePathname } from "@/lib/client/useSafePathname";
 import { buildYandexMetrikaInlineScript } from "@/lib/analytics/yandex-metrika-snippet";
 import {
-  getGptStoreYmId,
-  isGptStoreMetrikaPath,
-} from "@/lib/analytics/gpt-store-metrika";
+  getSubsStoreYmId,
+  isSubsStoreMetrikaPath,
+} from "@/lib/analytics/subs-store-metrika";
 
 declare global {
   interface Window {
@@ -15,14 +15,14 @@ declare global {
   }
 }
 
-const YM_ID = getGptStoreYmId();
-const SCRIPT_MARKER = "data-gpt-store-metrika";
+const YM_ID = getSubsStoreYmId();
+const SCRIPT_MARKER = "data-subs-store-metrika";
 
-export function YandexMetrika() {
+export function SubsStoreYandexMetrika() {
   const pathname = useSafePathname();
   const searchParams = useSearchParams();
   const siteQuery = searchParams.get("site");
-  const active = isGptStoreMetrikaPath(pathname, siteQuery);
+  const active = isSubsStoreMetrikaPath(pathname, siteQuery);
   const injected = useRef(false);
 
   useEffect(() => {

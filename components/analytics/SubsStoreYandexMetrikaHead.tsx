@@ -1,19 +1,19 @@
 import { headers } from "next/headers";
 import { buildYandexMetrikaInlineScript } from "@/lib/analytics/yandex-metrika-snippet";
 import {
-  getGptStoreYmId,
-  isGptStoreMetrikaPath,
+  getSubsStoreYmId,
+  isSubsStoreMetrikaPath,
   parseSiteQueryFromSearch,
-} from "@/lib/analytics/gpt-store-metrika";
+} from "@/lib/analytics/subs-store-metrika";
 
-export function GptStoreYandexMetrikaHead() {
-  const ymId = getGptStoreYmId();
+export function SubsStoreYandexMetrikaHead() {
+  const ymId = getSubsStoreYmId();
   if (!ymId) return null;
 
   const h = headers();
   const pathname = h.get("x-invoke-pathname") ?? "/";
   const siteQuery = parseSiteQueryFromSearch(h.get("x-invoke-search"));
-  if (!isGptStoreMetrikaPath(pathname, siteQuery)) return null;
+  if (!isSubsStoreMetrikaPath(pathname, siteQuery)) return null;
 
   return (
     <>
