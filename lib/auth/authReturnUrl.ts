@@ -16,7 +16,7 @@ export function normalizeAuthReturnUrl(
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;
 
   if (site === "subs-store") {
-    if (raw === "/cabinet" || raw === "/dashboard" || raw === "/spotify") return fallback;
+    if (raw === "/cabinet" || raw === "/dashboard") return fallback;
   } else if (
     raw === "/cabinet" ||
     raw === "/" ||

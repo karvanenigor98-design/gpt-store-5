@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { User } from "lucide-react";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -15,6 +16,14 @@ type LandingAuthNavLinkProps = {
   onMouseLeave?: React.MouseEventHandler<HTMLAnchorElement>;
 };
 
+function buildLoginHref(siteSlug: SiteSlug, returnPath: string): string {
+  const params = new URLSearchParams({
+    site: siteSlug,
+    returnUrl: returnPath,
+  });
+  return `/login?${params.toString()}`;
+}
+
 export function LandingAuthNavLink({
   siteSlug,
   className,
@@ -22,61 +31,46 @@ export function LandingAuthNavLink({
   onMouseEnter,
   onMouseLeave,
 }: LandingAuthNavLinkProps) {
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+
   const isSubs = siteSlug === "subs-store";
-  const cabinetHref = isSubs ? "/cabinet?site=subs-store" : "/cabinet?site=gpt-store";
-  const loginHref = isSubs
-    ? "/login?site=subs-store&returnUrl=%2Fspotify"
-    : "/login?site=gpt-store&returnUrl=%2F";
+  const returnPath =
+    pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+  const cabinetHref = isSubs
+    ? "/dashboard?site=subs-store"
+    : "/dashboard?site=gpt-store";
+  const loginHref = buildLoginHref(siteSlug, returnPath || (isSubs ? "/spotify" : "/"));
 
   useEffect(() => {
     let cancelled = false;
     void getCheckoutSessionUser(siteSlug).then(({ user, emailConfirmed }) => {
-      if (!cancelled) setLoggedIn(Boolean(user && emailConfirmed));
+      if (cancelled) return;
+      setLoggedIn(Boolean(user && emailConfirmed));
+      setSessionChecked(true);
     });
     return () => {
       cancelled = true;
     };
   }, [siteSlug]);
 
-  if (loggedIn === null) {
-    return (
-      <span
-        className={className}
-        style={{ ...style, visibility: "hidden" }}
-        aria-hidden
-      >
-        <User size={14} />
-        …
-      </span>
-    );
-  }
-
-  if (loggedIn) {
-    return (
-      <Link
-        href={cabinetHref}
-        className={className}
-        style={style}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      >
-        <User size={14} />
-        Кабинет
-      </Link>
-    );
-  }
+  const href = loggedIn && sessionChecked ? cabinetHref : loginHref;
+  const label = loggedIn && sessionChecked ? "Кабинет" : "Войти";
 
   return (
     <Link
-      href={loginHref}
+      href={href}
+      prefetch={false}
       className={className}
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onClick={(e) => e.stopPropagation()}
     >
       <User size={14} />
-      Войти
+      {label}
     </Link>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
@@ -77,20 +77,22 @@ export function SpotifyNav() {
           <div className="hidden sm:block">
             <LandingOrderStatusChip siteSlug="subs-store" />
           </div>
-          <LandingAuthNavLink
-            siteSlug="subs-store"
-            className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
-            style={{
-              borderColor: "rgba(255,255,255,0.15)",
-              color: "rgba(255,255,255,0.7)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          />
+          <Suspense fallback={null}>
+            <LandingAuthNavLink
+              siteSlug="subs-store"
+              className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
+              style={{
+                borderColor: "rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.7)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+              }}
+            />
+          </Suspense>
           <button
             type="button"
             onClick={handlePremiumCta}
@@ -144,14 +146,16 @@ export function SpotifyNav() {
                   </Link>
                 )
               )}
-              <LandingAuthNavLink
-                siteSlug="subs-store"
-                className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
-                style={{
-                  borderColor: "rgba(255,255,255,0.15)",
-                  color: "rgba(255,255,255,0.7)",
-                }}
-              />
+              <Suspense fallback={null}>
+                <LandingAuthNavLink
+                  siteSlug="subs-store"
+                  className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.15)",
+                    color: "rgba(255,255,255,0.7)",
+                  }}
+                />
+              </Suspense>
               <div className="mt-1">
                 <LandingOrderStatusChip siteSlug="subs-store" />
               </div>

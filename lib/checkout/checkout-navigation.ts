@@ -2,11 +2,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
-import {
-  buildCheckoutAuthUrl,
-  getCheckoutSessionUser,
-  navigateToCheckoutOrAuth,
-} from "@/lib/checkout/checkout-auth";
+import { persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 import {
   buildCheckoutPath,
   clearCheckoutIntent,
@@ -42,26 +38,8 @@ async function navigateToCheckoutPath(params: {
   path: string;
   router: AppRouterInstance;
 }): Promise<void> {
-  const { siteSlug, path, router } = params;
-  const { user, emailConfirmed } = await getCheckoutSessionUser(siteSlug);
-
-  if (user && emailConfirmed) {
-    router.push(path);
-    return;
-  }
-
-  if (user && !emailConfirmed) {
-    const verifyParams = new URLSearchParams({
-      email: user.email ?? "",
-      flow: "checkout",
-      site: siteSlug,
-      returnUrl: path,
-    });
-    router.push(`/verify-email?${verifyParams.toString()}`);
-    return;
-  }
-
-  router.push(buildCheckoutAuthUrl(siteSlug, path));
+  const { path, router } = params;
+  router.push(path);
 }
 
 /** Общая кнопка подключения → шаг выбора тарифа. */
@@ -85,5 +63,11 @@ export async function goToCheckoutEmailStep(params: {
   promoCode?: string | null;
   router: AppRouterInstance;
 }): Promise<void> {
-  await navigateToCheckoutOrAuth(params);
+  const { siteSlug, planId, planName, promoCode, router } = params;
+  persistCheckoutIntent({ siteSlug, planId, planName, promoCode });
+  await navigateToCheckoutPath({
+    siteSlug,
+    path: buildCheckoutPath(siteSlug, planId),
+    router,
+  });
 }

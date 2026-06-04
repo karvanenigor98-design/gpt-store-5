@@ -4,11 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
-import {
-  buildCheckoutAuthUrl,
-  getCheckoutSessionUser,
-  persistCheckoutIntent,
-} from "@/lib/checkout/checkout-auth";
+import { getCheckoutSessionUser, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 import {
   clearCheckoutIntent,
   parsePlanIdFromCheckoutPath,
@@ -67,19 +63,30 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
       const { user, emailConfirmed } = await getCheckoutSessionUser(siteSlug);
       if (cancelled) return;
 
+      const resolvedPlanId = planId ?? parsePlanIdFromCheckoutPath(returnPath ?? "");
+      const checkoutIntent =
+        intent ??
+        (resolvedPlanId
+          ? {
+              siteSlug,
+              planId: resolvedPlanId,
+              returnPath:
+                returnPath ??
+                (siteSlug === "subs-store"
+                  ? `/checkout/spotify?plan=${encodeURIComponent(resolvedPlanId)}`
+                  : `/checkout?plan=${encodeURIComponent(resolvedPlanId)}`),
+              createdAt: Date.now(),
+            }
+          : null);
+
+      /** Гость может пройти выбор тарифа и email; вход — перед оплатой. */
       if (!user) {
-        redirectedRef.current = true;
-        if (planId && returnPath) {
-          persistCheckoutIntent({
-            siteSlug,
-            planId,
-            planName: intent?.planName,
-            promoCode: intent?.promoCode,
-            accountEmail: intent?.accountEmail,
-          });
-        }
-        const fallbackReturn = returnPath ?? getCheckoutPlanStepPath(siteSlug);
-        router.replace(buildCheckoutAuthUrl(siteSlug, fallbackReturn));
+        setState({
+          ready: true,
+          authenticated: false,
+          emailConfirmed: false,
+          intent: checkoutIntent,
+        });
         return;
       }
 
@@ -90,13 +97,19 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
           flow: "checkout",
         });
         verifyParams.set("site", siteSlug);
-        if (returnPath) verifyParams.set("returnUrl", returnPath);
+        const verifyReturn =
+          returnPath ??
+          (resolvedPlanId
+            ? siteSlug === "subs-store"
+              ? `/checkout/spotify?plan=${encodeURIComponent(resolvedPlanId)}`
+              : `/checkout?plan=${encodeURIComponent(resolvedPlanId)}`
+            : getCheckoutPlanStepPath(siteSlug));
+        verifyParams.set("returnUrl", verifyReturn);
         router.replace(`/verify-email?${verifyParams.toString()}`);
         return;
       }
 
-      const resolvedPlanId = planId ?? parsePlanIdFromCheckoutPath(returnPath ?? "");
-      if (!resolvedPlanId && !intent) {
+      if (!resolvedPlanId && !checkoutIntent) {
         setState({
           ready: true,
           authenticated: true,
@@ -110,14 +123,7 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
         ready: true,
         authenticated: true,
         emailConfirmed: true,
-        intent: intent ?? (resolvedPlanId && returnPath
-          ? {
-              siteSlug,
-              planId: resolvedPlanId,
-              returnPath,
-              createdAt: Date.now(),
-            }
-          : null),
+        intent: checkoutIntent,
       });
     })();
 
