@@ -2,109 +2,106 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { User } from "lucide-react";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
-import { getCheckoutSessionUser } from "@/lib/checkout/checkout-auth";
-import { createClient } from "@/lib/supabase/client";
-import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 
 type LandingAuthNavLinkProps = {
   siteSlug: SiteSlug;
+  /** SSR: сессия с сервера (httpOnly cookies), без мигания «Войти». */
+  initialLoggedIn?: boolean;
   className?: string;
   style?: React.CSSProperties;
   onMouseEnter?: React.MouseEventHandler<HTMLAnchorElement>;
   onMouseLeave?: React.MouseEventHandler<HTMLAnchorElement>;
 };
 
-function buildLoginHref(siteSlug: SiteSlug, returnPath: string): string {
-  const params = new URLSearchParams({
-    site: siteSlug,
-    returnUrl: returnPath,
-  });
-  return `/login?${params.toString()}`;
-}
-
-function cabinetHrefFor(siteSlug: SiteSlug): string {
+export function cabinetHrefFor(siteSlug: SiteSlug): string {
   return siteSlug === "subs-store"
     ? "/dashboard?site=subs-store"
     : "/dashboard?site=gpt-store";
 }
 
+/** Логин с returnUrl в кабинет — middleware сам редиректит уже залогиненных. */
+export function buildLandingAuthLoginHref(siteSlug: SiteSlug): string {
+  const cabinet = cabinetHrefFor(siteSlug);
+  const params = new URLSearchParams({
+    site: siteSlug,
+    returnUrl: cabinet,
+  });
+  return `/login?${params.toString()}`;
+}
+
+async function fetchLandingSession(siteSlug: SiteSlug): Promise<{
+  loggedIn: boolean;
+  emailConfirmed: boolean;
+}> {
+  try {
+    const res = await fetch(`/api/auth/landing-session?site=${encodeURIComponent(siteSlug)}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      loggedIn?: boolean;
+      emailConfirmed?: boolean;
+    };
+    if (!res.ok) return { loggedIn: false, emailConfirmed: false };
+    return {
+      loggedIn: Boolean(body.loggedIn),
+      emailConfirmed: Boolean(body.emailConfirmed),
+    };
+  } catch {
+    return { loggedIn: false, emailConfirmed: false };
+  }
+}
+
 export function LandingAuthNavLink({
   siteSlug,
+  initialLoggedIn = false,
   className,
   style,
   onMouseEnter,
   onMouseLeave,
 }: LandingAuthNavLinkProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [hasAccount, setHasAccount] = useState(false);
-  const [sessionChecked, setSessionChecked] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
+  const [sessionChecked, setSessionChecked] = useState(initialLoggedIn);
 
-  const isSubs = siteSlug === "subs-store";
-  const returnPath =
-    pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
   const cabinetHref = cabinetHrefFor(siteSlug);
-  const loginHref = buildLoginHref(siteSlug, returnPath || (isSubs ? "/spotify" : "/"));
+  const loginHref = buildLandingAuthLoginHref(siteSlug);
 
   const refreshSession = useCallback(async () => {
-    const { user } = await getCheckoutSessionUser(siteSlug);
-    setHasAccount(Boolean(user));
+    const session = await fetchLandingSession(siteSlug);
+    setLoggedIn(session.loggedIn);
     setSessionChecked(true);
+    return session;
   }, [siteSlug]);
 
   useEffect(() => {
-    let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
+    void refreshSession();
+  }, [refreshSession]);
 
-    void (async () => {
-      await refreshSession();
-      if (cancelled) return;
-
-      const client = isSubs ? tryCreateSubsBrowserClient() : createClient();
-      if (!client) return;
-
-      const { data } = client.auth.onAuthStateChange(() => {
-        void refreshSession();
-      });
-      unsubscribe = () => data.subscription.unsubscribe();
-    })();
-
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, [isSubs, refreshSession]);
-
-  const label = hasAccount && sessionChecked ? "Кабинет" : "Войти";
-  const href = hasAccount && sessionChecked ? cabinetHref : loginHref;
+  const showCabinet = loggedIn && sessionChecked;
+  const label = showCabinet ? "Кабинет" : "Войти";
+  const href = showCabinet ? cabinetHref : loginHref;
 
   function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
     event.stopPropagation();
 
     void (async () => {
-      const { user, emailConfirmed } = await getCheckoutSessionUser(siteSlug);
-      if (user) {
-        setHasAccount(true);
-        if (!emailConfirmed && user.email) {
-          const verify = new URLSearchParams({
-            email: user.email,
-            flow: "checkout",
-            site: siteSlug,
-            returnUrl: cabinetHref,
-          });
-          router.push(`/verify-email?${verify.toString()}`);
+      const session = await refreshSession();
+
+      if (session.loggedIn) {
+        if (!session.emailConfirmed) {
+          router.push(loginHref);
           return;
         }
         router.push(cabinetHref);
         return;
       }
-      setHasAccount(false);
+
       router.push(loginHref);
     })();
   }
@@ -125,7 +122,7 @@ export function LandingAuthNavLink({
   );
 }
 
-/** Статичный fallback для Suspense — всегда кликабельный «Войти». */
+/** Fallback без Suspense: href на login→middleware уводит в кабинет если сессия есть. */
 export function LandingAuthNavLinkFallback({
   siteSlug,
   className,
@@ -133,7 +130,7 @@ export function LandingAuthNavLinkFallback({
   onMouseEnter,
   onMouseLeave,
 }: LandingAuthNavLinkProps) {
-  const loginHref = buildLoginHref(siteSlug, siteSlug === "subs-store" ? "/spotify" : "/");
+  const loginHref = buildLandingAuthLoginHref(siteSlug);
   return (
     <Link
       href={loginHref}

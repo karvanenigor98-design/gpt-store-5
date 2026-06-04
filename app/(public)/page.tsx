@@ -18,6 +18,7 @@ import { TokenSafetySection } from "@/components/sections/TokenSafetySection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobileCta";
 import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
+import { getLandingNavSession } from "@/lib/auth/landing-nav-session";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
 import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
@@ -44,8 +45,12 @@ export const runtime = "nodejs";
 
 /** Только отзывы, одобренные в админке (вкладка «Опубликованы»). */
 export default async function HomePage() {
-  const { storeConfig } = getStaticGptLandingPayload();
-  const fromDb = await loadGptPublishedDbReviews("gpt-store", 5000);
+  const [landingPayload, navSession, fromDb] = await Promise.all([
+    Promise.resolve(getStaticGptLandingPayload()),
+    getLandingNavSession("gpt-store"),
+    loadGptPublishedDbReviews("gpt-store", 5000),
+  ]);
+  const { storeConfig } = landingPayload;
   const reviews = sortLandingReviewsNewestFirst(fromDb);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
@@ -56,7 +61,7 @@ export default async function HomePage() {
     <>
       <div className="relative min-h-screen bg-white">
         <LandingAnimatedBackground />
-        <ChatGptLandingNav />
+        <ChatGptLandingNav initialLoggedIn={navSession.loggedIn} />
         <main className="relative z-[1] overflow-x-hidden pb-20 pt-0 md:pb-0">
           <div className="relative z-[1] bg-white">
             <HeroSection />

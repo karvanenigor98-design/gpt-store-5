@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { defaultSpotifySeoTitle, normalizeSpotifyStoreLabel, SPOTIFY_STORE_LINK_NAME } from "@/lib/brand/spotify-store-brand";
 import { SPOTIFY_LINK_PREVIEW_DESCRIPTION } from "@/lib/brand/spotify-link-preview-html";
 import { getPublicSiteOrigin } from "@/lib/app-url";
+import { getLandingNavSession } from "@/lib/auth/landing-nav-session";
 import { buildSpotifyJsonLd, getSpotifyLandingPageData } from "@/lib/landing/get-spotify-landing-payload";
 import { SpotifyNav } from "@/components/spotify/SpotifyNav";
 import { SpotifyHero } from "@/components/spotify/SpotifyHero";
@@ -60,7 +61,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SpotifyPage() {
-  const { payload } = await getSpotifyLandingPageData();
+  const [{ payload }, navSession] = await Promise.all([
+    getSpotifyLandingPageData(),
+    getLandingNavSession("subs-store"),
+  ]);
   const jsonLd = buildSpotifyJsonLd(payload, SPOTIFY_URL);
 
   return (
@@ -73,7 +77,7 @@ export default async function SpotifyPage() {
       <SpotifyLandingProvider payload={payload}>
         <SpotifyStoreConfigAutoRefresh />
         <div className="relative" style={{ background: "#0a0a0a", color: "#ffffff" }}>
-          <SpotifyNav />
+          <SpotifyNav initialLoggedIn={navSession.loggedIn} />
           <main className="overflow-x-hidden pb-20 pt-14 md:pb-0">
             <SpotifyHero />
             <AnimateSection>

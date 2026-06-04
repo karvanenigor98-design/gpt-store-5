@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
@@ -8,12 +8,9 @@ import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 import { LandingOrderStatusChip } from "@/components/landing/LandingOrderStatusChip";
-import {
-  LandingAuthNavLink,
-  LandingAuthNavLinkFallback,
-} from "@/components/landing/LandingAuthNavLink";
+import { LandingAuthNavLink } from "@/components/landing/LandingAuthNavLink";
 
-export function SpotifyNav() {
+export function SpotifyNav({ initialLoggedIn = false }: { initialLoggedIn?: boolean }) {
   const { nav, hero } = useSpotifyLanding();
   const [open, setOpen] = useState(false);
 
@@ -80,33 +77,21 @@ export function SpotifyNav() {
           <div className="hidden sm:block">
             <LandingOrderStatusChip siteSlug="subs-store" />
           </div>
-          <Suspense
-            fallback={
-              <LandingAuthNavLinkFallback
-                siteSlug="subs-store"
-                className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
-                style={{
-                  borderColor: "rgba(255,255,255,0.15)",
-                  color: "rgba(255,255,255,0.7)",
-                }}
-              />
-            }
-          >
-            <LandingAuthNavLink
-              siteSlug="subs-store"
-              className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
-              style={{
-                borderColor: "rgba(255,255,255,0.15)",
-                color: "rgba(255,255,255,0.7)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            />
-          </Suspense>
+          <LandingAuthNavLink
+            siteSlug="subs-store"
+            initialLoggedIn={initialLoggedIn}
+            className="hidden items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors duration-100 sm:flex"
+            style={{
+              borderColor: "rgba(255,255,255,0.15)",
+              color: "rgba(255,255,255,0.7)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          />
           <button
             type="button"
             onClick={handlePremiumCta}
@@ -160,27 +145,15 @@ export function SpotifyNav() {
                   </Link>
                 )
               )}
-              <Suspense
-                fallback={
-                  <LandingAuthNavLinkFallback
-                    siteSlug="subs-store"
-                    className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
-                    style={{
-                      borderColor: "rgba(255,255,255,0.15)",
-                      color: "rgba(255,255,255,0.7)",
-                    }}
-                  />
-                }
-              >
-                <LandingAuthNavLink
-                  siteSlug="subs-store"
-                  className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
-                  style={{
-                    borderColor: "rgba(255,255,255,0.15)",
-                    color: "rgba(255,255,255,0.7)",
-                  }}
-                />
-              </Suspense>
+              <LandingAuthNavLink
+                siteSlug="subs-store"
+                initialLoggedIn={initialLoggedIn}
+                className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
+                style={{
+                  borderColor: "rgba(255,255,255,0.15)",
+                  color: "rgba(255,255,255,0.7)",
+                }}
+              />
               <div className="mt-1">
                 <LandingOrderStatusChip siteSlug="subs-store" />
               </div>

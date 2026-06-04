@@ -6,6 +6,7 @@ import { SpotifyFooter } from "@/components/spotify/SpotifyFooter";
 import { SpotifyNav } from "@/components/spotify/SpotifyNav";
 import { SpotifyLandingProvider } from "@/components/spotify/SpotifyLandingProvider";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
+import { getLandingNavSession } from "@/lib/auth/landing-nav-session";
 import { getSpotifyLandingPageData } from "@/lib/landing/get-spotify-landing-payload";
 import { isSpotifySuitableReview } from "@/lib/reviews/is-spotify-suitable-review";
 import { getSpotifyPublicReviews } from "@/lib/reviews/spotifyPublicReviews";
@@ -23,9 +24,10 @@ export default async function SpotifyPublicReviewsPage({
   searchParams: Promise<{ author?: string }>;
 }) {
   const { author } = await searchParams;
-  const [{ payload }, reviews] = await Promise.all([
+  const [{ payload }, reviews, navSession] = await Promise.all([
     getSpotifyLandingPageData(),
     getSpotifyPublicReviews(5000),
+    getLandingNavSession("subs-store"),
   ]);
 
   const authorFilter = author?.trim().toLowerCase();
@@ -40,7 +42,7 @@ export default async function SpotifyPublicReviewsPage({
   return (
     <SpotifyLandingProvider payload={payload}>
       <div className="flex min-h-screen flex-col" style={{ background: "#0a0a0a" }}>
-        <SpotifyNav />
+        <SpotifyNav initialLoggedIn={navSession.loggedIn} />
 
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 pt-20 md:px-6">
           <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
