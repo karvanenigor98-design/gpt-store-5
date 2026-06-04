@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { isServerAdmin } from "@/lib/auth/server-role";
 import { roleAfterGrant } from "@/lib/auth/staffRoleMerge";
+import {
+  syncStaffSiteMembershipsInGpt,
+  upsertStaffSiteMembershipOnDb,
+} from "@/lib/auth/syncStaffSiteMemberships";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { UserRole } from "@/types/database";
@@ -74,6 +78,13 @@ export async function POST(request: NextRequest) {
     });
     if (auditErr && site === "gpt-store") {
       return NextResponse.json({ error: auditErr.message }, { status: 400 });
+    }
+
+    await upsertStaffSiteMembershipOnDb(db, profile.id, site, nextRole);
+
+    const gptAdmin = createAdminClient();
+    if (gptAdmin) {
+      await syncStaffSiteMembershipsInGpt(gptAdmin, profile.id, nextRole);
     }
 
     return NextResponse.json({

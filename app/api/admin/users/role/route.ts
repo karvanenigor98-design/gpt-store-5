@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { updateProfileFlexible } from "@/lib/admin/updateProfileFlexible";
+import {
+  syncStaffSiteMembershipsInGpt,
+  upsertStaffSiteMembershipOnDb,
+} from "@/lib/auth/syncStaffSiteMemberships";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { isServerAdmin } from "@/lib/auth/server-role";
@@ -98,15 +102,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: profileUpdate.error }, { status: 400 });
     }
 
-    try {
-      const membershipRole = role === "admin" ? "admin" : role === "operator" ? "operator" : "customer";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (db as any).from("site_memberships").upsert(
-        { user_id: userId, site_slug: site, role: membershipRole },
-        { onConflict: "user_id,site_slug" },
-      );
-    } catch {
-      /* optional table */
+    await upsertStaffSiteMembershipOnDb(db, userId, site, role);
+
+    const gptAdmin = createAdminClient();
+    if (gptAdmin) {
+      await syncStaffSiteMembershipsInGpt(gptAdmin, userId, role);
     }
 
     try {

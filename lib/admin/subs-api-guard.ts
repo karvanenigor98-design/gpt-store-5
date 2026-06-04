@@ -40,7 +40,7 @@ export function hasEnvListedStaffAccess(email: string | null | undefined): boole
 
 /**
  * Staff (admin or operator) with Subs Store access.
- * Роль admin/operator в GPT profiles достаточна; site_memberships — опционально для прочих сценариев.
+ * Оператору нужна строка site_memberships (subs-store) в GPT Supabase — см. syncStaffSiteMembershipsInGpt.
  */
 export async function requireSubsStaffContext(options?: {
   /** If true, only `admin` role (not operator). Default false. */
@@ -110,6 +110,11 @@ export async function listAccessibleAdminSiteSlugs(
 
   if (isSuperAdminEmail(user.email) || hasEnvListedStaffAccess(user.email)) {
     return subsConfigured ? ["gpt-store", "subs-store"] : base;
+  }
+
+  /** Оператор с profiles.role=operator: оба магазина, если есть subs-store membership в GPT БД. */
+  if (role === "operator" && !subsConfigured) {
+    return base;
   }
 
   try {
