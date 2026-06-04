@@ -31,6 +31,14 @@ export async function getCheckoutSessionUser(siteSlug: AuthSiteSlug): Promise<Ch
     if (siteSlug === "subs-store") {
       const subs = tryCreateSubsBrowserClient();
       if (!subs) return { user: null, emailConfirmed: false };
+      const { data: sessionData } = await subs.auth.getSession();
+      const sessionUser = sessionData.session?.user ?? null;
+      if (sessionUser) {
+        return {
+          user: sessionUser,
+          emailConfirmed: Boolean(sessionUser.email_confirmed_at),
+        };
+      }
       const { data } = await subs.auth.getUser();
       return {
         user: data.user ?? null,
@@ -39,6 +47,14 @@ export async function getCheckoutSessionUser(siteSlug: AuthSiteSlug): Promise<Ch
     }
 
     const gpt = createClient();
+    const { data: sessionData } = await gpt.auth.getSession();
+    const sessionUser = sessionData.session?.user ?? null;
+    if (sessionUser) {
+      return {
+        user: sessionUser,
+        emailConfirmed: Boolean(sessionUser.email_confirmed_at),
+      };
+    }
     const { data } = await gpt.auth.getUser();
     return {
       user: data.user ?? null,

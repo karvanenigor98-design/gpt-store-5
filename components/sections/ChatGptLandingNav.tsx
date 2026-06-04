@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { LandingOrderStatusChip } from "@/components/landing/LandingOrderStatusChip";
-import { LandingAuthNavLink } from "@/components/landing/LandingAuthNavLink";
+import {
+  LandingAuthNavLink,
+  LandingAuthNavLinkFallback,
+} from "@/components/landing/LandingAuthNavLink";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "Как работает" },
@@ -70,10 +73,19 @@ export function ChatGptLandingNav() {
           <div className="hidden sm:block">
             <LandingOrderStatusChip siteSlug="gpt-store" />
           </div>
-          <LandingAuthNavLink
-            siteSlug="gpt-store"
-            className="hidden items-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-1.5 text-sm text-gray-600 transition-colors duration-100 hover:bg-gray-50 sm:flex"
-          />
+          <Suspense
+            fallback={
+              <LandingAuthNavLinkFallback
+                siteSlug="gpt-store"
+                className="hidden items-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-1.5 text-sm text-gray-600 transition-colors duration-100 hover:bg-gray-50 sm:flex"
+              />
+            }
+          >
+            <LandingAuthNavLink
+              siteSlug="gpt-store"
+              className="hidden items-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-1.5 text-sm text-gray-600 transition-colors duration-100 hover:bg-gray-50 sm:flex"
+            />
+          </Suspense>
           <button
             type="button"
             onClick={() => handleAnchorClick("#pricing")}
@@ -113,10 +125,19 @@ export function ChatGptLandingNav() {
                   {link.label}
                 </button>
               ))}
-              <LandingAuthNavLink
-                siteSlug="gpt-store"
-                className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-2.5 text-center text-sm text-gray-600"
-              />
+              <Suspense
+                fallback={
+                  <LandingAuthNavLinkFallback
+                    siteSlug="gpt-store"
+                    className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-2.5 text-center text-sm text-gray-600"
+                  />
+                }
+              >
+                <LandingAuthNavLink
+                  siteSlug="gpt-store"
+                  className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border border-black/[0.1] px-3 py-2.5 text-center text-sm text-gray-600"
+                />
+              </Suspense>
               <div className="mt-1">
                 <LandingOrderStatusChip siteSlug="gpt-store" />
               </div>
