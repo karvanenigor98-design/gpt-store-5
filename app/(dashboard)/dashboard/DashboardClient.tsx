@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Package, CheckCircle, MessageCircle, Plus } from "lucide-react";
+import { CheckoutNavButton } from "@/components/checkout/CheckoutNavButton";
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { cn } from "@/lib/utils";
 import { ClientLoyaltyBlock } from "@/components/ui/ClientLoyaltyBlock";
 import { ReferralBlock } from "@/components/dashboard/ReferralBlock";
@@ -29,7 +31,6 @@ interface Props {
   siteSlug?: string;
   sitePrimaryColor?: string;
   siteBrandName?: string;
-  siteCheckoutPath?: string;
   siteSupportPath?: string;
 }
 
@@ -49,10 +50,10 @@ export function DashboardClient({
   chatsCount,
   siteSlug,
   sitePrimaryColor = "#10a37f",
-  siteCheckoutPath = "/checkout",
   siteSupportPath = "/dashboard/chat",
 }: Props) {
   const isSpotify = siteSlug === "subs-store";
+  const checkoutSiteSlug: AuthSiteSlug = isSpotify ? "subs-store" : "gpt-store";
   const primaryColor = sitePrimaryColor;
   const completedOrders = orders.filter((o) => o.status === "active").length;
   const ordersHref = `/dashboard/orders${siteSlug ? `?site=${siteSlug}` : ""}`;
@@ -91,8 +92,8 @@ export function DashboardClient({
           <p className={cn("mt-0.5 text-sm", isSpotify ? "text-gray-400" : "text-gray-500")}>{userEmail}</p>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href={siteCheckoutPath}
+          <CheckoutNavButton
+            siteSlug={checkoutSiteSlug}
             className="hidden sm:flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
             style={{
               backgroundColor: primaryColor,
@@ -101,7 +102,7 @@ export function DashboardClient({
           >
             <Plus size={15} />
             {isSpotify ? "Подключить Premium" : "Новый заказ"}
-          </Link>
+          </CheckoutNavButton>
           <div
             className="flex h-10 w-10 items-center justify-center rounded-full text-base font-bold text-white shadow-sm"
             style={{ backgroundColor: primaryColor }}
@@ -160,8 +161,8 @@ export function DashboardClient({
 
       {/* CTA buttons */}
       <motion.div {...FU} transition={{ ...FU.transition, delay: 0.21 }} className="flex flex-wrap gap-3 pt-1">
-        <Link
-          href={siteCheckoutPath}
+        <CheckoutNavButton
+          siteSlug={checkoutSiteSlug}
           className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-90"
           style={{
             backgroundColor: primaryColor,
@@ -170,7 +171,7 @@ export function DashboardClient({
         >
           <Plus size={16} />
           {isSpotify ? "Подключить Premium" : "Новый заказ"}
-        </Link>
+        </CheckoutNavButton>
         <Link
           href={ordersHref}
           className="flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-colors hover:opacity-80"

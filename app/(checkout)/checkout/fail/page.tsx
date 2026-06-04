@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { XCircle } from "lucide-react";
-import Link from "next/link";
+
+import { SpotifyFunnelFailGoal } from "@/components/analytics/SpotifyFunnelFailGoal";
+import { CheckoutFailActions } from "@/components/checkout/CheckoutFailActions";
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 
 export const metadata: Metadata = { title: "Ошибка оплаты" };
 
@@ -12,11 +15,13 @@ export default async function CheckoutFailPage({
   const params = await searchParams;
   const isSubs = params.site === "subs-store";
   const accent = isSubs ? "#1DB954" : "#10a37f";
-  const checkoutHref = isSubs ? "/checkout/spotify" : "/checkout";
+  const siteSlug: AuthSiteSlug = isSubs ? "subs-store" : "gpt-store";
   const homeHref = isSubs ? "/spotify" : "/";
-  const ordersHref = `/dashboard/orders?site=${isSubs ? "subs-store" : "gpt-store"}`;
+  const ordersHref = `/dashboard/orders?site=${siteSlug}`;
 
   return (
+    <>
+      <SpotifyFunnelFailGoal siteSlug={isSubs ? "subs-store" : "gpt-store"} />
     <div className="w-full max-w-sm text-center">
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
         <XCircle size={28} className="text-red-400" />
@@ -26,27 +31,14 @@ export default async function CheckoutFailPage({
         Что-то пошло не так во время проведения платежа. Заказ сохранён — можно завершить оплату из
         личного кабинета.
       </p>
-      <div className="space-y-2">
-        <Link
-          href={checkoutHref}
-          className="block w-full rounded-xl py-3 text-sm font-semibold text-white text-center hover:opacity-90"
-          style={{ backgroundColor: accent }}
-        >
-          Попробовать снова
-        </Link>
-        <Link
-          href={ordersHref}
-          className="block w-full rounded-xl border border-black/[0.1] py-3 text-sm text-gray-600 text-center hover:bg-gray-50"
-        >
-          Мои заказы
-        </Link>
-        <Link
-          href={homeHref}
-          className="block w-full rounded-xl py-3 text-sm text-gray-500 text-center hover:text-gray-800"
-        >
-          {isSubs ? "На главную SPOTIFY STORE" : "На главную GPT STORE"}
-        </Link>
-      </div>
+      <CheckoutFailActions
+        siteSlug={siteSlug}
+        accent={accent}
+        ordersHref={ordersHref}
+        homeHref={homeHref}
+        homeLabel={isSubs ? "На главную SPOTIFY STORE" : "На главную GPT STORE"}
+      />
     </div>
+    </>
   );
 }

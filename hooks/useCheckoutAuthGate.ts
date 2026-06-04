@@ -10,10 +10,12 @@ import {
   persistCheckoutIntent,
 } from "@/lib/checkout/checkout-auth";
 import {
+  clearCheckoutIntent,
   parsePlanIdFromCheckoutPath,
   readCheckoutIntent,
   type CheckoutIntent,
 } from "@/lib/checkout/checkout-intent";
+import { getCheckoutPlanStepPath } from "@/lib/checkout/checkout-navigation";
 
 export type CheckoutAuthGateState = {
   ready: boolean;
@@ -42,7 +44,8 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
 
     void (async () => {
       const stored = readCheckoutIntent(siteSlug);
-      const planId = planFromUrl ?? stored?.planId ?? null;
+      /** Только ?plan= в URL — не подтягиваем старый intent при общей кнопке «Подключить». */
+      const planId = planFromUrl ?? null;
 
       if (planId) {
         persistCheckoutIntent({
@@ -52,6 +55,8 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
           promoCode: stored?.promoCode,
           accountEmail: stored?.accountEmail,
         });
+      } else if (!planFromUrl && stored?.planId) {
+        clearCheckoutIntent();
       }
 
       const intent = readCheckoutIntent(siteSlug);
@@ -73,7 +78,7 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
             accountEmail: intent?.accountEmail,
           });
         }
-        const fallbackReturn = returnPath ?? (siteSlug === "subs-store" ? "/checkout/spotify" : "/checkout");
+        const fallbackReturn = returnPath ?? getCheckoutPlanStepPath(siteSlug);
         router.replace(buildCheckoutAuthUrl(siteSlug, fallbackReturn));
         return;
       }

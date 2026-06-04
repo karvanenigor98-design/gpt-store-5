@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
+import { CheckoutNavButton } from "@/components/checkout/CheckoutNavButton";
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
@@ -92,8 +94,8 @@ export default async function OrdersPage({
         <h1 className={cn("font-heading text-2xl font-bold", isSubs ? "text-white" : "text-gray-900")}>
           {isSubs ? "Spotify — История заказов" : "История заказов"}
         </h1>
-        <Link
-          href={site.checkoutPath}
+        <CheckoutNavButton
+          siteSlug={siteSlug as AuthSiteSlug}
           className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
           style={{
             backgroundColor: primaryColor,
@@ -102,7 +104,7 @@ export default async function OrdersPage({
         >
           <Plus size={15} />
           {isSubs ? "Подключить Premium" : "Новый заказ"}
-        </Link>
+        </CheckoutNavButton>
       </div>
 
       {ordersLoadFailed ? (

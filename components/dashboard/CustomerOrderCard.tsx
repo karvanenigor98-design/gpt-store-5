@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { MessageCircle, RefreshCw } from "lucide-react";
 
+import { CheckoutNavButton } from "@/components/checkout/CheckoutNavButton";
 import { CompletePaymentButton } from "@/components/dashboard/CompletePaymentButton";
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { OrderReceiptCard } from "@/components/ui/OrderReceiptCard";
 import { OrderStatusTracker } from "@/components/ui/OrderStatusTracker";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -148,8 +150,9 @@ export function CustomerOrderCard({
                 Тот же тариф — один клик
               </p>
             </div>
-            <Link
-              href={`${checkoutPath}?plan=${order.plan_id}`}
+            <CheckoutNavButton
+              siteSlug={siteSlug as AuthSiteSlug}
+              planId={order.plan_id}
               className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90"
               style={{
                 backgroundColor: primaryColor,
@@ -158,7 +161,7 @@ export function CustomerOrderCard({
             >
               <RefreshCw size={12} />
               Повторить в 1 клик
-            </Link>
+            </CheckoutNavButton>
           </div>
         ) : null}
 

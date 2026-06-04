@@ -24,6 +24,7 @@ import {
   isSubsDevPort,
   resolveAuthSiteContext,
 } from "@/lib/auth/devStoreProfile";
+import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 
 function isGptPublicAuthConfigured(): boolean {
   return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
@@ -243,7 +244,13 @@ export async function middleware(request: NextRequest) {
       : Boolean(gptUser) && !isSiteUiLoggedOut("gpt-store", incoming.cookies);
 
     if (loggedInForThisSheet && siteForLogin === "subs-store") {
-      return redirectPreservingCookies(new URL("/dashboard?site=subs-store", request.url), supabaseResponse);
+      const returnUrl = request.nextUrl.searchParams.get("returnUrl");
+      const safeReturn =
+        returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")
+          ? returnUrl
+          : "/dashboard?site=subs-store";
+      const target = resolvePostLoginPath(safeReturn, "client");
+      return redirectPreservingCookies(new URL(target, request.url), supabaseResponse);
     }
 
     if (loggedInForThisSheet && siteForLogin !== "subs-store" && gptUser) {

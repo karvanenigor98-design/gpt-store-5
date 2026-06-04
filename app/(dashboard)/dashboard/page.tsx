@@ -115,7 +115,6 @@ export default async function DashboardPage({
       siteSlug={site.slug}
       sitePrimaryColor={site.primaryColor}
       siteBrandName={site.brandName}
-      siteCheckoutPath={site.checkoutPath}
       siteSupportPath={`/dashboard/chat${siteSlug ? `?site=${siteSlug}` : ""}`}
     />
   );

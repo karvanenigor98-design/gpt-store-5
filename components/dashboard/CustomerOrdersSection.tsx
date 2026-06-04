@@ -3,7 +3,9 @@
 import { Component, type ReactNode } from "react";
 import Link from "next/link";
 
+import { CheckoutNavButton } from "@/components/checkout/CheckoutNavButton";
 import { CustomerOrderCard } from "@/components/dashboard/CustomerOrderCard";
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import {
   findPrimaryCustomerOrderId,
@@ -103,13 +105,13 @@ export function CustomerOrdersSection({
               ? "Подключите Spotify Premium — активация 10–15 минут"
               : "Оформите первый заказ — активация за 5–15 минут"}
           </p>
-          <Link
-            href={checkoutPath}
+          <CheckoutNavButton
+            siteSlug={siteSlug as AuthSiteSlug}
             className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ backgroundColor: primaryColor }}
           >
             {isSubs ? "Подключить Premium" : "Оформить подписку"}
-          </Link>
+          </CheckoutNavButton>
         </div>
       ) : (
         <div className="space-y-4">
