@@ -43,7 +43,8 @@
     "vercel:static-ips": "node scripts/enable-vercel-static-ips.cjs",
     "reviews:extract": "python scripts/extract-gpt-reviews.py && python scripts/extract-spotify-reviews.py && node scripts/copy-gpt-reviews-to-public.cjs",
     "reviews:import": "node scripts/import-telegram-reviews-to-db.cjs",
-    "gpt:db:reviews-import": "node scripts/apply-gpt-reviews-payment-migration.cjs"
+    "gpt:db:reviews-import": "node scripts/apply-gpt-reviews-payment-migration.cjs",
+    "gpt:db:chat-export-logs": "node scripts/apply-chat-export-migration.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
@@ -56,6 +57,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
     "next": "14.2.35",
     "nodemailer": "^8.0.7",

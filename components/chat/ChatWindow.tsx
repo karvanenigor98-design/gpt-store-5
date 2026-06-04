@@ -18,6 +18,7 @@ import { playChatMessagePing } from "@/lib/admin/notification-sound";
 import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
 import { cn } from "@/lib/utils";
 import type { ChatRoomListItem } from "@/types/chat-ui";
+import { ChatExportMenu } from "@/components/chat/ChatExportMenu";
 
 type RoomStatus = NonNullable<ChatRoomListItem["status"]> | "open" | "closed" | "waiting";
 
@@ -490,6 +491,7 @@ export function ChatWindow({
             </span>
           </div>
         </div>
+        <ChatExportMenu chatId={sessionId} siteSlug={siteSlug} isSubsDark={isSubs && !viewerIsStaff} />
       </div>
       )}
 
