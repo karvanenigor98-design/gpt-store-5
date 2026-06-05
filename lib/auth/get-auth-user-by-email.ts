@@ -7,11 +7,13 @@ export type EmailConfirmationState = {
   exists: boolean;
   emailConfirmed: boolean;
   signupSite: AuthSiteSlug | null;
+  userId: string | null;
 };
 
 async function findUserByEmail(
   listUsers: (args: { page: number; perPage: number }) => Promise<{
     data: { users: Array<{
+      id?: string;
       email?: string;
       email_confirmed_at?: string | null;
       user_metadata?: Record<string, unknown>;
@@ -47,13 +49,13 @@ export async function getEmailConfirmationState(
 ): Promise<EmailConfirmationState> {
   const normalized = normalizeEmailForAuth(email);
   if (!normalized) {
-    return { exists: false, emailConfirmed: false, signupSite: null };
+    return { exists: false, emailConfirmed: false, signupSite: null, userId: null };
   }
 
   const admin =
     site === "subs-store" ? createSubsStoreAdminClient() : createAdminClient();
   if (!admin) {
-    return { exists: false, emailConfirmed: false, signupSite: null };
+    return { exists: false, emailConfirmed: false, signupSite: null, userId: null };
   }
 
   const user = await findUserByEmail(
@@ -62,16 +64,20 @@ export async function getEmailConfirmationState(
   );
 
   if (!user) {
-    return { exists: false, emailConfirmed: false, signupSite: null };
+    return { exists: false, emailConfirmed: false, signupSite: null, userId: null };
   }
 
   const metaSite = user.user_metadata?.signup_site;
   const signupSite: AuthSiteSlug | null =
     metaSite === "subs-store" || metaSite === "gpt-store" ? metaSite : null;
 
+  const userId =
+    typeof (user as { id?: string }).id === "string" ? (user as { id: string }).id : null;
+
   return {
     exists: true,
     emailConfirmed: Boolean(user.email_confirmed_at),
     signupSite,
+    userId,
   };
 }

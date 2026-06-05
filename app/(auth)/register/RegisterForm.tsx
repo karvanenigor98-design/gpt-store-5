@@ -5,25 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
-import { buildSignupRedirectTo } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { registerSchema, type RegisterInput } from "@/lib/validations";
 import { isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
 import { cn } from "@/lib/utils";
-
-function isAlreadyRegisteredError(message: string): boolean {
-  const m = message.toLowerCase();
-  return (
-    m.includes("already") ||
-    m.includes("registered") ||
-    m.includes("exists") ||
-    m.includes("user already")
-  );
-}
 
 function alreadyRegisteredMessage(isSubsStore: boolean, unconfirmed?: boolean): string {
   if (unconfirmed) {
@@ -94,166 +82,85 @@ export function RegisterForm() {
     formState: { errors, isSubmitting },
   } = useForm<RegisterInput>({ resolver: zodResolver(registerSchema) });
 
+  async function clearLocalAuthSessions() {
+    try {
+      const primary = isSubsStore ? createSubsBrowserClient() : createClient();
+      await primary.auth.signOut({ scope: "local" }).catch(() => undefined);
+    } catch {
+      /* ignore */
+    }
+    try {
+      const secondary = isSubsStore ? createClient() : createSubsBrowserClient();
+      await secondary.auth.signOut({ scope: "local" }).catch(() => undefined);
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function onSubmit(data: RegisterInput) {
     setServerError(null);
 
-    let supabase;
-    try {
-      supabase =
-        isSubsStore ? createSubsBrowserClient()
-        : createClient();
-    } catch (err) {
-      setServerError(
-        err instanceof Error
-          ? err.message
-          : "Spotify Store Auth не сконфигурирован: проверьте NEXT_PUBLIC_SUBS_SUPABASE_* в .env.local",
-      );
-      return;
-    }
-    // Иначе при уже открытой сессии другого пользователя PKCE/куки могут пересечься с новой регистрацией.
-    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
-    if (!isSubsStore) {
-      try {
-        await createSubsBrowserClient().auth.signOut({ scope: "local" });
-      } catch {
-        /* ignore */
-      }
-    } else {
-      try {
-        await createClient().auth.signOut({ scope: "local" });
-      } catch {
-        /* ignore */
-      }
-    }
+    await clearLocalAuthSessions();
+
     const normalizedEmail = normalizeEmailForAuth(data.email);
+    const safeReturnUrl =
+      returnUrl.startsWith("/") && !returnUrl.startsWith("//")
+        ? returnUrl
+        : defaultCustomerDashboard(siteSlug);
 
     if (typeof document !== "undefined") {
       document.cookie = `pending_signup_email=${encodeURIComponent(normalizedEmail)}; path=/; max-age=3600; samesite=lax`;
       document.cookie = `pending_signup_site=${siteSlug}; path=/; max-age=3600; samesite=lax`;
     }
 
+    let signupRes: Response;
     try {
-      const checkRes = await fetch("/api/auth/check-registration", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, site: siteSlug }),
-      });
-      const check = (await checkRes.json()) as { exists?: boolean; emailConfirmed?: boolean };
-      if (check.exists && check.emailConfirmed) {
-        setServerError(alreadyRegisteredMessage(isSubsStore));
-        return;
-      }
-      if (check.exists && !check.emailConfirmed) {
-        const safeReturnUrl =
-          returnUrl.startsWith("/") && !returnUrl.startsWith("//")
-            ? returnUrl
-            : defaultCustomerDashboard(siteSlug);
-        try {
-          await fetch("/api/auth/resend-verification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: normalizedEmail,
-              site: siteSlug,
-              returnUrl: safeReturnUrl,
-              trigger: "manual_resend",
-            }),
-          });
-        } catch {
-          /* verify-email: повторная отправка */
-        }
-        router.push(
-          buildVerifyEmailUrl(normalizedEmail, siteSlug, safeReturnUrl, { sent: true }),
-        );
-        return;
-      }
-    } catch {
-      /* продолжаем signUp — дубль поймаем по identities / error */
-    }
-
-    const safeReturnUrl =
-      returnUrl.startsWith("/") && !returnUrl.startsWith("//")
-        ? returnUrl
-        : defaultCustomerDashboard(siteSlug);
-
-    const emailRedirectTo = buildSignupRedirectTo(
-      siteSlug,
-      safeReturnUrl,
-      window.location.origin,
-    );
-
-    const { data: signData, error } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password: data.password,
-      options: {
-        emailRedirectTo,
-        data: { signup_site: siteSlug },
-      },
-    });
-
-    if (error) {
-      if (isAlreadyRegisteredError(error.message)) {
-        setServerError(alreadyRegisteredMessage(isSubsStore));
-      } else {
-        setServerError("Не удалось создать аккаунт. Попробуйте снова.");
-      }
-      return;
-    }
-
-    // Supabase не отдаёт ошибку, но identities пустой — email уже в Auth (anti-enumeration)
-    const hasNoIdentity =
-      Array.isArray(signData.user?.identities) && signData.user?.identities.length === 0;
-
-    if (hasNoIdentity) {
-      if (signData.session) {
-        await supabase.auth.signOut();
-      }
-      setServerError(alreadyRegisteredMessage(isSubsStore));
-      return;
-    }
-
-    if (signData.session) {
-      const dashboardPath = await completeClientAuthSession({
-        supabase,
-        site: siteSlug,
-        returnUrl: safeReturnUrl,
-      });
-      router.replace(dashboardPath);
-      router.refresh();
-      return;
-    }
-
-    const sentTo = signData.user?.email ?? normalizedEmail;
-
-    let customSent = false;
-    let deliveryPending = false;
-    try {
-      const resendRes = await fetch("/api/auth/resend-verification", {
+      signupRes = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: sentTo,
+          email: normalizedEmail,
+          password: data.password,
           site: siteSlug,
           returnUrl: safeReturnUrl,
-          trigger: "post_signup",
         }),
       });
-      const resendJson = (await resendRes.json().catch(() => ({}))) as {
-        ok?: boolean;
-        deliveryPending?: boolean;
-      };
-      customSent = Boolean(resendRes.ok && resendJson.ok);
-      deliveryPending = Boolean(resendJson.deliveryPending);
     } catch {
-      deliveryPending = true;
+      setServerError("Не удалось связаться с сервером. Проверьте интернет и попробуйте снова.");
+      return;
     }
 
-    router.push(
-      buildVerifyEmailUrl(sentTo, siteSlug, safeReturnUrl, {
-        sent: customSent,
-        pending: !customSent && deliveryPending,
-      }),
-    );
+    const signupJson = (await signupRes.json().catch(() => ({}))) as {
+      ok?: boolean;
+      code?: string;
+      error?: string;
+      needsVerification?: boolean;
+      emailSent?: boolean;
+      deliveryPending?: boolean;
+      email?: string;
+    };
+
+    if (!signupRes.ok || !signupJson.ok) {
+      if (signupJson.code === "already_registered") {
+        setServerError(alreadyRegisteredMessage(isSubsStore));
+        return;
+      }
+      setServerError(signupJson.error ?? "Не удалось создать аккаунт. Попробуйте снова.");
+      return;
+    }
+
+    if (signupJson.needsVerification) {
+      const sentTo = signupJson.email ?? normalizedEmail;
+      router.push(
+        buildVerifyEmailUrl(sentTo, siteSlug, safeReturnUrl, {
+          sent: Boolean(signupJson.emailSent),
+          pending: Boolean(signupJson.deliveryPending),
+        }),
+      );
+      return;
+    }
+
+    router.push(`/login?site=${siteSlug}&returnUrl=${encodeURIComponent(safeReturnUrl)}`);
   }
 
   const labelClass = isSubsStore
@@ -344,7 +251,7 @@ export function RegisterForm() {
         style={{ backgroundColor: accentColor, boxShadow: `0 4px 14px ${accentColor}40` }}
       >
         {isSubmitting && <Loader2 size={15} className="animate-spin" />}
-        {isSubmitting ? "Отправка письма…" : "Зарегистрироваться"}
+        {isSubmitting ? "Создание аккаунта…" : "Зарегистрироваться"}
       </button>
 
       {isSubsStore ? (
