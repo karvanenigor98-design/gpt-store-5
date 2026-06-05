@@ -25,13 +25,33 @@ function isAlreadyRegisteredError(message: string): boolean {
   );
 }
 
-function alreadyRegisteredMessage(isSubsStore: boolean): string {
+function alreadyRegisteredMessage(isSubsStore: boolean, unconfirmed?: boolean): string {
+  if (unconfirmed) {
+    return "Аккаунт уже создан, но email не подтверждён. Мы отправим письмо повторно — проверьте почту.";
+  }
   if (isSubsStore) {
     return "Этот email уже зарегистрирован. Войдите через ссылку внизу страницы.";
   }
   const login = "/login";
   const reset = "/reset-password";
   return `Этот email уже зарегистрирован. <a href="${login}" class="underline font-medium">Войти</a> или <a href="${reset}" class="underline font-medium">восстановить пароль</a>.`;
+}
+
+function buildVerifyEmailUrl(
+  email: string,
+  siteSlug: string,
+  safeReturnUrl: string,
+  params: { sent?: boolean; pending?: boolean },
+): string {
+  const verifyParams = new URLSearchParams({ email });
+  if (params.sent) verifyParams.set("sent", "1");
+  if (params.pending) verifyParams.set("pending", "1");
+  if (siteSlug === "subs-store") verifyParams.set("site", "subs-store");
+  if (safeReturnUrl.startsWith("/") && !safeReturnUrl.startsWith("//")) {
+    verifyParams.set("returnUrl", safeReturnUrl);
+  }
+  if (isCheckoutReturnPath(safeReturnUrl)) verifyParams.set("flow", "checkout");
+  return `/verify-email?${verifyParams.toString()}`;
 }
 
 export function RegisterForm() {
@@ -118,9 +138,33 @@ export function RegisterForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizedEmail, site: siteSlug }),
       });
-      const check = (await checkRes.json()) as { exists?: boolean };
-      if (check.exists) {
+      const check = (await checkRes.json()) as { exists?: boolean; emailConfirmed?: boolean };
+      if (check.exists && check.emailConfirmed) {
         setServerError(alreadyRegisteredMessage(isSubsStore));
+        return;
+      }
+      if (check.exists && !check.emailConfirmed) {
+        const safeReturnUrl =
+          returnUrl.startsWith("/") && !returnUrl.startsWith("//")
+            ? returnUrl
+            : defaultCustomerDashboard(siteSlug);
+        try {
+          await fetch("/api/auth/resend-verification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: normalizedEmail,
+              site: siteSlug,
+              returnUrl: safeReturnUrl,
+              trigger: "manual_resend",
+            }),
+          });
+        } catch {
+          /* verify-email: повторная отправка */
+        }
+        router.push(
+          buildVerifyEmailUrl(normalizedEmail, siteSlug, safeReturnUrl, { sent: true }),
+        );
         return;
       }
     } catch {
@@ -180,13 +224,36 @@ export function RegisterForm() {
     }
 
     const sentTo = signData.user?.email ?? normalizedEmail;
-    const verifyParams = new URLSearchParams({ email: sentTo, sent: "1" });
-    if (isSubsStore) verifyParams.set("site", "subs-store");
-    if (safeReturnUrl.startsWith("/") && !safeReturnUrl.startsWith("//")) {
-      verifyParams.set("returnUrl", safeReturnUrl);
+
+    let customSent = false;
+    let deliveryPending = false;
+    try {
+      const resendRes = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: sentTo,
+          site: siteSlug,
+          returnUrl: safeReturnUrl,
+          trigger: "post_signup",
+        }),
+      });
+      const resendJson = (await resendRes.json().catch(() => ({}))) as {
+        ok?: boolean;
+        deliveryPending?: boolean;
+      };
+      customSent = Boolean(resendRes.ok && resendJson.ok);
+      deliveryPending = Boolean(resendJson.deliveryPending);
+    } catch {
+      deliveryPending = true;
     }
-    if (isCheckoutReturnPath(safeReturnUrl)) verifyParams.set("flow", "checkout");
-    router.push(`/verify-email?${verifyParams.toString()}`);
+
+    router.push(
+      buildVerifyEmailUrl(sentTo, siteSlug, safeReturnUrl, {
+        sent: customSent,
+        pending: !customSent && deliveryPending,
+      }),
+    );
   }
 
   const labelClass = isSubsStore

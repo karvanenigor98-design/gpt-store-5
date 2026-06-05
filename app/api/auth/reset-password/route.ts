@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { logAuthEmailAttempt } from "@/lib/auth/auth-email-log";
 import { hasSubsStoreAuthUserByEmail } from "@/lib/auth/subsMembershipByEmail";
 import { sendTransactionalEmail } from "@/lib/email/send-email";
 import { getPublicBrandName } from "@/lib/sites";
@@ -297,6 +298,13 @@ export async function POST(request: NextRequest) {
       const customSend = await sendCustomRecoveryEmail(recoveryLinkForEmail);
       debug.customEmail = customSend;
       if (customSend.ok) {
+        logAuthEmailAttempt({
+          event: "password_recovery",
+          email,
+          siteSlug: siteSlug === "subs-store" ? "subs-store" : "gpt-store",
+          ok: true,
+          channel: String(customSend.reason ?? "email"),
+        });
         return okRecoveryResponse(`app_${customSend.reason ?? "email"}`, recoveryLinkForEmail);
       }
     } else {
@@ -315,6 +323,13 @@ export async function POST(request: NextRequest) {
     debug.supabaseError = supabaseError?.message ?? null;
 
     if (!supabaseError) {
+      logAuthEmailAttempt({
+        event: "password_recovery",
+        email,
+        siteSlug: siteSlug === "subs-store" ? "subs-store" : "gpt-store",
+        ok: true,
+        channel: "supabase",
+      });
       return okRecoveryResponse(
         "supabase",
         canReturnDebug ? recoveryLinkForEmail : undefined,

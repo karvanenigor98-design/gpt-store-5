@@ -6,7 +6,6 @@ import { Loader2, MailCheck } from "lucide-react";
 import { defaultCustomerDashboard, normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 import { readCheckoutIntent, isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
-import { buildSignupRedirectTo } from "@/lib/site-url";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
@@ -57,6 +56,7 @@ export function VerifyEmailClient() {
   const email = (searchParams.get("email") ?? "").trim();
   const queryErr = mapQueryError(searchParams.get("error"));
   const justSentParam = searchParams.get("sent") === "1";
+  const deliveryPendingParam = searchParams.get("pending") === "1";
   const flowCheckInbox = searchParams.get("flow") === "check_inbox";
   const autoloadConfirm = searchParams.get("autoload") === "1";
   const siteParam = searchParams.get("site") ?? "";
@@ -91,6 +91,7 @@ export function VerifyEmailClient() {
   const [entryPhase, setEntryPhase] = useState<"none" | "entering">("none");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showJustSent, setShowJustSent] = useState(false);
+  const [showDeliveryPending, setShowDeliveryPending] = useState(deliveryPendingParam);
   const [resolvedError, setResolvedError] = useState<
     "expired" | "used" | "callback" | "wrong_account" | null
   >(queryErr);
@@ -135,6 +136,15 @@ export function VerifyEmailClient() {
     const q = params.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [justSentParam, pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!deliveryPendingParam) return;
+    setShowDeliveryPending(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("pending");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [deliveryPendingParam, pathname, router, searchParams]);
 
   const syncAndGo = useCallback(async () => {
     if (didRedirect.current) return;
@@ -238,37 +248,55 @@ export function VerifyEmailClient() {
     if (!email || resendIn > 0 || resendPhase === "sending") return;
     setResendPhase("sending");
     setResendError(null);
-    let supabase;
     try {
-      supabase = getAuthClient();
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          site: siteSlug,
+          returnUrl: postLoginTarget,
+          trigger: "manual_resend",
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        alreadyConfirmed?: boolean;
+        error?: string;
+        retryAfter?: number;
+        hint?: string;
+      };
+      if (json.alreadyConfirmed) {
+        setResolvedError("used");
+        setResendPhase("idle");
+        return;
+      }
+      if (!res.ok || !json.ok) {
+        setResendPhase("error");
+        setResendError(
+          json.error
+            ? mapResendError(json.error)
+            : json.hint ?? "Не удалось отправить письмо",
+        );
+        if (json.retryAfter && json.retryAfter > 0) {
+          setResendIn(json.retryAfter);
+        }
+        return;
+      }
+      setResendPhase("sent");
+      setResendIn(RESEND_COOLDOWN_SEC);
     } catch {
       setResendPhase("error");
-      setResendError("Auth не настроен. Проверьте .env.local");
-      return;
+      setResendError("Не удалось отправить письмо. Проверьте интернет и попробуйте снова.");
     }
-    const emailRedirectTo = buildSignupRedirectTo(
-      siteSlug,
-      postLoginTarget,
-      window.location.origin,
-    );
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email,
-      options: { emailRedirectTo },
-    });
-    if (error) {
-      setResendPhase("error");
-      setResendError(mapResendError(error.message));
-      return;
-    }
-    setResendPhase("sent");
-    setResendIn(RESEND_COOLDOWN_SEC);
   }
 
   const iconBg = isSubsStore ? `${SPOTIFY_GREEN}18` : "rgba(16,163,127,0.1)";
   const spinnerColor = isSubsStore ? SPOTIFY_GREEN : "#10a37f";
   const headingClass = isSubsStore ? "text-white" : "text-gray-900";
   const subTextClass = isSubsStore ? "text-gray-400" : "text-gray-500";
+  const loginHref = `/login?site=${siteSlug}&returnUrl=${encodeURIComponent(postLoginTarget)}`;
+  const supportHref = "/support";
 
   if (!sessionChecked) {
     return (
@@ -348,6 +376,13 @@ export function VerifyEmailClient() {
           Письмо отправлено
         </p>
       )}
+      {showDeliveryPending && !showJustSent && (
+        <p
+          className={`mb-3 rounded-lg border px-3 py-2 text-sm ${isSubsStore ? "border-amber-700/40 bg-amber-950/40 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+        >
+          Мы создали аккаунт. Письмо может прийти с небольшой задержкой — проверьте «Спам». Если через 1–2 минуты письма нет, нажмите «Отправить повторно».
+        </p>
+      )}
       <p className={`text-sm leading-relaxed mb-6 ${subTextClass}`}>
         {checkoutFlow ? (
           <>
@@ -403,9 +438,24 @@ export function VerifyEmailClient() {
           .
         </p>
       )}
-      <p className={`text-xs ${isSubsStore ? "text-gray-600" : "text-gray-400"}`}>
-        Не нашли письмо? Проверьте папку «Спам».
+      <p className={`text-xs leading-relaxed mb-4 ${isSubsStore ? "text-gray-600" : "text-gray-400"}`}>
+        Не нашли письмо? Проверьте папку «Спам», убедитесь в правильности email. Если письма нет 1–2 минуты — отправьте повторно.
       </p>
+      <div className="flex flex-col gap-2 text-sm">
+        <a
+          href={loginHref}
+          className={`rounded-xl border py-2.5 font-medium transition-opacity hover:opacity-90 ${isSubsStore ? "border-white/[0.15] text-gray-300 hover:bg-white/[0.06]" : "border-black/[0.12] text-gray-800 hover:bg-gray-50"}`}
+        >
+          Вернуться ко входу
+        </a>
+        <a
+          href={supportHref}
+          className="text-xs hover:underline"
+          style={{ color: accentColor }}
+        >
+          Написать в поддержку
+        </a>
+      </div>
     </div>
   );
 }
