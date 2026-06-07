@@ -11,8 +11,13 @@ import {
 import { notifyCustomerOrderStatus, notifyManualOrderStatusChange } from "@/lib/telegram/notifications";
 import {
   fetchSubsOrderForStatusPatch,
+  buildSubsOrderActivationPatch,
   subsPaymentStatusForOrderStatus,
 } from "@/lib/admin/patch-subs-order-status";
+import {
+  inferGptPlanDurationMonths,
+  resolveOrderSubscriptionExpiresAt,
+} from "@/lib/admin/admin-subscription-label";
 
 const SUBS_ORDER_STATUSES = new Set([
   "new",
@@ -92,6 +97,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updatePayload: Record<string, unknown> = {
       status: nextSubs,
       updated_at: new Date().toISOString(),
+      ...buildSubsOrderActivationPatch(order, nextSubs),
     };
     if (nextPaymentStatus) {
       updatePayload.payment_status = nextPaymentStatus;
@@ -179,7 +185,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: true, status: next });
   }
 
-  const { error: updErr } = await admin.from("orders").update({ status: next }).eq("id", orderId);
+  const gptUpdate: {
+    status: OrderStatus;
+    activated_at?: string;
+    expires_at?: string;
+  } = { status: next };
+  if (next === "active") {
+    const nowIso = new Date().toISOString();
+    if (!order.activated_at) gptUpdate.activated_at = nowIso;
+    if (!order.expires_at) {
+      const expiresAt = resolveOrderSubscriptionExpiresAt({
+        activated_at: (order.activated_at as string | null) ?? nowIso,
+        paid_at: (order.paid_at as string | null) ?? null,
+        durationMonths: inferGptPlanDurationMonths(String(order.plan_id ?? "")),
+      });
+      if (expiresAt) gptUpdate.expires_at = expiresAt;
+    }
+  }
+
+  const { error: updErr } = await admin.from("orders").update(gptUpdate).eq("id", orderId);
   if (updErr) {
     return NextResponse.json({ error: "Не удалось обновить" }, { status: 500 });
   }

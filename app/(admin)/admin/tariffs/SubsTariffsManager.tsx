@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 
+import {
+  buildSubsTariffDefaultTitle,
+  formatSubsDurationLabel,
+  formatSubsTariffDisplayLabel,
+  getSubsCategoryLabelRu,
+} from "@/lib/admin/subs-tariff-display-label";
+
 type TariffRow = {
   id: string;
   slug: string;
@@ -45,6 +52,12 @@ function periodToMonths(period: string): number {
   return 1;
 }
 
+function normalizeTariffRow(row: TariffRow): TariffRow {
+  const durationMonths = row.duration_months ?? 1;
+  const title = row.title?.trim() || buildSubsTariffDefaultTitle(row.category, durationMonths);
+  return { ...row, duration_months: durationMonths, title };
+}
+
 export function SubsTariffsManager() {
   const [items, setItems] = useState<TariffRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +75,7 @@ export function SubsTariffsManager() {
         setItems([]);
       } else {
         setErr(null);
-        setItems(json.items ?? []);
+        setItems((json.items ?? []).map((row) => normalizeTariffRow(row)));
       }
     } catch {
       setErr("Не удалось загрузить тарифы Subs Store.");
@@ -75,7 +88,19 @@ export function SubsTariffsManager() {
   }, [load]);
 
   function patchLocal(id: string, patch: Partial<TariffRow>) {
-    setItems((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    setItems((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const next = { ...r, ...patch };
+        if (patch.category != null || patch.duration_months != null) {
+          const autoTitle = buildSubsTariffDefaultTitle(next.category, next.duration_months);
+          if (!next.title?.trim() || next.title === buildSubsTariffDefaultTitle(r.category, r.duration_months)) {
+            next.title = autoTitle;
+          }
+        }
+        return next;
+      }),
+    );
   }
 
   async function onSave() {
@@ -92,7 +117,7 @@ export function SubsTariffsManager() {
             body: JSON.stringify({
               id: row.id,
               price: row.price,
-              title: row.title,
+              title: row.title.trim() || buildSubsTariffDefaultTitle(row.category, row.duration_months),
               category: row.category,
               duration_months: row.duration_months,
               is_popular: row.is_popular,
@@ -152,67 +177,90 @@ export function SubsTariffsManager() {
       )}
 
       <div className="space-y-3">
-        {items.map((row) => (
-          <div key={row.id} className="rounded-xl border border-gray-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-gray-800">{row.title}</p>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
-                {row.slug}
-              </span>
+        {items.map((row) => {
+          const displayTitle = formatSubsTariffDisplayLabel(row);
+          const categoryLabel = getSubsCategoryLabelRu(row.category);
+          const durationLabel = formatSubsDurationLabel(row.duration_months);
+
+          return (
+            <div key={row.id} className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-base font-semibold text-gray-900">{displayTitle}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {categoryLabel} · {durationLabel} · {row.price.toLocaleString("ru")} ₽
+                    {row.is_active ? "" : " · выключен"}
+                  </p>
+                </div>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 font-mono text-[10px] uppercase text-gray-500">
+                  {row.slug}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-xs text-gray-500">Название на витрине</label>
+                  <input
+                    type="text"
+                    value={row.title}
+                    onChange={(e) => patchLocal(row.id, { title: e.target.value })}
+                    placeholder={buildSubsTariffDefaultTitle(row.category, row.duration_months)}
+                    className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Продукт</label>
+                  <select
+                    value={row.category}
+                    onChange={(e) => patchLocal(row.id, { category: e.target.value })}
+                    className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
+                  >
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Цена (₽)</label>
+                  <input
+                    type="number"
+                    value={row.price}
+                    onChange={(e) => patchLocal(row.id, { price: Number(e.target.value) || 0 })}
+                    className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Период подписки</label>
+                  <select
+                    value={monthsToPeriod(row.duration_months)}
+                    onChange={(e) =>
+                      patchLocal(row.id, { duration_months: periodToMonths(e.target.value) })
+                    }
+                    className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
+                  >
+                    <option value="мес">1 месяц</option>
+                    <option value="3 мес">3 месяца</option>
+                    <option value="6 мес">6 месяцев</option>
+                    <option value="год">12 месяцев</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Популярный</label>
+                  <select
+                    value={row.is_popular ? "yes" : "no"}
+                    onChange={(e) => patchLocal(row.id, { is_popular: e.target.value === "yes" })}
+                    className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
+                  >
+                    <option value="no">Нет</option>
+                    <option value="yes">Да</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Продукт</label>
-                <select
-                  value={row.category}
-                  onChange={(e) => patchLocal(row.id, { category: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Цена (₽)</label>
-                <input
-                  type="number"
-                  value={row.price}
-                  onChange={(e) => patchLocal(row.id, { price: Number(e.target.value) || 0 })}
-                  className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Период</label>
-                <select
-                  value={monthsToPeriod(row.duration_months)}
-                  onChange={(e) =>
-                    patchLocal(row.id, { duration_months: periodToMonths(e.target.value) })
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
-                >
-                  <option value="мес">мес</option>
-                  <option value="3 мес">3 мес</option>
-                  <option value="6 мес">6 мес</option>
-                  <option value="год">год</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Популярный</label>
-                <select
-                  value={row.is_popular ? "yes" : "no"}
-                  onChange={(e) => patchLocal(row.id, { is_popular: e.target.value === "yes" })}
-                  className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-sm"
-                >
-                  <option value="no">Нет</option>
-                  <option value="yes">Да</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {err && items.length > 0 && <p className="text-sm text-red-700">{err}</p>}

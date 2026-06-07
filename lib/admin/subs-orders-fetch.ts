@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { applySubsOrdersStatusFilter } from "@/lib/admin/subs-orders-query";
+import { formatSubsTariffDisplayLabel } from "@/lib/admin/subs-tariff-display-label";
 
 const ORDERS_SELECT =
   "id,status,payment_status,final_price,customer_email,created_at,user_id,tariff_id";
@@ -47,9 +48,14 @@ export async function fetchSubsOrdersForAdmin(
 
   const tariffTitleById = new Map<string, string>();
   if (tariffIds.length > 0) {
-    const { data: tariffs } = await subs.from("tariffs").select("id,title").in("id", tariffIds);
+    const { data: tariffs } = await subs
+      .from("tariffs")
+      .select("id,title,slug,category,duration_months")
+      .in("id", tariffIds);
     for (const t of tariffs ?? []) {
-      if (t.id && t.title) tariffTitleById.set(t.id, t.title);
+      if (t.id) {
+        tariffTitleById.set(t.id, formatSubsTariffDisplayLabel(t));
+      }
     }
   }
 

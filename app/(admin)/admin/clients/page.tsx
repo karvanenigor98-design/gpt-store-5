@@ -12,6 +12,12 @@ import type { UserRole } from "@/types/database";
 import { selectProfilesFlexible } from "@/lib/admin/selectProfilesFlexible";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getSiteBySlug } from "@/lib/sites";
+import {
+  formatAdminActiveSubscriptionLabel,
+  inferGptPlanDurationMonths,
+  resolveGptAdminActivePlanTitle,
+  resolveSubsAdminActivePlanTitle,
+} from "@/lib/admin/admin-subscription-label";
 
 export const metadata: Metadata = { title: "Admin · Клиенты" };
 const ROLE_PRIORITY: Record<UserRole, number> = { admin: 0, operator: 1, client: 2 };
@@ -64,8 +70,14 @@ export default async function AdminClientsPage({
     status: string;
     plan_id?: string | null;
     product?: string | null;
+    plan_name?: string | null;
     id?: string;
     planTitle?: string | null;
+    tariff_id?: string | null;
+    activated_at?: string | null;
+    expires_at?: string | null;
+    paid_at?: string | null;
+    durationMonths?: number | null;
   };
 
   let profilesError: { message: string } | null = null;
@@ -120,11 +132,30 @@ export default async function AdminClientsPage({
       /* таблицы может не быть */
     }
 
-    const { data: subsOrdersRaw, error: ordErr } = await subs
+    const subsOrdersSelect =
+      "user_id, status, tariff_id, id, activated_at, expires_at, paid_at";
+    let subsOrdersRaw: Record<string, unknown>[] | null = null;
+    let ordErr: { message: string } | null = null;
+
+    const extendedOrders = await subs
       .from("orders")
-      .select("user_id, status, plan_id, id")
+      .select(subsOrdersSelect)
       .order("created_at", { ascending: false })
       .limit(2000);
+
+    if (extendedOrders.error && /does not exist|column .* does not/i.test(extendedOrders.error.message)) {
+      const baseOrders = await subs
+        .from("orders")
+        .select("user_id, status, tariff_id, id, paid_at")
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      subsOrdersRaw = (baseOrders.data ?? []) as Record<string, unknown>[];
+      ordErr = baseOrders.error;
+    } else {
+      subsOrdersRaw = (extendedOrders.data ?? []) as Record<string, unknown>[];
+      ordErr = extendedOrders.error;
+    }
+
     if (ordErr) {
       profilesError =
         profilesError ??
@@ -133,39 +164,63 @@ export default async function AdminClientsPage({
         };
     }
 
-    const titleBySlug = new Map<string, string>();
+    const titleByTariffId = new Map<
+      string,
+      { title: string | null; slug: string | null; category: string | null; duration_months: number | null }
+    >();
     if (subsOrdersRaw?.length) {
-      const slugs = new Set<string>();
+      const tariffIds = new Set<string>();
       for (const r of subsOrdersRaw) {
-        const pid = (r as { plan_id?: string | null }).plan_id;
-        if (pid && String(pid).trim()) slugs.add(String(pid).trim());
+        const tid = (r as { tariff_id?: string | null }).tariff_id;
+        if (tid && String(tid).trim()) tariffIds.add(String(tid).trim());
       }
-      if (slugs.size > 0) {
+      if (tariffIds.size > 0) {
         const { data: tariffRows, error: tErr } = await subs
           .from("tariffs")
-          .select("slug, title")
-          .in("slug", [...slugs]);
+          .select("id, slug, title, category, duration_months")
+          .in("id", [...tariffIds]);
         if (tErr) {
           profilesError =
             profilesError ?? { message: `Тарифы Subs (для названий заказов): ${tErr.message}` };
         }
         for (const t of tariffRows ?? []) {
-          const slug = (t as { slug?: string; title?: string }).slug;
-          const title = (t as { title?: string }).title;
-          if (slug) titleBySlug.set(String(slug), String(title ?? slug));
+          const id = (t as { id?: string }).id;
+          if (!id) continue;
+          titleByTariffId.set(String(id), {
+            title: (t as { title?: string | null }).title ?? null,
+            slug: (t as { slug?: string | null }).slug ?? null,
+            category: (t as { category?: string | null }).category ?? null,
+            duration_months:
+              (t as { duration_months?: number | null }).duration_months != null
+                ? Number((t as { duration_months?: number | null }).duration_months)
+                : null,
+          });
         }
       }
     }
 
     orders = (subsOrdersRaw ?? []).map((raw) => {
-      const row = raw as { user_id?: string | null; status?: string; plan_id?: string | null; id?: string };
-      const slug = row.plan_id ? String(row.plan_id).trim() : "";
+      const row = raw as {
+        user_id?: string | null;
+        status?: string;
+        tariff_id?: string | null;
+        id?: string;
+        activated_at?: string | null;
+        expires_at?: string | null;
+        paid_at?: string | null;
+      };
+      const tariffId = row.tariff_id ? String(row.tariff_id).trim() : "";
+      const tariffMeta = tariffId ? titleByTariffId.get(tariffId) : null;
       return {
         user_id: row.user_id ?? null,
         status: String(row.status ?? ""),
-        plan_id: row.plan_id ?? null,
+        tariff_id: row.tariff_id ?? null,
         id: row.id,
-        planTitle: slug ? titleBySlug.get(slug) ?? null : null,
+        activated_at: row.activated_at ?? null,
+        expires_at: row.expires_at ?? null,
+        paid_at: row.paid_at ?? null,
+        durationMonths: tariffMeta?.duration_months ?? null,
+        planTitle: resolveSubsAdminActivePlanTitle(tariffMeta ?? null),
       };
     }) as unknown as OrderAgg[];
     for (const o of orders) {
@@ -320,14 +375,30 @@ export default async function AdminClientsPage({
     const allUserIds = mergedRows.map((r) => r.id).filter((id) => id !== (user?.id ?? ""));
 
     const siteOrdersQuery = allUserIds.length
-      ? admin.from("orders").select("user_id, status, plan_id, price, created_at, product").in("user_id", allUserIds)
+      ? admin
+          .from("orders")
+          .select(
+            "user_id, status, plan_id, price, created_at, product, activated_at, expires_at, paid_at, plan_name",
+          )
+          .in("user_id", allUserIds)
       : null;
 
     const { data: allOrders } = siteOrdersQuery
       ? await siteOrdersQuery.not("product", "ilike", "spotify%")
       : { data: [] };
 
-    orders = (allOrders ?? []) as unknown as OrderAgg[];
+    orders = (allOrders ?? []).map((raw) => {
+      const row = raw as OrderAgg;
+      return {
+        ...row,
+        planTitle: resolveGptAdminActivePlanTitle({
+          plan_id: String(row.plan_id ?? ""),
+          product: row.product ?? null,
+          plan_name: row.plan_name ?? null,
+        }),
+        durationMonths: inferGptPlanDurationMonths(String(row.plan_id ?? "")),
+      };
+    }) as unknown as OrderAgg[];
   }
 
   const isSubsStoreSite = siteSlug === "subs-store";
@@ -407,7 +478,7 @@ export default async function AdminClientsPage({
               <th className="px-4 py-3">Был в сети</th>
               <th className="px-4 py-3">Этап</th>
               <th className="px-4 py-3">Заказы</th>
-              <th className="px-4 py-3">Активная</th>
+              <th className="px-4 py-3">Подписка</th>
               <th className="px-4 py-3">Теги</th>
               <th className="px-4 py-3">Заметка</th>
               <th className="px-4 py-3"></th>
@@ -428,18 +499,25 @@ export default async function AdminClientsPage({
               const stageLabel = STAGE_RU[stageKey] ?? stageKey;
               const rowHi = highlight === c.id ? "bg-[#10a37f]/10" : "";
 
-              const activeLabel = (() => {
-                if (!active) return null;
-                if (!isSubsStoreSite) return `${active.plan_id ?? "—"} (active)`;
-                const pt = active.planTitle;
-                const title =
-                  typeof pt === "string" && pt.trim()
-                    ? pt
-                    : active.plan_id
-                      ? String(active.plan_id)
-                      : null;
-                return title ? `${title} (${active.status})` : `${(active.id ?? "").slice(0, 8)}… (${active.status})`;
-              })();
+              const activeLabel = active
+                ? formatAdminActiveSubscriptionLabel({
+                    siteSlug: isSubsStoreSite ? "subs-store" : "gpt-store",
+                    status: active.status,
+                    planTitle:
+                      active.planTitle ??
+                      (isSubsStoreSite
+                        ? "Spotify Premium"
+                        : resolveGptAdminActivePlanTitle({
+                            plan_id: String(active.plan_id ?? ""),
+                            product: active.product ?? null,
+                            plan_name: active.plan_name ?? null,
+                          })),
+                    expiresAtIso: active.expires_at,
+                    activatedAtIso: active.activated_at,
+                    paidAtIso: active.paid_at,
+                    durationMonths: active.durationMonths,
+                  })
+                : null;
 
               return (
                 <tr key={c.id} className={rowHi}>
