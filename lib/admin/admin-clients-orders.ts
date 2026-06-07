@@ -92,15 +92,18 @@ export function buildAdminOrdersByUserId(
   }
 
   for (const order of orders) {
-    let userId = order.user_id ? String(order.user_id) : null;
-    if (!userId) {
-      const email = order.account_email?.trim().toLowerCase();
-      if (email) userId = emailToId.get(email) ?? null;
+    const targetIds = new Set<string>();
+    if (order.user_id) targetIds.add(String(order.user_id));
+    const accountEmail = order.account_email?.trim().toLowerCase();
+    if (accountEmail) {
+      const byEmail = emailToId.get(accountEmail);
+      if (byEmail) targetIds.add(byEmail);
     }
-    if (!userId) continue;
-    const arr = byUser.get(userId) ?? [];
-    arr.push(order);
-    byUser.set(userId, arr);
+    for (const userId of targetIds) {
+      const arr = byUser.get(userId) ?? [];
+      arr.push(order);
+      byUser.set(userId, arr);
+    }
   }
 
   return byUser;

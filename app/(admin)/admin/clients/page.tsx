@@ -12,10 +12,10 @@ import type { UserRole } from "@/types/database";
 import { selectProfilesFlexible } from "@/lib/admin/selectProfilesFlexible";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getSiteBySlug } from "@/lib/sites";
+import { loadGptOrdersForAdminClients } from "@/lib/admin/gpt-clients-orders-fetch";
 import {
   formatAdminActiveSubscriptionLabel,
   inferDurationMonthsFromText,
-  inferGptPlanDurationMonths,
   resolveGptAdminActivePlanTitle,
   resolveSubsAdminActivePlanTitle,
 } from "@/lib/admin/admin-subscription-label";
@@ -334,7 +334,7 @@ export default async function AdminClientsPage({
 
     const authUsers: { id: string; email: string | null; created_at: string | null }[] = [];
     let page = 1;
-    while (page <= 20) {
+    while (page <= 50) {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
       if (error) {
         profilesError =
@@ -376,33 +376,14 @@ export default async function AdminClientsPage({
       };
     });
 
-    const { data: allOrdersRaw, error: gptOrdersErr } = await admin
-      .from("orders")
-      .select(
-        "user_id, status, plan_id, price, created_at, product, activated_at, expires_at, paid_at, plan_name, account_email",
-      )
-      .not("product", "ilike", "spotify%")
-      .order("created_at", { ascending: false })
-      .limit(5000);
+    const { orders: gptOrders, error: gptOrdersErr } = await loadGptOrdersForAdminClients(admin);
 
     if (gptOrdersErr) {
       profilesError =
-        profilesError ?? { message: `Заказы GPT Store: ${gptOrdersErr.message}` };
+        profilesError ?? { message: `Заказы GPT Store: ${gptOrdersErr}` };
     }
 
-    orders = (allOrdersRaw ?? []).map((raw) => {
-      const row = raw as OrderAgg;
-      const planTitle = resolveGptAdminActivePlanTitle({
-        plan_id: String(row.plan_id ?? ""),
-        product: row.product ?? null,
-        plan_name: row.plan_name ?? null,
-      });
-      return {
-        ...row,
-        planTitle,
-        durationMonths: inferGptPlanDurationMonths(String(row.plan_id ?? ""), planTitle),
-      };
-    }) as unknown as OrderAgg[];
+    orders = gptOrders;
   }
 
   const isSubsStoreSite = siteSlug === "subs-store";
@@ -421,7 +402,10 @@ export default async function AdminClientsPage({
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const ordersByUser = buildAdminOrdersByUserId(orders, clients);
+  const ordersByUser = buildAdminOrdersByUserId(
+    orders,
+    mergedRows.filter((r) => r.id !== (user?.id ?? "")),
+  );
 
   return (
     <div className="p-6">
