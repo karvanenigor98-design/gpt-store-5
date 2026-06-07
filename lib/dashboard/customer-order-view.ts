@@ -65,9 +65,11 @@ export function normalizeSubsOrderRow(
 
 export function getCustomerOrderProductLabel(order: CustomerOrderView): string {
   if (order.product.startsWith("spotify")) {
-    if (order.tariff_title) return `Spotify Premium — ${order.tariff_title}`;
+    const statusPart = order.status ? ` — ${order.status}` : "";
+    const pricePart = ` — ${Number(order.price || 0).toLocaleString("ru")} ₽`;
+    if (order.tariff_title) return `Spotify Premium — ${order.tariff_title}${pricePart}${statusPart}`;
     const suffix = order.plan_id.replace(/^spotify-/, "").replace(/-/g, " ");
-    return `Spotify Premium — ${suffix || order.plan_id}`;
+    return `Spotify Premium — ${suffix || order.plan_id}${pricePart}${statusPart}`;
   }
   if (order.product === "chatgpt-plus") return "ChatGPT Plus";
   if (order.product === "chatgpt-pro") return "ChatGPT Pro";

@@ -4,9 +4,11 @@ import { useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 
 import { SpotifyReviewCard } from "@/components/spotify/SpotifyReviewCard";
+import { useLandingReviewsRotation } from "@/hooks/useLandingReviewsRotation";
 import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
 
 const VISIBLE_COUNT = 4;
+const ROTATION_MS = 10_000;
 
 type Props = {
   reviews: SpotifyLandingReview[];
@@ -25,10 +27,7 @@ export function SpotifyReviewsRotator({ reviews, onFeaturedReview }: Props) {
     [reviews],
   );
 
-  const visible = useMemo(() => {
-    if (!pool.length) return [];
-    return pool.slice(0, VISIBLE_COUNT);
-  }, [pool]);
+  const visible = useLandingReviewsRotation(pool, VISIBLE_COUNT, ROTATION_MS);
 
   useEffect(() => {
     onFeaturedReview?.(visible[0] ?? null);

@@ -16,10 +16,7 @@ import {
   persistCheckoutIntent,
 } from "@/lib/checkout/checkout-auth";
 
-const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
-
-const ACCOUNT_DATA_HINT =
-  "После оплаты оператор уточнит данные, которые нужны именно для вашего варианта подключения. Обычно это email от Spotify-аккаунта, а в отдельных случаях может потребоваться временный доступ для активации.";
+const STEPS = ["Выбор тарифа", "Оплата"];
 
 export function SpotifyCheckoutFlow() {
   const router = useRouter();
@@ -31,8 +28,6 @@ export function SpotifyCheckoutFlow() {
   const [promoCodes, setPromoCodes] = useState<{ code: string; active: boolean }[]>([]);
   const [plansSource, setPlansSource] = useState<"static" | "supabase">("static");
   const [selectedPlan, setSelectedPlan] = useState<SpotifyPlan | null>(null);
-  const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState("");
   const [promoCode, setPromoCode] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,7 +92,7 @@ export function SpotifyCheckoutFlow() {
     if (found) setSelectedPlan(found);
   }, [planIdFromUrl, authGate.intent?.planId, plans]);
 
-  // Один раз: с лендинга ?plan=… → шаг 2, но не откатывать если уже на 3
+  // Один раз: с лендинга ?plan=… → шаг оплаты, но не откатывать дальше
   useEffect(() => {
     const effectivePlanId = planIdFromUrl ?? authGate.intent?.planId ?? null;
     if (!effectivePlanId || urlPlanInitDoneRef.current || !plans.length || !authGate.ready) return;
@@ -117,9 +112,6 @@ export function SpotifyCheckoutFlow() {
     if (authGate.intent.promoCode) {
       setPromoCode((prev) => prev || (authGate.intent!.promoCode ?? ""));
     }
-    if (authGate.intent.accountEmail) {
-      setEmail((prev) => prev || (authGate.intent!.accountEmail ?? ""));
-    }
   }, [authGate.ready, authGate.intent]);
 
   useEffect(() => {
@@ -129,9 +121,8 @@ export function SpotifyCheckoutFlow() {
       planId: selectedPlan.id,
       planName: selectedPlan.name,
       promoCode: promoCode.trim() || null,
-      accountEmail: email.trim() || null,
     });
-  }, [authGate.ready, selectedPlan, promoCode, email]);
+  }, [authGate.ready, selectedPlan, promoCode]);
 
   useEffect(() => {
     const subs = tryCreateSubsBrowserClient();
@@ -142,8 +133,7 @@ export function SpotifyCheckoutFlow() {
     const timeoutId = window.setTimeout(() => setReady(true), 4000);
     void subs.auth
       .getUser()
-      .then(({ data }) => {
-        if (data.user?.email) setEmail((prev) => prev || data.user!.email!);
+      .then(() => {
         setReady(true);
       })
       .catch(() => setReady(true))
@@ -153,33 +143,12 @@ export function SpotifyCheckoutFlow() {
 
   const displayPrice = useMemo(() => selectedPlan?.price ?? 0, [selectedPlan]);
 
-  function validateEmail(value: string) {
-    if (!value.trim()) return "Введите email";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Некорректный email";
-    return "";
-  }
-
-  function goToPaymentStep() {
-    const err = validateEmail(email);
-    if (err) {
-      setEmailError(err);
-      return;
-    }
-    goToStep(3);
-  }
-
   async function handlePay() {
     if (!selectedPlan || !agreeTerms) return;
-    const err = validateEmail(email);
-    if (err) {
-      setEmailError(err);
-      goBackToStep(2);
-      return;
-    }
 
     reachSpotifyFunnelGoal("spotify_click_pay", {
       planId: selectedPlan.id,
-      source: "checkout_step3",
+      source: "checkout_step2",
     });
 
     persistCheckoutIntent({
@@ -187,7 +156,6 @@ export function SpotifyCheckoutFlow() {
       planId: selectedPlan.id,
       planName: selectedPlan.name,
       promoCode: promoCode.trim() || null,
-      accountEmail: email.trim() || null,
     });
 
     const { user, emailConfirmed } = await getCheckoutSessionUser("subs-store");
@@ -206,7 +174,6 @@ export function SpotifyCheckoutFlow() {
         credentials: "include",
         body: JSON.stringify({
           planId: selectedPlan.id,
-          accountEmail: email.trim(),
           promoCode: promoCode.trim().toUpperCase() || null,
         }),
       });
@@ -452,88 +419,6 @@ export function SpotifyCheckoutFlow() {
             transition={{ duration: 0.25 }}
             className="mx-auto w-full max-w-2xl lg:max-w-3xl"
           >
-            <h1 className="font-heading text-2xl font-bold text-white md:text-3xl">Email для связи</h1>
-            <p className="mt-2 mb-8 text-sm md:text-base" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Укажите email — на него придут статусы заказа. После оплаты оператор свяжется в чате для активации Premium.
-            </p>
-
-            {selectedPlan && (
-              <div
-                className="mb-6 flex items-center justify-between rounded-2xl border p-4 md:p-5"
-                style={{ borderColor: "rgba(29,185,84,0.3)", background: "rgba(29,185,84,0.1)" }}
-              >
-                <span className="font-medium text-white/90">
-                  Spotify Premium · {selectedPlan.name}
-                </span>
-                <span className="text-xl font-bold text-white">
-                  {selectedPlan.price.toLocaleString("ru")} ₽
-                </span>
-              </div>
-            )}
-
-            <div className="space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-white/80">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setEmailError("");
-                  }}
-                  className={cn(
-                    "w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30",
-                    "focus:border-[#1DB954] focus:ring-2 focus:ring-[#1DB954]/25",
-                    emailError ? "border-red-500/60" : "border-white/10",
-                  )}
-                  placeholder="your@email.com"
-                />
-                {emailError && <p className="mt-1.5 text-xs text-red-400">{emailError}</p>}
-              </div>
-
-              <p
-                className="rounded-2xl border px-4 py-4 text-xs leading-relaxed md:text-sm"
-                style={{
-                  borderColor: "rgba(29,185,84,0.2)",
-                  background: "rgba(29,185,84,0.06)",
-                  color: "rgba(255,255,255,0.55)",
-                }}
-              >
-                {ACCOUNT_DATA_HINT}
-              </p>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => goBackToStep(1)}
-                  className="rounded-xl px-6 py-3.5 text-sm text-white/60 transition-colors hover:text-white sm:flex-1"
-                  style={{ border: "1px solid rgba(255,255,255,0.12)" }}
-                >
-                  ← Назад
-                </button>
-                <button
-                  type="button"
-                  onClick={goToPaymentStep}
-                  className="inline-flex flex-[2] items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white hover:opacity-90"
-                  style={{ background: SPOTIFY_ACCENT }}
-                >
-                  Продолжить
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {step === 3 && (
-          <motion.div
-            key="step3"
-            initial={false}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25 }}
-            className="mx-auto w-full max-w-2xl lg:max-w-3xl"
-          >
             <h1 className="font-heading text-2xl font-bold text-white md:text-3xl">Оплата</h1>
             <p className="mt-2 mb-8 text-sm md:text-base" style={{ color: "rgba(255,255,255,0.5)" }}>
               Оплата через Pally, СБП и банковскую карту РФ — вы перейдёте на защищённую страницу провайдера.
@@ -593,7 +478,7 @@ export function SpotifyCheckoutFlow() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => goBackToStep(2)}
+                onClick={() => goBackToStep(1)}
                 className="rounded-xl px-6 py-3.5 text-sm text-white/60 transition-colors hover:text-white sm:flex-1"
                 style={{ border: "1px solid rgba(255,255,255,0.12)" }}
               >

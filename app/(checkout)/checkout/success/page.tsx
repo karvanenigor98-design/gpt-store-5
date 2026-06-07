@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { GptFunnelSuccessGoal } from "@/components/analytics/GptFunnelSuccessGoal";
+import { SpotifyFunnelSuccessGoal } from "@/components/analytics/SpotifyFunnelSuccessGoal";
 import { CheckoutAfterPaymentRedirect } from "@/components/checkout/CheckoutAfterPaymentRedirect";
 import { CheckoutSuccessOrderRedirect } from "@/components/checkout/CheckoutSuccessOrderRedirect";
 import { reconcileUnpaidOrderPayment } from "@/lib/payments/reconcile-unpaid-order";
@@ -31,6 +32,7 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
     return (
       <>
         <GptFunnelSuccessGoal siteSlug={siteSlug} />
+        <SpotifyFunnelSuccessGoal siteSlug={siteSlug} />
         <Suspense
           fallback={
             <div className="text-center text-sm text-gray-500">Переходим в кабинет…</div>
@@ -45,8 +47,9 @@ export default async function CheckoutSuccessPage({ searchParams }: Props) {
   await reconcileUnpaidOrderPayment({ siteSlug, orderId }).catch(() => undefined);
 
   return (
-    <>
+      <>
       <GptFunnelSuccessGoal siteSlug={siteSlug} orderId={orderId} />
+      <SpotifyFunnelSuccessGoal siteSlug={siteSlug} orderId={orderId} />
       <Suspense fallback={<div className="text-center text-sm text-gray-500">Подтверждаем оплату…</div>}>
         <CheckoutAfterPaymentRedirect orderId={orderId} siteSlug={siteSlug} />
       </Suspense>

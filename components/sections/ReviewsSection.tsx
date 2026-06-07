@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useMemo } from "react";
+import { useLandingReviewsRotation } from "@/hooks/useLandingReviewsRotation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { fadeUp } from "@/lib/motion-config";
@@ -54,7 +55,7 @@ export function ReviewsSection({ reviews, moreHref = "/reviews" }: ReviewsSectio
     [reviews],
   );
 
-  const previewReviews = useMemo(() => pool.slice(0, PREVIEW_COUNT) as PublicReview[], [pool]);
+  const previewReviews = useLandingReviewsRotation(pool, PREVIEW_COUNT);
 
   const leftCol = previewReviews.filter((_, i) => i % 2 === 0);
   const rightCol = previewReviews.filter((_, i) => i % 2 !== 0);

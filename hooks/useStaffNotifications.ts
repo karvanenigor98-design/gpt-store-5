@@ -150,7 +150,7 @@ export function useStaffNotifications(params: {
   }, [reload]);
 
   useEffect(() => {
-    const poll = window.setInterval(() => void reload(), 12_000);
+    const poll = window.setInterval(() => void reload(), 15_000);
     return () => window.clearInterval(poll);
   }, [reload]);
 

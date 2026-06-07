@@ -13,6 +13,7 @@ import {
   loadSubsAdminReviews,
   type AdminReviewRow,
 } from "@/lib/reviews/load-admin-reviews";
+import { AdminOrdersLiveRefresh } from "@/components/admin/AdminOrdersLiveRefresh";
 
 export const metadata: Metadata = { title: "Admin · Отзывы" };
 
@@ -59,6 +60,7 @@ export default async function AdminReviewsPage({
 
   return (
     <div className="p-6">
+      <AdminOrdersLiveRefresh siteSlug={siteSlug} />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-heading text-2xl font-bold text-gray-900">
           Отзывы

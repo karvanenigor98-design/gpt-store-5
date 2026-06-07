@@ -67,11 +67,11 @@ async function findReusableGptOrder(
   input: {
     userId: string;
     planId: string;
-    accountEmail: string;
+    accountEmail?: string | null;
     existingOrderId?: string | null;
   },
 ): Promise<Database["public"]["Tables"]["orders"]["Row"] | null> {
-  const email = input.accountEmail.trim().toLowerCase();
+  const email = input.accountEmail?.trim().toLowerCase() || null;
 
   if (input.existingOrderId) {
     const { data: byId } = await admin
@@ -84,16 +84,20 @@ async function findReusableGptOrder(
     if (byId) return byId;
   }
 
-  const { data: byMatch } = await admin
+  let query = admin
     .from("orders")
     .select("*")
     .eq("user_id", input.userId)
     .eq("plan_id", input.planId)
-    .ilike("account_email", email)
     .or(GPT_UNPAID_STATUS_FILTER)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  if (email) {
+    query = query.ilike("account_email", email);
+  }
+
+  const { data: byMatch } = await query.maybeSingle();
 
   return byMatch ?? null;
 }
@@ -102,7 +106,7 @@ export async function upsertGptPendingOrder(
   admin: Admin,
   input: {
     userId: string;
-    accountEmail: string;
+    accountEmail?: string | null;
     resolved: GptCheckoutResolved;
     existingOrderId?: string | null;
   },
@@ -112,7 +116,7 @@ export async function upsertGptPendingOrder(
   created: boolean;
 }> {
   const { plan, finalPrice, meta } = input.resolved;
-  const email = input.accountEmail.trim();
+  const email = input.accountEmail?.trim() || null;
   const product = plan.productId ?? "chatgpt-plus";
 
   const existing = await findReusableGptOrder(admin, {
@@ -129,7 +133,7 @@ export async function upsertGptPendingOrder(
         product,
         plan_id: plan.id,
         price: finalPrice,
-        account_email: email,
+        ...(email ? { account_email: email } : {}),
         meta,
         payment_provider: "pally",
         status: "pending",

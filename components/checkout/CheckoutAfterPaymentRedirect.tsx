@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
+import { reachSpotifyFunnelGoal } from "@/lib/analytics/spotify-funnel-goals";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import {
   buildCustomerOrderFocusHref,
@@ -56,12 +57,19 @@ export function CheckoutAfterPaymentRedirect({ orderId, siteSlug }: Props) {
         });
         const data = (await res.json().catch(() => ({}))) as { paidLike?: boolean };
         if (data.paidLike) {
-          if (siteSlug === "gpt-store" && !paymentSuccessGoalFired.current) {
+          if (!paymentSuccessGoalFired.current) {
             paymentSuccessGoalFired.current = true;
-            reachGptFunnelGoal("gpt_payment_success", {
-              orderId,
-              source: "checkout_status_paid",
-            });
+            if (siteSlug === "gpt-store") {
+              reachGptFunnelGoal("gpt_payment_success", {
+                orderId,
+                source: "checkout_status_paid",
+              });
+            } else if (siteSlug === "subs-store") {
+              reachSpotifyFunnelGoal("spotify_payment_success", {
+                orderId,
+                source: "checkout_status_paid",
+              });
+            }
           }
           goCabinet(orderHref, "Оплата получена. Переходим в кабинет…");
           return;

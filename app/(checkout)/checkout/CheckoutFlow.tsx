@@ -4,10 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Loader2 } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { PLUS_PLANS, PRO_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
-import { checkoutStep2Schema, type CheckoutStep2Input } from "@/lib/validations";
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
@@ -18,7 +15,7 @@ import { buildCheckoutAuthUrl, persistCheckoutIntent } from "@/lib/checkout/chec
 
 const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
 
-const STEPS = ["Выбор тарифа", "Email аккаунта", "Оплата"];
+const STEPS = ["Выбор тарифа", "Оплата"];
 
 export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }) {
   const router = useRouter();
@@ -27,7 +24,6 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState<ExtendedPlan | null>(null);
-  const [accountEmail, setAccountEmail] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,9 +47,6 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     if (authGate.intent.promoCode) {
       setPromoCode((prev) => prev || (authGate.intent!.promoCode ?? ""));
     }
-    if (authGate.intent.accountEmail) {
-      setAccountEmail((prev) => prev || (authGate.intent!.accountEmail ?? ""));
-    }
   }, [authGate.ready, authGate.intent]);
 
   useEffect(() => {
@@ -63,9 +56,8 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
       planId: selectedPlan.id,
       planName: selectedPlan.name,
       promoCode: promoCode.trim() || null,
-      accountEmail: accountEmail.trim() || null,
     });
-  }, [authGate.ready, selectedPlan, promoCode, accountEmail]);
+  }, [authGate.ready, selectedPlan, promoCode]);
 
   // Предвыбор тарифа из URL (?plan=…) или checkout intent
   useEffect(() => {
@@ -126,11 +118,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     };
   }, []);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<CheckoutStep2Input>({
-    resolver: zodResolver(checkoutStep2Schema),
-  });
-
-  async function saveDraftOrder(email: string) {
+  async function saveDraftOrder() {
     if (!selectedPlan) return;
     try {
       const res = await fetch("/api/checkout/gpt/draft", {
@@ -139,7 +127,6 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
         credentials: "include",
         body: JSON.stringify({
           planId: selectedPlan.id,
-          accountEmail: email,
           promoCode: promoCode.trim().toUpperCase() || null,
           orderId: draftOrderId,
         }),
@@ -149,19 +136,13 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
         setDraftOrderId(json.orderId);
       }
     } catch {
-      // заказ в админке не критичен для UX шага email
+      // заказ в админке не критичен для UX шага оплаты
     }
   }
 
-  async function onStep2Submit(data: CheckoutStep2Input) {
-    setAccountEmail(data.accountEmail);
-    setStep(3);
-    void saveDraftOrder(data.accountEmail);
-  }
-
   async function onPaymentSubmit() {
-    if (!selectedPlan || selectedPlan.inStock === false || !accountEmail || !agreeTerms) return;
-    reachGptFunnelGoal("gpt_click_pay", { planId: selectedPlan.id, source: "checkout_step3" });
+    if (!selectedPlan || selectedPlan.inStock === false || !agreeTerms) return;
+    reachGptFunnelGoal("gpt_click_pay", { planId: selectedPlan.id, source: "checkout_step2" });
     setIsSubmitting(true);
     setError(null);
 
@@ -172,7 +153,6 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
         credentials: "include",
         body: JSON.stringify({
           planId: selectedPlan.id,
-          accountEmail,
           promoCode: promoCode.trim().toUpperCase() || null,
           orderId: draftOrderId,
         }),
@@ -324,7 +304,10 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
             <button
               type="button"
               disabled={!selectedPlan || selectedPlan.inStock === false}
-              onClick={() => setStep(2)}
+              onClick={() => {
+                setStep(2);
+                void saveDraftOrder();
+              }}
               className="mt-6 flex w-full items-center justify-center rounded-xl bg-[#10a37f] py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               Продолжить →
@@ -340,70 +323,13 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.25 }}
           >
-            <h2 className="font-heading text-xl font-bold text-gray-900 mb-2">Email вашего ChatGPT аккаунта</h2>
-            <p className="mb-6 text-sm text-gray-500">
-              Нам нужен email, к которому привязан ваш аккаунт ChatGPT. После оплаты мы свяжемся через чат.
-            </p>
-
-            <form onSubmit={handleSubmit(onStep2Submit)} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email аккаунта ChatGPT
-                </label>
-                <input
-                  type="email"
-                  {...register("accountEmail")}
-                  className={cn(
-                    "w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-shadow",
-                    "focus:ring-2 focus:ring-[#10a37f]/30 focus:border-[#10a37f]",
-                    errors.accountEmail ? "border-red-400" : "border-black/[0.12]"
-                  )}
-                  placeholder="your@chatgpt-account.com"
-                />
-                {errors.accountEmail && (
-                  <p className="mt-1 text-xs text-red-500">{errors.accountEmail.message}</p>
-                )}
-              </div>
-
-              <TokenSafetyBlock compact={true} className="mt-4" supportHref="/dashboard/chat" />
-
-              <p className="text-xs text-amber-700 rounded-xl bg-amber-50 border border-amber-200/50 px-4 py-3">
-                После оплаты напишите в чат сайта GPT STORE — там же будет инструкция по данным сессии. На email мы
-                не отправляем эту инструкцию, только короткие статусы заказа.
-              </p>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 rounded-xl border border-black/[0.1] py-3 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  ← Назад
-                </button>
-                <button
-                  type="submit"
-                  className="flex-[2] rounded-xl bg-[#10a37f] py-3 text-sm font-semibold text-white hover:opacity-90"
-                >
-                  Продолжить →
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        )}
-
-        {step === 3 && (
-          <motion.div
-            key="step3"
-            initial={false}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25 }}
-          >
             <h2 className="font-heading text-xl font-bold text-gray-900 mb-2">Оплата</h2>
             <p className="mb-5 text-sm text-gray-500">
               Оплата доступна через Pally, СБП и банковскую карту РФ — вы перейдёте на защищённую страницу
               провайдера.
             </p>
+
+            <TokenSafetyBlock compact={true} className="mb-4" supportHref="/dashboard/chat" />
 
             {/* Summary */}
             {selectedPlan && (
@@ -455,7 +381,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(1)}
                 className="flex-1 rounded-xl border border-black/[0.1] py-3 text-sm text-gray-600 hover:bg-gray-50"
               >
                 ← Назад

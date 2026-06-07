@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
     };
     const { planId, accountEmail, promoCode, orderId } = body;
 
-    if (!planId || !accountEmail) {
+    if (!planId) {
       return NextResponse.json(
-        { error: "Укажите тариф и email аккаунта ChatGPT" },
+        { error: "Укажите тариф" },
         { status: 400 },
       );
     }
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     const { order, error: orderError, created } = await upsertGptPendingOrder(admin, {
       userId: user.id,
-      accountEmail: accountEmail.trim(),
+      accountEmail: accountEmail?.trim() || user.email?.trim() || null,
       resolved: resolvedPlan.resolved,
       existingOrderId: orderId,
     });
@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (created) {
+      const accountEmailValue = accountEmail?.trim() || user.email || null;
       await insertGptCustomerNotification({
         recipientUserId: user.id,
         type: "new_order",
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
           id: order.id,
           plan_name: plan.name,
           price: finalPrice,
-          account_email: accountEmail,
+          account_email: accountEmailValue,
           product: plan.productId ?? "chatgpt-plus",
         },
         { email: user.email ?? null },
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         planName: plan.name,
         price: finalPrice,
-        accountEmail,
+        accountEmail: accountEmail?.trim() || undefined,
         siteSlug: "gpt-store",
       }).catch(() => {});
       await scheduleUnpaidOrderReminder({

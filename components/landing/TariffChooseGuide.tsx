@@ -169,7 +169,7 @@ export function TariffChooseGuide({
 export const GPT_TARIFF_GUIDE_ITEMS: TariffGuideItem[] = [
   {
     label: "Нужен обычный ChatGPT Plus",
-    hint: "Выбирайте «Популярный» — лучший баланс цены и скорости.",
+    hint: "Выбирайте «Популярный» — лучший баланс цены и скорости подключения.",
     href: "#pricing",
   },
   {
@@ -185,6 +185,11 @@ export const GPT_TARIFF_GUIDE_ITEMS: TariffGuideItem[] = [
   {
     label: "Нужно подключиться быстрее",
     hint: "«Быстрая активация» — приоритет вне очереди, обычно 5–15 минут.",
+    href: "#pricing",
+  },
+  {
+    label: "Как проходит подключение",
+    hint: "После оплаты оператор пишет в чат сайта и ведёт вас по шагам. Если нужен вход в аккаунт, это объяснят отдельно.",
     href: "#pricing",
   },
 ];

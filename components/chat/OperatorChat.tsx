@@ -56,7 +56,7 @@ export function OperatorChat({ sessionId, userId, initialMessages = [], replyAsO
     void loadMessages();
     const poll = setInterval(() => {
       void loadMessages();
-    }, 1500);
+    }, 5000);
 
     return () => {
       stopped = true;

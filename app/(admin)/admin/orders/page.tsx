@@ -60,6 +60,10 @@ const SUBS_PAY_LABELS: Record<string, string> = {
   manual_review: "Проверка",
 };
 
+function shortOrderId(id: string): string {
+  return `${id.slice(0, 8)}…`;
+}
+
 export default async function AdminOrdersPage({
   searchParams,
 }: {
@@ -141,6 +145,7 @@ export default async function AdminOrdersPage({
               <tr className="text-left text-xs font-semibold uppercase tracking-widest text-gray-500">
                 <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">Клиент</th>
+                <th className="px-4 py-3">Email аккаунта подписки</th>
                 <th className="px-4 py-3">Тариф</th>
                 <th className="px-4 py-3">Сумма</th>
                 <th className="px-4 py-3">Статус</th>
@@ -153,6 +158,8 @@ export default async function AdminOrdersPage({
             <tbody className="divide-y divide-gray-100">
               {orders.map((order) => {
                 const email = order.profileEmail ?? order.customer_email ?? "—";
+                const paymentLabel = SUBS_PAY_LABELS[order.payment_status] ?? order.payment_status;
+                const tariffLabel = `${order.tariffTitle} — ${Number(order.final_price ?? 0).toLocaleString("ru")} ₽ — ${subsOrderStatusLabelRu(order.status)} — ${paymentLabel}`;
                 return (
                   <tr
                     key={order.id}
@@ -160,7 +167,7 @@ export default async function AdminOrdersPage({
                     className="scroll-mt-4 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     <td className="px-4 py-3">
-                      <code className="text-[11px] text-gray-500">{order.id.slice(0, 8)}…</code>
+                      <code className="text-[11px] text-gray-500" title={order.id}>{shortOrderId(order.id)}</code>
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {email}
@@ -168,7 +175,8 @@ export default async function AdminOrdersPage({
                         <span className="block text-gray-500">{order.profileName}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs">{order.tariffTitle}</td>
+                    <td className="px-4 py-3 text-xs">{order.customer_email ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs">{tariffLabel}</td>
                     <td className="px-4 py-3 text-xs font-semibold">{Number(order.final_price ?? 0).toLocaleString("ru")} ₽</td>
                     <td className="px-4 py-3">
                       <span
@@ -285,6 +293,7 @@ export default async function AdminOrdersPage({
             <tr className="text-left text-xs font-semibold uppercase tracking-widest text-gray-500">
               <th className="px-4 py-3">ID</th>
               <th className="px-4 py-3">Клиент</th>
+              <th className="px-4 py-3">Email аккаунта подписки</th>
               <th className="px-4 py-3">Тариф</th>
               <th className="px-4 py-3">Сумма</th>
               <th className="px-4 py-3">Статус</th>
@@ -298,13 +307,14 @@ export default async function AdminOrdersPage({
               const profile = order.user_id ? profileByUserId.get(order.user_id) : undefined;
               const clientEmail =
                 profile?.email?.trim() ||
+                "—";
+              const accountEmail =
                 order.account_email?.trim() ||
                 "—";
               return (
                 <tr key={order.id} id={`row-${order.id}`} className="scroll-mt-4 text-sm text-gray-700 hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <code className="text-[11px] text-gray-500">{order.id.split("-")[0]}…</code>
-                    <p className="text-xs text-gray-400">{order.account_email}</p>
+                    <code className="text-[11px] text-gray-500" title={order.id}>{shortOrderId(order.id)}</code>
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {clientEmail}
@@ -312,6 +322,7 @@ export default async function AdminOrdersPage({
                       <span className="block text-gray-500">@{profile.telegram_username}</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-xs">{accountEmail}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs">{resolveGptOrderPlanLabel(order)}</span>
                   </td>

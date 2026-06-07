@@ -239,9 +239,10 @@ export function ChatWindow({
 
   /** Резерв, если Realtime не доставляет события (репликация / RLS). */
   useEffect(() => {
+    const intervalMs = siteSlug === "subs-store" ? 6000 : 10000;
     const t = window.setInterval(() => {
       void loadMessages({ silent: true });
-    }, 4000);
+    }, intervalMs);
     return () => window.clearInterval(t);
   }, [sessionId, loadMessages, siteSlug]);
 

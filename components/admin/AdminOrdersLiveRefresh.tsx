@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,7 @@ type Props = {
 /** Обновляет таблицу заказов в админке/у оператора при изменении строк в БД (оплата, webhook, коллега). */
 export function AdminOrdersLiveRefresh({ siteSlug }: Props) {
   const router = useRouter();
+  const lastRefreshRef = useRef(0);
 
   useEffect(() => {
     const supabase =
@@ -26,6 +27,9 @@ export function AdminOrdersLiveRefresh({ siteSlug }: Props) {
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
         () => {
+          const now = Date.now();
+          if (now - lastRefreshRef.current < 1200) return;
+          lastRefreshRef.current = now;
           router.refresh();
         },
       )

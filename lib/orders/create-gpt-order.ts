@@ -32,7 +32,7 @@ export type CreateGptOrderInput = {
   product: string;
   planId: string;
   price: number;
-  accountEmail: string;
+  accountEmail?: string | null;
   paymentProvider?: string;
   meta?: Json | null;
 };
@@ -51,7 +51,7 @@ export async function createGptStoreOrder(
     plan_id: input.planId,
     price: input.price,
     status: "pending",
-    account_email: input.accountEmail,
+    account_email: input.accountEmail ?? null,
     payment_provider: input.paymentProvider ?? "pally",
     meta: input.meta ?? null,
     ...(gptSiteId ? { site_id: gptSiteId } : {}),
@@ -60,7 +60,8 @@ export async function createGptStoreOrder(
   let res = await admin.from("orders").insert(base).select().single();
 
   if (res.error && gptSiteId && /site_id|foreign key/i.test(res.error.message)) {
-    const { site_id: _drop, ...withoutSite } = base;
+    const withoutSite: OrderInsert = { ...base };
+    delete (withoutSite as { site_id?: string }).site_id;
     res = await admin.from("orders").insert(withoutSite).select().single();
   }
 

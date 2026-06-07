@@ -13,7 +13,7 @@ export function getCheckoutPlanStepPath(siteSlug: AuthSiteSlug): string {
   return siteSlug === "subs-store" ? "/checkout/spotify" : "/checkout";
 }
 
-/** Checkout step 2 — email для выбранного тарифа. */
+/** Checkout route для выбранного тарифа (открывает оплату с предвыбранным plan). */
 export function getCheckoutEmailStepPath(siteSlug: AuthSiteSlug, planId: string): string {
   return buildCheckoutPath(siteSlug, planId);
 }
@@ -55,7 +55,7 @@ export async function goToCheckoutPlanStep(params: {
   });
 }
 
-/** Конкретный тариф → шаг email (с сохранением intent и auth gate). */
+/** Конкретный тариф → checkout выбранного плана (с сохранением intent и auth gate). */
 export async function goToCheckoutEmailStep(params: {
   siteSlug: AuthSiteSlug;
   planId: string;

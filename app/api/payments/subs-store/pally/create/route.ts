@@ -102,8 +102,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
       }
 
-      if (!planId || !accountEmail?.trim()) {
-        return NextResponse.json({ error: "Укажите тариф и email" }, { status: 400 });
+      if (!planId) {
+        return NextResponse.json({ error: "Укажите тариф" }, { status: 400 });
       }
 
       const config = await getSubsStoreConfig();
@@ -122,7 +122,10 @@ export async function POST(request: NextRequest) {
       }
 
       const priced = applyPromo(plan.price, promo);
-      customerEmail = accountEmail.trim().toLowerCase();
+      customerEmail = (accountEmail?.trim() || sessionEmail || "").toLowerCase();
+      if (!customerEmail) {
+        return NextResponse.json({ error: "Не удалось определить email аккаунта" }, { status: 400 });
+      }
 
       const created = await createSubsAwaitingPaymentOrder({
         tariffSlug: plan.id,

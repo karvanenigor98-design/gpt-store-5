@@ -245,26 +245,10 @@ export async function sendSignupConfirmationEmail(args: {
     }
   }
 
-  if (trigger === "post_signup") {
-    logAuthEmailAttempt({
-      event: "signup_send",
-      email,
-      siteSlug,
-      ok: false,
-      error: linkError ?? "custom_email_failed_post_signup",
-      trigger,
-    });
-    return {
-      ok: false,
-      deliveryPending: true,
-      error: humanizeSignupEmailError(linkError ?? "Не удалось отправить письмо через Resend/SMTP"),
-    };
-  }
-
   const fallback = await sendViaSupabaseResend(email, siteSlug, args.appBaseUrl, returnUrl);
   if (fallback.ok) {
     logAuthEmailAttempt({
-      event: "resend_confirmation",
+      event: trigger === "post_signup" ? "signup_send" : "resend_confirmation",
       email,
       siteSlug,
       ok: true,
@@ -278,7 +262,7 @@ export async function sendSignupConfirmationEmail(args: {
   const retryAfter = parseRateLimitSeconds(rawMsg) ?? undefined;
 
   logAuthEmailAttempt({
-    event: "resend_confirmation",
+    event: trigger === "post_signup" ? "signup_send" : "resend_confirmation",
     email,
     siteSlug,
     ok: false,
@@ -288,6 +272,7 @@ export async function sendSignupConfirmationEmail(args: {
 
   return {
     ok: false,
+    deliveryPending: trigger === "post_signup",
     error: humanizeSignupEmailError(rawMsg),
     retryAfter,
   };
