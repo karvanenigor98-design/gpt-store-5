@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
+import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { syncSubsProfileRoleForUser } from "@/lib/auth/subsProfileSync";
@@ -16,11 +18,14 @@ export async function POST(request: Request) {
   const returnUrl =
     rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/cabinet";
 
-  const authSite = request.headers.get("x-auth-site");
+  const authSiteHeader = request.headers.get("x-auth-site");
   const useSubs =
-    authSite === "subs-store" ||
-    (authSite !== "gpt-store" &&
+    authSiteHeader === "subs-store" ||
+    (authSiteHeader !== "gpt-store" &&
       (returnUrl.includes("site=subs-store") || returnUrl.includes("/spotify")));
+
+  const siteSlug: AuthSiteSlug = useSubs ? "subs-store" : "gpt-store";
+  const effectiveReturnUrl = normalizeAuthReturnUrl(returnUrl, siteSlug);
 
   if (useSubs) {
     const subs = await createSubsAuthServerClient();
@@ -36,7 +41,7 @@ export async function POST(request: Request) {
     }
     try {
       const role = await syncSubsProfileRoleForUser(user.id, user.email ?? null);
-      const path = resolvePostLoginPath(returnUrl, role);
+      const path = resolvePostLoginPath(effectiveReturnUrl, role);
       return NextResponse.json({ path });
     } catch {
       return NextResponse.json({ error: "sync" }, { status: 500 });
@@ -55,7 +60,7 @@ export async function POST(request: Request) {
 
   try {
     const role = await syncProfileRoleForUser(user.id, user.email ?? null);
-    const path = resolvePostLoginPath(returnUrl, role);
+    const path = resolvePostLoginPath(effectiveReturnUrl, role);
     return NextResponse.json({ path });
   } catch {
     return NextResponse.json({ error: "sync" }, { status: 500 });

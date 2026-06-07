@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { loginSchema, type LoginInput } from "@/lib/validations";
-import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
+import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { cn } from "@/lib/utils";
@@ -49,8 +49,7 @@ export function LoginForm() {
   const isSubsStore = siteSlug === "subs-store";
   const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
 
-  // For Subs Store: if returnUrl is the generic /cabinet fallback, replace with site-aware path
-  const effectiveReturnUrl = normalizeAuthReturnUrl(returnUrl, siteSlug);
+  const effectiveReturnUrl = resolveAuthReturnUrl(returnUrl, siteSlug);
   const accentRing = isSubsStore
     ? "focus:ring-[#1DB954]/30 focus:border-[#1DB954]"
     : "focus:ring-[#10a37f]/30 focus:border-[#10a37f]";
@@ -209,7 +208,7 @@ export function LoginForm() {
     );
 
   const resetHref = isSubsStore ? `/reset-password?site=${siteSlug}` : "/reset-password";
-  const checkoutMessage = getCheckoutAuthMessage(effectiveReturnUrl, siteSlug);
+  const checkoutMessage = getCheckoutAuthMessage(effectiveReturnUrl);
   const registerHref = `/register?site=${siteSlug}&returnUrl=${encodeURIComponent(effectiveReturnUrl)}`;
 
   return (

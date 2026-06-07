@@ -10,7 +10,7 @@ import {
   detectRecoveryAuthSite,
   type AuthSiteSlug,
 } from "@/lib/auth/detectAuthSite";
-import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { defaultCustomerDashboard, resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
@@ -220,10 +220,7 @@ export function CallbackClient() {
         if (!exchangeErr) {
           if (cancelled) return;
           const updateUrl = new URL("/reset-password/update", window.location.origin);
-          updateUrl.searchParams.set(
-            "returnUrl",
-            returnUrl.includes("site=") ? returnUrl : defaultCustomerDashboard(siteSlug),
-          );
+          updateUrl.searchParams.set("returnUrl", resolveAuthReturnUrl(returnUrl, siteSlug));
           updateUrl.searchParams.set("site", siteSlug);
           router.replace(`${updateUrl.pathname}?${updateUrl.searchParams.toString()}`);
           return;
@@ -245,12 +242,7 @@ export function CallbackClient() {
           return;
         }
 
-        const effectiveReturnUrl =
-          subsContext && (returnUrl === "/cabinet" || returnUrl === "/dashboard")
-            ? defaultCustomerDashboard("subs-store")
-            : returnUrl.includes("site=")
-              ? returnUrl
-              : defaultCustomerDashboard(siteSlug);
+        const effectiveReturnUrl = resolveAuthReturnUrl(returnUrl, siteSlug);
 
         const syncRes = await fetch("/api/auth/post-auth-sync", {
           method: "POST",
@@ -379,10 +371,7 @@ export function CallbackClient() {
           document.cookie = `auth_reset_site=${siteSlug}; path=/; max-age=3600; samesite=lax`;
 
           const updateUrl = new URL("/reset-password/update", window.location.origin);
-          updateUrl.searchParams.set(
-            "returnUrl",
-            returnUrl.includes("site=") ? returnUrl : defaultCustomerDashboard(siteSlug),
-          );
+          updateUrl.searchParams.set("returnUrl", resolveAuthReturnUrl(returnUrl, siteSlug));
           updateUrl.searchParams.set("site", siteSlug);
           router.replace(`${updateUrl.pathname}?${updateUrl.searchParams.toString()}`);
           return;
@@ -488,10 +477,7 @@ export function CallbackClient() {
           return;
         }
 
-        const effectiveReturnUrl =
-          subsContext && (returnUrl === "/cabinet" || returnUrl === "/dashboard")
-            ? defaultCustomerDashboard("subs-store")
-            : returnUrl;
+        const effectiveReturnUrl = resolveAuthReturnUrl(returnUrl, siteSlug);
 
         const syncRes = await fetch("/api/auth/post-auth-sync", {
           method: "POST",

@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
 import { reachSpotifyFunnelGoal } from "@/lib/analytics/spotify-funnel-goals";
-import { getCheckoutEmailStepPath, goToCheckoutEmailStep } from "@/lib/checkout/checkout-navigation";
+import { navigateToCheckoutOrAuth } from "@/lib/checkout/checkout-auth";
+import { getCheckoutEmailStepPath } from "@/lib/checkout/checkout-navigation";
 
 type ConnectCheckoutButtonProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "onClick"> & {
   siteSlug: AuthSiteSlug;
@@ -38,7 +39,7 @@ export function ConnectCheckoutButton({
       } else if (siteSlug === "subs-store") {
         reachSpotifyFunnelGoal("spotify_select_plan", { planId, source: "landing_pricing" });
       }
-      await goToCheckoutEmailStep({
+      await navigateToCheckoutOrAuth({
         siteSlug,
         planId,
         planName,

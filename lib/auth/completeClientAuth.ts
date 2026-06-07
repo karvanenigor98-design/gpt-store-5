@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
-import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
+import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import type { Database } from "@/types/database";
 import type { UserRole } from "@/types/database";
@@ -13,7 +13,7 @@ export async function completeClientAuthSession(params: {
   returnUrl?: string | null;
 }): Promise<string> {
   const { supabase, site } = params;
-  const returnUrl = normalizeAuthReturnUrl(params.returnUrl, site);
+  const returnUrl = resolveAuthReturnUrl(params.returnUrl, site);
 
   const {
     data: { session },

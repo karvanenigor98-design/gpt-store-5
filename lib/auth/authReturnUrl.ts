@@ -1,4 +1,5 @@
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import { isCheckoutReturnPath, readCheckoutIntent } from "@/lib/checkout/checkout-intent";
 
 /** Личный кабинет покупателя по умолчанию. */
 export function defaultCustomerDashboard(site: AuthSiteSlug): string {
@@ -27,4 +28,33 @@ export function normalizeAuthReturnUrl(
   }
 
   return raw;
+}
+
+/**
+ * Финальный returnUrl после login/register/callback.
+ * Сохраняет checkout-маршруты и подтягивает sessionStorage intent, если query потерян.
+ */
+export function resolveAuthReturnUrl(
+  raw: string | null | undefined,
+  site: AuthSiteSlug,
+  options?: { useCheckoutIntent?: boolean },
+): string {
+  const fallback = defaultCustomerDashboard(site);
+  const fromQuery =
+    raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "";
+
+  if (isCheckoutReturnPath(fromQuery)) {
+    return fromQuery;
+  }
+
+  const normalized = normalizeAuthReturnUrl(fromQuery || null, site);
+
+  if (options?.useCheckoutIntent !== false && normalized === fallback) {
+    const intent = readCheckoutIntent(site);
+    if (intent?.returnPath && isCheckoutReturnPath(intent.returnPath)) {
+      return intent.returnPath;
+    }
+  }
+
+  return normalized;
 }

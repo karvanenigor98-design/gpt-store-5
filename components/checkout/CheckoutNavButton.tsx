@@ -4,10 +4,10 @@ import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import { navigateToCheckoutOrAuth } from "@/lib/checkout/checkout-auth";
 import {
   getCheckoutEmailStepPath,
   getCheckoutPlanStepPath,
-  goToCheckoutEmailStep,
   goToCheckoutPlanStep,
 } from "@/lib/checkout/checkout-navigation";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,7 @@ export function CheckoutNavButton({
     setBusy(true);
     try {
       if (planId) {
-        await goToCheckoutEmailStep({
+        await navigateToCheckoutOrAuth({
           siteSlug,
           planId,
           planName,

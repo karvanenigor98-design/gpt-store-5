@@ -80,13 +80,7 @@ export function clearCheckoutIntent(): void {
   }
 }
 
-export function getCheckoutAuthMessage(
-  returnUrl: string,
-  siteSlug: AuthSiteSlug,
-): string | null {
+export function getCheckoutAuthMessage(returnUrl: string): string | null {
   if (!isCheckoutReturnPath(returnUrl)) return null;
-  if (siteSlug === "subs-store") {
-    return "Войдите или зарегистрируйтесь, чтобы продолжить оформление Spotify Premium";
-  }
-  return "Войдите или зарегистрируйтесь, чтобы продолжить оформление ChatGPT Plus";
+  return "Для оформления заказа необходимо войти или зарегистрироваться.";
 }

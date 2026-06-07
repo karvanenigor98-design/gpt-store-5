@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
+import { defaultCustomerDashboard, resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { createClient } from "@/lib/supabase/client";
 import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { registerSchema, type RegisterInput } from "@/lib/validations";
-import { isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
+import { getCheckoutAuthMessage, isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
 import { cn } from "@/lib/utils";
 
 function alreadyRegisteredMessage(isSubsStore: boolean, unconfirmed?: boolean): string {
@@ -61,13 +61,7 @@ export function RegisterForm() {
   })();
   const isSubsStore = siteSlug === "subs-store";
 
-  const returnUrl = (() => {
-    const raw = returnUrlParam ?? defaultCustomerDashboard(siteSlug);
-    if (!raw.startsWith("/") || raw.startsWith("//")) {
-      return defaultCustomerDashboard(siteSlug);
-    }
-    return raw;
-  })();
+  const returnUrl = resolveAuthReturnUrl(returnUrlParam, siteSlug);
   const accentColor = isSubsStore ? "#1DB954" : "#10a37f";
   const accentRing = isSubsStore
     ? "focus:ring-[#1DB954]/30 focus:border-[#1DB954]"
@@ -181,9 +175,22 @@ export function RegisterForm() {
   const termsHref = "/terms";
   const privacyHref = "/privacy";
   const loginHref = `/login?site=${siteSlug}&returnUrl=${encodeURIComponent(returnUrl)}`;
+  const checkoutMessage = getCheckoutAuthMessage(returnUrl);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      {checkoutMessage ? (
+        <p
+          className="rounded-lg border px-3 py-2 text-sm"
+          style={{
+            borderColor: `${accentColor}40`,
+            background: `${accentColor}12`,
+            color: isSubsStore ? "#a7f3c0" : "#0f766e",
+          }}
+        >
+          {checkoutMessage}
+        </p>
+      ) : null}
       <div>
         <label className={labelClass}>Email</label>
         <input

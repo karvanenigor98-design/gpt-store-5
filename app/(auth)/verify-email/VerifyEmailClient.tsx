@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck } from "lucide-react";
-import { defaultCustomerDashboard, normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
+import { defaultCustomerDashboard, resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
 import { readCheckoutIntent, isCheckoutReturnPath } from "@/lib/checkout/checkout-intent";
 import { completeClientAuthSession } from "@/lib/auth/completeClientAuth";
@@ -74,10 +74,8 @@ export function VerifyEmailClient() {
     searchParams.get("flow") === "checkout" ||
     isCheckoutReturnPath(returnUrlParam) ||
     Boolean(checkoutIntent);
-  const postLoginTarget = normalizeAuthReturnUrl(
-    returnUrlParam.startsWith("/") && !returnUrlParam.startsWith("//")
-      ? returnUrlParam
-      : checkoutIntent?.returnPath ?? defaultCustomerDashboard(siteSlug),
+  const postLoginTarget = resolveAuthReturnUrl(
+    returnUrlParam.startsWith("/") && !returnUrlParam.startsWith("//") ? returnUrlParam : null,
     siteSlug,
   );
 

@@ -26,7 +26,7 @@ export default async function RegisterPage({
           pathname: "/register",
         });
   const isSubsStore = authSite === "subs-store";
-  const checkoutMessage = getCheckoutAuthMessage(returnUrl, authSite);
+  const checkoutMessage = getCheckoutAuthMessage(returnUrl);
 
   if (isSubsStore) {
     return (
