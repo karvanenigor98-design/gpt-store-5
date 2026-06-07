@@ -5,7 +5,7 @@ import { formatSubsTariffDisplayLabel } from "@/lib/admin/subs-tariff-display-la
 
 /** Поля subs.orders для PATCH статуса (без plan_id/plan_name — их нет в Subs DB). */
 export const SUBS_ORDER_PATCH_SELECT =
-  "id,status,payment_status,user_id,tariff_id,final_price,customer_email,activated_at,expires_at,paid_at";
+  "id,status,payment_status,user_id,tariff_id,final_price,customer_email,activated_at,expires_at,paid_at,created_at";
 
 export async function fetchSubsOrderForStatusPatch(
   subs: SupabaseClient,
@@ -24,6 +24,7 @@ export async function fetchSubsOrderForStatusPatch(
       activated_at: string | null;
       expires_at: string | null;
       paid_at: string | null;
+      created_at: string | null;
     }
   | null
 > {
@@ -36,7 +37,7 @@ export async function fetchSubsOrderForStatusPatch(
   if (error && /does not exist|column .* does not/i.test(error.message)) {
     ({ data: order, error } = await subs
       .from("orders")
-      .select("id,status,payment_status,user_id,tariff_id,final_price,customer_email,paid_at")
+      .select("id,status,payment_status,user_id,tariff_id,final_price,customer_email,paid_at,created_at")
       .eq("id", orderId)
       .maybeSingle());
   }
@@ -71,6 +72,7 @@ export async function fetchSubsOrderForStatusPatch(
     activated_at: (order.activated_at as string | null) ?? null,
     expires_at: (order.expires_at as string | null) ?? null,
     paid_at: (order.paid_at as string | null) ?? null,
+    created_at: (order.created_at as string | null) ?? null,
   };
 }
 
@@ -83,7 +85,9 @@ export function buildSubsOrderActivationPatch(
     activated_at: string | null;
     expires_at: string | null;
     paid_at: string | null;
+    created_at: string | null;
     durationMonths: number | null;
+    planTitle: string;
   },
   nextStatus: string,
 ): Record<string, string> {
@@ -101,7 +105,9 @@ export function buildSubsOrderActivationPatch(
     const expiresAt = resolveOrderSubscriptionExpiresAt({
       activated_at: activatedAt,
       paid_at: order.paid_at,
+      created_at: order.created_at,
       durationMonths: order.durationMonths,
+      planTitle: order.planTitle,
     });
     if (expiresAt) patch.expires_at = expiresAt;
   }

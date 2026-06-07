@@ -14,10 +14,18 @@ import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getSiteBySlug } from "@/lib/sites";
 import {
   formatAdminActiveSubscriptionLabel,
+  inferDurationMonthsFromText,
   inferGptPlanDurationMonths,
   resolveGptAdminActivePlanTitle,
   resolveSubsAdminActivePlanTitle,
 } from "@/lib/admin/admin-subscription-label";
+import {
+  buildAdminOrdersByUserId,
+  gptClientHasPaidOrder,
+  pickAdminActiveOrder,
+  subsClientHasPaidOrder,
+  type AdminClientOrderAgg,
+} from "@/lib/admin/admin-clients-orders";
 
 export const metadata: Metadata = { title: "Admin · Клиенты" };
 const ROLE_PRIORITY: Record<UserRole, number> = { admin: 0, operator: 1, client: 2 };
@@ -65,20 +73,7 @@ export default async function AdminClientsPage({
     client_stage: string | null;
   };
 
-  type OrderAgg = {
-    user_id: string | null;
-    status: string;
-    plan_id?: string | null;
-    product?: string | null;
-    plan_name?: string | null;
-    id?: string;
-    planTitle?: string | null;
-    tariff_id?: string | null;
-    activated_at?: string | null;
-    expires_at?: string | null;
-    paid_at?: string | null;
-    durationMonths?: number | null;
-  };
+  type OrderAgg = AdminClientOrderAgg;
 
   let profilesError: { message: string } | null = null;
   let mergedRows: {
@@ -133,7 +128,7 @@ export default async function AdminClientsPage({
     }
 
     const subsOrdersSelect =
-      "user_id, status, tariff_id, id, activated_at, expires_at, paid_at";
+      "user_id, status, tariff_id, id, activated_at, expires_at, paid_at, created_at";
     let subsOrdersRaw: Record<string, unknown>[] | null = null;
     let ordErr: { message: string } | null = null;
 
@@ -146,7 +141,7 @@ export default async function AdminClientsPage({
     if (extendedOrders.error && /does not exist|column .* does not/i.test(extendedOrders.error.message)) {
       const baseOrders = await subs
         .from("orders")
-        .select("user_id, status, tariff_id, id, paid_at")
+        .select("user_id, status, tariff_id, id, paid_at, created_at")
         .order("created_at", { ascending: false })
         .limit(2000);
       subsOrdersRaw = (baseOrders.data ?? []) as Record<string, unknown>[];
@@ -208,9 +203,17 @@ export default async function AdminClientsPage({
         activated_at?: string | null;
         expires_at?: string | null;
         paid_at?: string | null;
+        created_at?: string | null;
       };
       const tariffId = row.tariff_id ? String(row.tariff_id).trim() : "";
       const tariffMeta = tariffId ? titleByTariffId.get(tariffId) : null;
+      const durationMonths =
+        tariffMeta?.duration_months ??
+        inferDurationMonthsFromText(tariffMeta?.title ?? null) ??
+        null;
+      const planTitle = resolveSubsAdminActivePlanTitle(
+        tariffMeta ? { ...tariffMeta, duration_months: durationMonths } : null,
+      );
       return {
         user_id: row.user_id ?? null,
         status: String(row.status ?? ""),
@@ -219,8 +222,9 @@ export default async function AdminClientsPage({
         activated_at: row.activated_at ?? null,
         expires_at: row.expires_at ?? null,
         paid_at: row.paid_at ?? null,
-        durationMonths: tariffMeta?.duration_months ?? null,
-        planTitle: resolveSubsAdminActivePlanTitle(tariffMeta ?? null),
+        created_at: row.created_at ?? null,
+        durationMonths,
+        planTitle,
       };
     }) as unknown as OrderAgg[];
     for (const o of orders) {
@@ -372,31 +376,31 @@ export default async function AdminClientsPage({
       };
     });
 
-    const allUserIds = mergedRows.map((r) => r.id).filter((id) => id !== (user?.id ?? ""));
+    const { data: allOrdersRaw, error: gptOrdersErr } = await admin
+      .from("orders")
+      .select(
+        "user_id, status, plan_id, price, created_at, product, activated_at, expires_at, paid_at, plan_name, account_email",
+      )
+      .not("product", "ilike", "spotify%")
+      .order("created_at", { ascending: false })
+      .limit(5000);
 
-    const siteOrdersQuery = allUserIds.length
-      ? admin
-          .from("orders")
-          .select(
-            "user_id, status, plan_id, price, created_at, product, activated_at, expires_at, paid_at, plan_name",
-          )
-          .in("user_id", allUserIds)
-      : null;
+    if (gptOrdersErr) {
+      profilesError =
+        profilesError ?? { message: `Заказы GPT Store: ${gptOrdersErr.message}` };
+    }
 
-    const { data: allOrders } = siteOrdersQuery
-      ? await siteOrdersQuery.not("product", "ilike", "spotify%")
-      : { data: [] };
-
-    orders = (allOrders ?? []).map((raw) => {
+    orders = (allOrdersRaw ?? []).map((raw) => {
       const row = raw as OrderAgg;
+      const planTitle = resolveGptAdminActivePlanTitle({
+        plan_id: String(row.plan_id ?? ""),
+        product: row.product ?? null,
+        plan_name: row.plan_name ?? null,
+      });
       return {
         ...row,
-        planTitle: resolveGptAdminActivePlanTitle({
-          plan_id: String(row.plan_id ?? ""),
-          product: row.product ?? null,
-          plan_name: row.plan_name ?? null,
-        }),
-        durationMonths: inferGptPlanDurationMonths(String(row.plan_id ?? "")),
+        planTitle,
+        durationMonths: inferGptPlanDurationMonths(String(row.plan_id ?? ""), planTitle),
       };
     }) as unknown as OrderAgg[];
   }
@@ -417,13 +421,7 @@ export default async function AdminClientsPage({
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const ordersByUser = new Map<string, typeof orders>();
-  for (const o of orders) {
-    if (!o.user_id) continue;
-    const arr = ordersByUser.get(o.user_id) ?? [];
-    arr.push(o);
-    ordersByUser.set(o.user_id, arr);
-  }
+  const ordersByUser = buildAdminOrdersByUserId(orders, clients);
 
   return (
     <div className="p-6">
@@ -487,14 +485,8 @@ export default async function AdminClientsPage({
           <tbody className="divide-y divide-gray-100">
             {(clients ?? []).map((c) => {
               const list = ordersByUser.get(c.id) ?? [];
-              const active = isSubsStoreSite
-                ? list.find((o) => o.status === "activated" || o.status === "processing")
-                : list.find((o) => o.status === "active");
-              const hasPaid = isSubsStoreSite
-                ? list.some((o) =>
-                    ["paid", "processing", "awaiting_data", "activated", "completed"].includes(o.status)
-                  )
-                : list.some((o) => ["paid", "activating", "active", "waiting_client"].includes(o.status));
+              const active = pickAdminActiveOrder(list, isSubsStoreSite ? "subs-store" : "gpt-store");
+              const hasPaid = isSubsStoreSite ? subsClientHasPaidOrder(list) : gptClientHasPaidOrder(list);
               const stageKey = c.client_stage ?? (hasPaid ? "purchased" : list.length ? "waiting" : "no_purchase");
               const stageLabel = STAGE_RU[stageKey] ?? stageKey;
               const rowHi = highlight === c.id ? "bg-[#10a37f]/10" : "";
@@ -515,6 +507,7 @@ export default async function AdminClientsPage({
                     expiresAtIso: active.expires_at,
                     activatedAtIso: active.activated_at,
                     paidAtIso: active.paid_at,
+                    createdAtIso: active.created_at,
                     durationMonths: active.durationMonths,
                   })
                 : null;

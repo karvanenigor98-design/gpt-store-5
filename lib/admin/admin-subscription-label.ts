@@ -14,22 +14,50 @@ export function formatAdminSubscriptionDateRu(iso: string | null | undefined): s
   return d.toLocaleDateString("ru-RU");
 }
 
-/** Срок окончания: expires_at или activated_at/paid_at + durationMonths. */
+export function inferDurationMonthsFromText(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const t = text.trim().toLowerCase();
+  const numbered = t.match(/(\d+)\s*(?:мес|месяц|month)/);
+  if (numbered) {
+    const n = Number(numbered[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  if (/^год\b|12\s*(?:мес|месяц|month)/.test(t)) return 12;
+  if (/^6\s*(?:мес|месяц|month)/.test(t)) return 6;
+  if (/^3\s*(?:мес|месяц|month)/.test(t)) return 3;
+  if (/^1\s*(?:мес|месяц|month)|^месяц|^мес\b/.test(t)) return 1;
+  return null;
+}
+
+function resolveEffectiveDurationMonths(
+  durationMonths: number | null | undefined,
+  planTitle: string,
+): number | null {
+  if (durationMonths != null && durationMonths > 0) return durationMonths;
+  return inferDurationMonthsFromText(planTitle);
+}
+
+/** Срок окончания: expires_at или activated_at/paid_at/created_at + durationMonths. */
 export function resolveOrderSubscriptionExpiresAt(params: {
   expires_at?: string | null;
   activated_at?: string | null;
   paid_at?: string | null;
+  created_at?: string | null;
   durationMonths?: number | null;
+  planTitle?: string | null;
 }): string | null {
   if (params.expires_at) {
     const d = new Date(params.expires_at);
     if (!Number.isNaN(d.getTime())) return params.expires_at;
   }
 
-  const months = params.durationMonths;
+  const months = resolveEffectiveDurationMonths(
+    params.durationMonths,
+    params.planTitle ?? "",
+  );
   if (!months || months <= 0) return null;
 
-  const baseIso = params.activated_at ?? params.paid_at;
+  const baseIso = params.activated_at ?? params.paid_at ?? params.created_at;
   if (!baseIso) return null;
 
   const base = new Date(baseIso);
@@ -45,6 +73,7 @@ type ActiveSubscriptionInput = {
   expiresAtIso?: string | null;
   activatedAtIso?: string | null;
   paidAtIso?: string | null;
+  createdAtIso?: string | null;
   durationMonths?: number | null;
 };
 
@@ -53,14 +82,16 @@ export function formatAdminActiveSubscriptionLabel(input: ActiveSubscriptionInpu
     expires_at: input.expiresAtIso,
     activated_at: input.activatedAtIso,
     paid_at: input.paidAtIso,
+    created_at: input.createdAtIso,
     durationMonths: input.durationMonths,
+    planTitle: input.planTitle,
   });
   const expiresLabel = formatAdminSubscriptionDateRu(expiresIso);
 
   const inActivation = input.status === "processing" || input.status === "activating";
   if (inActivation) {
     return expiresLabel
-      ? `${input.planTitle} · активация · до ${expiresLabel}`
+      ? `${input.planTitle} · активация · подписка до ${expiresLabel}`
       : `${input.planTitle} · в активации`;
   }
 
@@ -69,7 +100,7 @@ export function formatAdminActiveSubscriptionLabel(input: ActiveSubscriptionInpu
   }
 
   if (input.status === "activated" || input.status === "active" || input.status === "completed") {
-    return `${input.planTitle} · активна · срок не указан`;
+    return `${input.planTitle} · активна`;
   }
 
   return input.planTitle;
@@ -95,7 +126,7 @@ export function resolveSubsAdminActivePlanTitle(tariff: {
   return formatSubsTariffDisplayLabel(tariff);
 }
 
-/** GPT-тарифы в каталоге — помесячные. */
-export function inferGptPlanDurationMonths(_planId: string): number {
-  return 1;
+/** GPT-тарифы в каталоге — по умолчанию 1 мес. */
+export function inferGptPlanDurationMonths(planId: string, planTitle?: string | null): number {
+  return inferDurationMonthsFromText(planTitle) ?? inferDurationMonthsFromText(planId) ?? 1;
 }

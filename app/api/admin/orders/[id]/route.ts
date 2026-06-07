@@ -194,10 +194,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const nowIso = new Date().toISOString();
     if (!order.activated_at) gptUpdate.activated_at = nowIso;
     if (!order.expires_at) {
+      const planTitle = order.plan_name?.trim() || String(order.plan_id ?? "");
       const expiresAt = resolveOrderSubscriptionExpiresAt({
         activated_at: (order.activated_at as string | null) ?? nowIso,
         paid_at: (order.paid_at as string | null) ?? null,
-        durationMonths: inferGptPlanDurationMonths(String(order.plan_id ?? "")),
+        created_at: (order.created_at as string | null) ?? null,
+        durationMonths: inferGptPlanDurationMonths(String(order.plan_id ?? ""), planTitle),
+        planTitle,
       });
       if (expiresAt) gptUpdate.expires_at = expiresAt;
     }

@@ -19,6 +19,17 @@ function looksLikeSlugOrUuid(value: string): boolean {
   return false;
 }
 
+/** «3 месяца», «12 месяцев», «мес» — не полноценное название тарифа. */
+function isGenericDurationTitle(title: string): boolean {
+  const t = title.trim().toLowerCase();
+  return (
+    /^\d+\s*(?:мес|месяц|месяца|месяцев|month)/.test(t) ||
+    /^(год|12\s*мес)/.test(t) ||
+    t === "мес" ||
+    t === "месяц"
+  );
+}
+
 export function buildSubsTariffDefaultTitle(
   category: string | null | undefined,
   durationMonths: number | null | undefined,
@@ -37,7 +48,7 @@ export function formatSubsTariffDisplayLabel(tariff: {
   duration_months?: number | null;
 }): string {
   const title = tariff.title?.trim();
-  if (title && !looksLikeSlugOrUuid(title)) return title;
+  if (title && !looksLikeSlugOrUuid(title) && !isGenericDurationTitle(title)) return title;
   return buildSubsTariffDefaultTitle(tariff.category, tariff.duration_months);
 }
 
