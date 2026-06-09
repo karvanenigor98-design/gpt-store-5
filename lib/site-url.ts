@@ -39,6 +39,26 @@ function normalizeProductionOrigin(raw: string | null | undefined): string | nul
   return origin;
 }
 
+function hostnameMatchesConfiguredStore(hostname: string, storeUrl: string | null | undefined): boolean {
+  const normalized = normalizeAbsoluteUrl(storeUrl);
+  if (!normalized) return false;
+  const storeHost = new URL(normalized).hostname.toLowerCase();
+  const h = hostname.toLowerCase();
+  if (h === storeHost) return true;
+  if (h === `www.${storeHost}`) return true;
+  if (storeHost.startsWith("www.") && h === storeHost.slice(4)) return true;
+  return false;
+}
+
+export function isSpotifyStoreHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === "spotify-store.ru" || h === "www.spotify-store.ru") return true;
+  return (
+    hostnameMatchesConfiguredStore(hostname, process.env.NEXT_PUBLIC_SPOTIFY_STORE_URL) ||
+    hostnameMatchesConfiguredStore(hostname, process.env.NEXT_PUBLIC_SUBS_STORE_URL)
+  );
+}
+
 export function getBaseUrl(runtimeOrigin?: string): string {
   if (process.env.NODE_ENV !== "production") {
     if (runtimeOrigin) {
@@ -97,8 +117,20 @@ export function getSiteBaseUrl(site: AuthSiteSlug, runtimeOrigin?: string): stri
   return getBaseUrl(runtimeOrigin);
 }
 
+/** Origin для auth/email-ссылок (без /spotify в path). */
+export function getSiteOrigin(site: AuthSiteSlug, runtimeOrigin?: string): string {
+  if (site === "subs-store") {
+    const spotifyUrl =
+      normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SPOTIFY_STORE_URL) ??
+      normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SUBS_STORE_URL);
+    if (spotifyUrl) return new URL(spotifyUrl).origin;
+    return getBaseUrl(runtimeOrigin);
+  }
+  return getSiteBaseUrl(site, runtimeOrigin);
+}
+
 export function getAuthCallbackUrl(site: AuthSiteSlug, returnUrl?: string, runtimeOrigin?: string): string {
-  const url = new URL("/auth/callback", getBaseUrl(runtimeOrigin));
+  const url = new URL("/auth/callback", getSiteOrigin(site, runtimeOrigin));
   url.searchParams.set("site", site);
   if (returnUrl) {
     const safeReturn =
@@ -126,7 +158,7 @@ export function buildSignupRedirectTo(
   returnUrl: string,
   runtimeOrigin?: string,
 ): string {
-  const url = new URL("/auth/callback", getBaseUrl(runtimeOrigin));
+  const url = new URL("/auth/callback", getSiteOrigin(site, runtimeOrigin));
   url.searchParams.set("type", "signup");
   url.searchParams.set("site", site);
   const safeReturn =
@@ -139,7 +171,7 @@ export function buildSignupRedirectTo(
 
 /** redirectTo для recovery (Supabase resetPasswordForEmail / generateLink). */
 export function buildRecoveryCallbackRedirectTo(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/auth/callback", getBaseUrl(runtimeOrigin));
+  const url = new URL("/auth/callback", getSiteOrigin(site, runtimeOrigin));
   url.searchParams.set("site", site);
   url.searchParams.set("type", "recovery");
   url.searchParams.set("returnUrl", defaultCustomerDashboard(site));
@@ -147,25 +179,25 @@ export function buildRecoveryCallbackRedirectTo(site: AuthSiteSlug, runtimeOrigi
 }
 
 export function getCabinetUrl(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/cabinet", getBaseUrl(runtimeOrigin));
+  const url = new URL("/cabinet", getSiteOrigin(site, runtimeOrigin));
   url.searchParams.set("site", site);
   return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
 export function getLoginUrl(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/login", getBaseUrl(runtimeOrigin));
+  const url = new URL("/login", getSiteOrigin(site, runtimeOrigin));
   url.searchParams.set("site", site);
   return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
 export function getVerifyEmailUrl(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/verify-email", getBaseUrl(runtimeOrigin));
+  const url = new URL("/verify-email", getSiteOrigin(site, runtimeOrigin));
   if (site !== "gpt-store") url.searchParams.set("site", site);
   return `${url.pathname}${url.search}`;
 }
 
 export function getResetPasswordUrl(site: AuthSiteSlug, runtimeOrigin?: string): string {
-  const url = new URL("/reset-password", getBaseUrl(runtimeOrigin));
+  const url = new URL("/reset-password", getSiteOrigin(site, runtimeOrigin));
   if (site !== "gpt-store") url.searchParams.set("site", site);
   return `${url.pathname}${url.search}`;
 }

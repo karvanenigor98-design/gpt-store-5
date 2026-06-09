@@ -25,6 +25,7 @@ import {
   resolveAuthSiteContext,
 } from "@/lib/auth/devStoreProfile";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
+import { isSpotifyStoreHostname } from "@/lib/site-url";
 
 function isGptPublicAuthConfigured(): boolean {
   return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
@@ -128,6 +129,13 @@ export async function middleware(request: NextRequest) {
     !isGptLandingAlias
   ) {
     return NextResponse.redirect(new URL("/spotify", request.url));
+  }
+
+  const hostname = request.nextUrl.hostname;
+  if (process.env.NODE_ENV === "production" && isSpotifyStoreHostname(hostname)) {
+    if (path === "/" || isGptLandingAlias) {
+      return NextResponse.redirect(new URL("/spotify", request.url));
+    }
   }
 
   let supabaseResponse = NextResponse.next({ request: incoming });
