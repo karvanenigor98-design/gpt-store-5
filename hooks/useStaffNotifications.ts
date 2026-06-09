@@ -33,16 +33,15 @@ type ApiItem = StaffNotificationRow;
 
 type SiteSlug = "gpt-store" | "subs-store";
 
-function notificationsApiCrossSite(allowedSites: SiteSlug[]): Array<{ url: string; site: SiteSlug }> {
-  const endpoints: Array<{ url: string; site: SiteSlug }> = [];
-  if (allowedSites.includes("gpt-store")) {
-    endpoints.push({ url: "/api/admin/notifications?site=gpt-store", site: "gpt-store" });
+function notificationsApiForSite(
+  site: SiteSlug,
+  allowedSites: SiteSlug[],
+): Array<{ url: string; site: SiteSlug }> {
+  if (!allowedSites.includes(site)) return [];
+  if (site === "subs-store") {
+    return [{ url: "/api/admin/subs-store/notifications", site: "subs-store" }];
   }
-  if (allowedSites.includes("subs-store")) {
-    // Для subs-store читаем только subs API, иначе будут дубли из GPT mirror + subs DB.
-    endpoints.push({ url: "/api/admin/subs-store/notifications", site: "subs-store" });
-  }
-  return endpoints;
+  return [{ url: "/api/admin/notifications?site=gpt-store", site: "gpt-store" }];
 }
 
 function toToast(item: StaffNotificationView): StaffToastPayload {
@@ -76,10 +75,15 @@ export function useStaffNotifications(params: {
   const gptSupabase = useMemo(() => tryCreateClient(), []);
   const subsSupabase = useMemo(() => tryCreateSubsBrowserClient(), []);
 
+  const activeSites = useMemo(
+    () => (accessibleSites.includes(siteSlug) ? [siteSlug] : accessibleSites),
+    [accessibleSites, siteSlug],
+  );
+
   const reload = useCallback(async () => {
     try {
       const responses = await Promise.all(
-        notificationsApiCrossSite(accessibleSites).map(async ({ url, site }) => {
+        notificationsApiForSite(siteSlug, accessibleSites).map(async ({ url, site }) => {
           const res = await fetch(url, { credentials: "include" });
           const data = (await res.json().catch(() => ({}))) as { items?: ApiItem[]; error?: string };
           return { url, site, res, data };
@@ -151,9 +155,10 @@ export function useStaffNotifications(params: {
   }, [reload]);
 
   useEffect(() => {
+    if (markingAll) return;
     const poll = window.setInterval(() => void reload(), 15_000);
     return () => window.clearInterval(poll);
-  }, [reload]);
+  }, [reload, markingAll]);
 
   useEffect(() => {
     const channels: Array<{ client: unknown; channel: unknown }> = [];
@@ -227,77 +232,40 @@ export function useStaffNotifications(params: {
 
   const markAllRead = useCallback(async () => {
     if (markingAll) return;
+    if (!activeSites.includes(siteSlug)) return;
     setMarkingAll(true);
-    setItems((prev) =>
-      prev.map((x) =>
-        accessibleSites.includes((x.site_id ?? "gpt-store") as SiteSlug)
-          ? { ...x, is_read: true }
-          : x,
-      ),
+    setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
+
+    const targetSite = siteSlug;
+    const response = await fetch(
+      targetSite === "subs-store"
+        ? "/api/admin/subs-store/notifications"
+        : "/api/admin/notifications",
+      {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          targetSite === "subs-store"
+            ? { mark_all: true }
+            : { mark_all: true, site: "gpt-store" },
+        ),
+      },
     );
 
-    const requests: Array<{ site: SiteSlug; promise: Promise<Response> }> = [];
-    if (accessibleSites.includes("gpt-store")) {
-      requests.push({
-        site: "gpt-store",
-        promise: fetch("/api/admin/notifications", {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mark_all: true, site: "gpt-store" }),
-        }),
-      });
-    }
-    if (accessibleSites.includes("subs-store")) {
-      requests.push({
-        site: "subs-store",
-        promise: fetch("/api/admin/subs-store/notifications", {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mark_all: true }),
-        }),
-      });
-    }
-
-    const settled = await Promise.allSettled(requests.map((r) => r.promise));
-    const failedSites: SiteSlug[] = [];
-    for (let i = 0; i < settled.length; i += 1) {
-      const result = settled[i];
-      const site = requests[i]?.site;
-      if (!site) continue;
-      if (result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok)) {
-        failedSites.push(site);
-        setItems((prev) =>
-          prev.map((x) =>
-            (x.site_id ?? "gpt-store") === site ? { ...x, is_read: false } : x,
-          ),
-        );
-      }
-    }
-
-    if (failedSites.length === requests.length) {
-      const firstFailed = settled.find(
-        (r): r is PromiseFulfilledResult<Response> => r.status === "fulfilled" && !r.value.ok,
-      );
-      const data = firstFailed
-        ? ((await firstFailed.value.json().catch(() => ({}))) as { error?: string })
-        : {};
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       setLoadError(data.error ?? "Не удалось отметить уведомления");
+      setItems((prev) => prev.map((x) => ({ ...x, is_read: false })));
       setMarkingAll(false);
       return;
     }
 
-    if (failedSites.length > 0) {
-      setLoadError("Часть уведомлений не удалось отметить — попробуйте ещё раз");
-    } else {
-      setLoadError(null);
-    }
-
+    setLoadError(null);
     refreshStaffNavBadges();
     await reload();
     setMarkingAll(false);
-  }, [accessibleSites, markingAll, reload]);
+  }, [activeSites, markingAll, reload, siteSlug]);
 
   return {
     items: sortedItems,

@@ -12,7 +12,6 @@ import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { requireStaffApi } from "@/lib/admin/require-staff-api";
-import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 function parseOrdersSince(raw: string | null): string | null {
   if (!raw?.trim()) return null;
@@ -35,21 +34,10 @@ export async function GET(req: NextRequest) {
     const ordersRes = await ordersQ;
 
     const accessible = await listAccessibleAdminSiteSlugs(user, gptAdmin, role);
-    const notifTasks: Promise<number>[] = [];
+    let notifUnread = 0;
     if (accessible.includes("subs-store")) {
-      notifTasks.push(countSubsStoreUnreadNotifications(subs, { userId: user.id, role }));
+      notifUnread = await countSubsStoreUnreadNotifications(subs, { userId: user.id, role });
     }
-    if (accessible.includes("gpt-store")) {
-      notifTasks.push(
-        countGptStoreUnreadNotifications(gptAdmin, {
-          userId: user.id,
-          role,
-          siteSlug: "gpt-store",
-        }),
-      );
-    }
-    const notifCounts = await Promise.all(notifTasks);
-    const notifUnread = notifCounts.reduce((sum, n) => sum + n, 0);
 
     const chatUnread = await countSubsStoreUnreadClientMessages(subs);
 
@@ -70,26 +58,14 @@ export async function GET(req: NextRequest) {
   if (gptSiteId) ordersQ = ordersQ.eq("site_id", gptSiteId);
   if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
 
-  const notifTasks: Promise<number>[] = [];
+  let notifUnread = 0;
   if (accessible.includes("gpt-store")) {
-    notifTasks.push(
-      countGptStoreUnreadNotifications(admin, {
-        userId: user.id,
-        role,
-        siteSlug: "gpt-store",
-      }),
-    );
+    notifUnread = await countGptStoreUnreadNotifications(admin, {
+      userId: user.id,
+      role,
+      siteSlug: "gpt-store",
+    });
   }
-  if (accessible.includes("subs-store")) {
-    const subs = createSubsStoreAdminClient();
-    if (subs) {
-      notifTasks.push(
-        countSubsStoreUnreadNotifications(subs, { userId: user.id, role }),
-      );
-    }
-  }
-  const notifCounts = await Promise.all(notifTasks);
-  const notifUnread = notifCounts.reduce((sum, n) => sum + n, 0);
 
   const [ordersRes, chatUnread] = await Promise.all([
     ordersQ,

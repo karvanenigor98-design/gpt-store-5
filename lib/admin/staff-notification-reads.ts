@@ -260,6 +260,19 @@ export async function markAllStaffNotificationsReadForUser(
     }
   }
 
+  // Broadcast staff-уведомления: дублируем в notifications.is_read,
+  // чтобы UI и badge обновлялись даже если notification_reads не подтянулся.
+  const broadcastIds = forReadsTable.filter((id) => {
+    const row = rows.find((r) => r.id === id);
+    return row && !row.recipient_user_id;
+  });
+  if (broadcastIds.length) {
+    for (let i = 0; i < broadcastIds.length; i += CHUNK) {
+      const chunk = broadcastIds.slice(i, i + CHUNK);
+      await admin.from("notifications").update({ is_read: true }).in("id", chunk);
+    }
+  }
+
   return { ok: true, marked: forReadsTable.length + forGlobalRead.length };
 }
 
