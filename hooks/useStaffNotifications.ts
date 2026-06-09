@@ -66,6 +66,7 @@ export function useStaffNotifications(params: {
   const { siteSlug, staffRoot, soundEnabled, soundVolume } = params;
   const [items, setItems] = useState<StaffNotificationView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [markingAll, setMarkingAll] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [accessibleSites, setAccessibleSites] = useState<SiteSlug[]>(["gpt-store"]);
   const bootRef = useRef(true);
@@ -225,34 +226,8 @@ export function useStaffNotifications(params: {
   );
 
   const markAllRead = useCallback(async () => {
-    const requests: Promise<Response>[] = [];
-    if (accessibleSites.includes("gpt-store")) {
-      requests.push(
-        fetch("/api/admin/notifications", {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mark_all: true, site: "gpt-store" }),
-        }),
-      );
-    }
-    if (accessibleSites.includes("subs-store")) {
-      requests.push(
-        fetch("/api/admin/subs-store/notifications", {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mark_all: true }),
-        }),
-      );
-    }
-    const settled = await Promise.allSettled(requests);
-    const rejected = settled.find((r): r is PromiseFulfilledResult<Response> => r.status === "fulfilled" && !r.value.ok);
-    if (rejected) {
-      const data = (await rejected.value.json().catch(() => ({}))) as { error?: string };
-      setLoadError(data.error ?? "Не удалось отметить часть уведомлений");
-      return;
-    }
+    if (markingAll) return;
+    setMarkingAll(true);
     setItems((prev) =>
       prev.map((x) =>
         accessibleSites.includes((x.site_id ?? "gpt-store") as SiteSlug)
@@ -260,14 +235,75 @@ export function useStaffNotifications(params: {
           : x,
       ),
     );
+
+    const requests: Array<{ site: SiteSlug; promise: Promise<Response> }> = [];
+    if (accessibleSites.includes("gpt-store")) {
+      requests.push({
+        site: "gpt-store",
+        promise: fetch("/api/admin/notifications", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mark_all: true, site: "gpt-store" }),
+        }),
+      });
+    }
+    if (accessibleSites.includes("subs-store")) {
+      requests.push({
+        site: "subs-store",
+        promise: fetch("/api/admin/subs-store/notifications", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mark_all: true }),
+        }),
+      });
+    }
+
+    const settled = await Promise.allSettled(requests.map((r) => r.promise));
+    const failedSites: SiteSlug[] = [];
+    for (let i = 0; i < settled.length; i += 1) {
+      const result = settled[i];
+      const site = requests[i]?.site;
+      if (!site) continue;
+      if (result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok)) {
+        failedSites.push(site);
+        setItems((prev) =>
+          prev.map((x) =>
+            (x.site_id ?? "gpt-store") === site ? { ...x, is_read: false } : x,
+          ),
+        );
+      }
+    }
+
+    if (failedSites.length === requests.length) {
+      const firstFailed = settled.find(
+        (r): r is PromiseFulfilledResult<Response> => r.status === "fulfilled" && !r.value.ok,
+      );
+      const data = firstFailed
+        ? ((await firstFailed.value.json().catch(() => ({}))) as { error?: string })
+        : {};
+      setLoadError(data.error ?? "Не удалось отметить уведомления");
+      setMarkingAll(false);
+      return;
+    }
+
+    if (failedSites.length > 0) {
+      setLoadError("Часть уведомлений не удалось отметить — попробуйте ещё раз");
+    } else {
+      setLoadError(null);
+    }
+
     refreshStaffNavBadges();
     await reload();
-  }, [accessibleSites, reload]);
+    setMarkingAll(false);
+  }, [accessibleSites, markingAll, reload]);
 
   return {
     items: sortedItems,
     unread,
     loading,
+    markingAll,
     loadError,
     reload,
     markRead,

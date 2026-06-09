@@ -85,7 +85,7 @@ function NotificationsPageContent() {
     setSoundEnabled(loadNotificationSoundEnabled());
   }, []);
 
-  const { items, unread: unreadCount, loading, loadError, markRead, markAllRead } =
+  const { items, unread: unreadCount, loading, markingAll, loadError, markRead, markAllRead } =
     useStaffNotifications({
       siteSlug,
       staffRoot,
@@ -114,11 +114,12 @@ function NotificationsPageContent() {
         {unreadCount > 0 && (
           <button
             type="button"
+            disabled={markingAll}
             onClick={() => void markAllRead()}
-            className="flex items-center gap-2 rounded-lg border border-[#10a37f]/30 px-4 py-2 text-sm font-medium text-[#10a37f] hover:bg-[#10a37f]/5 transition-colors"
+            className="flex items-center gap-2 rounded-lg border border-[#10a37f]/30 px-4 py-2 text-sm font-medium text-[#10a37f] hover:bg-[#10a37f]/5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CheckCheck size={16} />
-            Прочитать всё
+            {markingAll ? "Сохраняем…" : "Прочитать всё"}
           </button>
         )}
       </div>

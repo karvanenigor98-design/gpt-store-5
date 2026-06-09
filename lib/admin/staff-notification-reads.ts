@@ -83,7 +83,9 @@ export function isNotificationUnreadForStaff(
     return !row.is_read;
   }
 
-  return !readIds.has(row.id);
+  // Per-user reads (notification_reads) + fallback на notifications.is_read
+  // когда таблица notification_reads ещё не создана / upsert недоступен.
+  return !readIds.has(row.id) && !row.is_read;
 }
 
 export async function countStaffUnreadNotifications(
@@ -151,8 +153,17 @@ export async function markStaffNotificationRead(
     },
     { onConflict: "notification_id,user_id" },
   );
-  if (error && !error.message.toLowerCase().includes("notification_reads")) {
-    console.error("[markStaffNotificationRead]", error.message);
+  if (error) {
+    const msg = error.message ?? "";
+    if (msg.toLowerCase().includes("notification_reads")) {
+      let upd = admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
+      if (typed.recipient_user_id) {
+        upd = upd.eq("recipient_user_id", typed.recipient_user_id);
+      }
+      await upd;
+      return;
+    }
+    console.error("[markStaffNotificationRead]", msg);
   }
 }
 
@@ -219,13 +230,15 @@ export async function markAllStaffNotificationsReadForUser(
     if (readsErr) {
       const msg = readsErr.message ?? "notification_reads upsert failed";
       if (msg.toLowerCase().includes("notification_reads")) {
-        // Таблица ещё не создана — fallback только для строк без чужого recipient (broadcast GPT)
-        const fallbackIds = chunk.filter((id) => {
+        // Таблица ещё не создана — fallback через notifications.is_read
+        for (const id of chunk) {
           const row = rows.find((r) => r.id === id);
-          return row && !row.recipient_user_id;
-        });
-        if (fallbackIds.length) {
-          await admin.from("notifications").update({ is_read: true }).in("id", fallbackIds);
+          if (!row) continue;
+          let upd = admin.from("notifications").update({ is_read: true }).eq("id", id);
+          if (row.recipient_user_id) {
+            upd = upd.eq("recipient_user_id", row.recipient_user_id);
+          }
+          await upd;
         }
         continue;
       }

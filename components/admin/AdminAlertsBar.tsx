@@ -37,7 +37,7 @@ export function AdminAlertsBar() {
     return href;
   }
 
-  const { items, unread, loadError, markRead, markAllRead } = useStaffNotifications({
+  const { items, unread, markingAll, loadError, markRead, markAllRead } = useStaffNotifications({
     siteSlug: currentSiteSlug,
     staffRoot,
     soundEnabled,
@@ -176,10 +176,11 @@ export function AdminAlertsBar() {
                   {unread > 0 && (
                     <button
                       type="button"
-                      className="text-xs text-[#10a37f] hover:underline"
+                      disabled={markingAll}
+                      className="text-xs text-[#10a37f] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={() => void markAllRead()}
                     >
-                      Прочитать всё
+                      {markingAll ? "Сохраняем…" : "Прочитать всё"}
                     </button>
                   )}
                   <Link
