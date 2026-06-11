@@ -141,20 +141,29 @@ export function useClientNotifications(siteSlug: SiteSlug) {
   );
 
   const markAllRead = useCallback(async () => {
-    const res = await fetch(API_BY_SITE[siteSlug], {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mark_all: true }),
-    });
-    if (!res.ok) {
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      setLoadError(j.error ?? "Не удалось отметить все как прочитанные");
-      return;
-    }
+    const snapshot = items;
     setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
-    await load();
-  }, [siteSlug, load]);
+    try {
+      const res = await fetch(API_BY_SITE[siteSlug], {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mark_all: true }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        setLoadError(j.error ?? "Не удалось отметить все как прочитанные");
+        setItems(snapshot);
+        return;
+      }
+      setLoadError(null);
+    } catch {
+      setLoadError("Не удалось отметить все как прочитанные");
+      setItems(snapshot);
+    } finally {
+      await load();
+    }
+  }, [siteSlug, load, items]);
 
   return {
     siteSlug,

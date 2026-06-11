@@ -37,11 +37,21 @@ function notificationsApiForSite(
   site: SiteSlug,
   allowedSites: SiteSlug[],
 ): Array<{ url: string; site: SiteSlug }> {
-  if (!allowedSites.includes(site)) return [];
-  if (site === "subs-store") {
-    return [{ url: "/api/admin/subs-store/notifications", site: "subs-store" }];
+  const sites = allowedSites.length ? allowedSites : [site];
+  return sites.map((s) => {
+    if (s === "subs-store") {
+      return { url: "/api/admin/subs-store/notifications", site: "subs-store" as const };
+    }
+    return { url: "/api/admin/notifications?site=gpt-store", site: "gpt-store" as const };
+  });
+}
+
+function uniqueSiteSlugs(rows: StaffNotificationView[]): SiteSlug[] {
+  const out = new Set<SiteSlug>();
+  for (const row of rows) {
+    out.add((row.site_id === "subs-store" ? "subs-store" : "gpt-store") as SiteSlug);
   }
-  return [{ url: "/api/admin/notifications?site=gpt-store", site: "gpt-store" }];
+  return [...out];
 }
 
 function toToast(item: StaffNotificationView): StaffToastPayload {
@@ -232,40 +242,53 @@ export function useStaffNotifications(params: {
 
   const markAllRead = useCallback(async () => {
     if (markingAll) return;
-    if (!activeSites.includes(siteSlug)) return;
+    if (!activeSites.length) return;
+    const snapshot = items;
     setMarkingAll(true);
     setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
 
-    const targetSite = siteSlug;
-    const response = await fetch(
-      targetSite === "subs-store"
-        ? "/api/admin/subs-store/notifications"
-        : "/api/admin/notifications",
-      {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          targetSite === "subs-store"
-            ? { mark_all: true }
-            : { mark_all: true, site: "gpt-store" },
+    try {
+      const fromItems = uniqueSiteSlugs(snapshot).filter((s) => accessibleSites.includes(s));
+      const targetSites = fromItems.length ? fromItems : accessibleSites;
+      const responses = await Promise.all(
+        targetSites.map((targetSite) =>
+          fetch(
+            targetSite === "subs-store"
+              ? "/api/admin/subs-store/notifications"
+              : "/api/admin/notifications",
+            {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(
+                targetSite === "subs-store"
+                  ? { mark_all: true }
+                  : { mark_all: true, site: "gpt-store" },
+              ),
+            },
+          ),
         ),
-      },
-    );
+      );
 
-    if (!response.ok) {
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      setLoadError(data.error ?? "Не удалось отметить уведомления");
-      setItems((prev) => prev.map((x) => ({ ...x, is_read: false })));
+      const failed = responses.find((r) => !r.ok);
+      if (failed) {
+        const data = (await failed.json().catch(() => ({}))) as { error?: string };
+        setLoadError(data.error ?? "Не удалось отметить уведомления");
+        setItems(snapshot);
+        return;
+      }
+
+      setLoadError(null);
+      refreshStaffNavBadges();
+    } catch {
+      setLoadError("Не удалось отметить уведомления");
+      setItems(snapshot);
+    } finally {
+      await reload();
+      refreshStaffNavBadges();
       setMarkingAll(false);
-      return;
     }
-
-    setLoadError(null);
-    refreshStaffNavBadges();
-    await reload();
-    setMarkingAll(false);
-  }, [activeSites, markingAll, reload, siteSlug]);
+  }, [accessibleSites, items, markingAll, reload]);
 
   return {
     items: sortedItems,
