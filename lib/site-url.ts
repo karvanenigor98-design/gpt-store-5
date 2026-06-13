@@ -1,7 +1,8 @@
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
 import { defaultCustomerDashboard } from "@/lib/auth/authReturnUrl";
 
-const PROD_BASE_URL = "https://gpt-store-5.vercel.app";
+const PROD_GPT_BASE_URL = "https://gptplus-store.ru";
+const PROD_SPOTIFY_BASE_URL = "https://spotify-store.ru";
 const LOCAL_BASE_URL = "http://127.0.0.1:3055";
 
 function normalizeAbsoluteUrl(raw: string | null | undefined): string | null {
@@ -59,6 +60,16 @@ export function isSpotifyStoreHostname(hostname: string): boolean {
   );
 }
 
+export function isGptStoreHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === "gptplus-store.ru" || h === "www.gptplus-store.ru") return true;
+  return (
+    hostnameMatchesConfiguredStore(hostname, process.env.NEXT_PUBLIC_GPT_STORE_URL) ||
+    hostnameMatchesConfiguredStore(hostname, process.env.NEXT_PUBLIC_GPT_SITE_URL) ||
+    hostnameMatchesConfiguredStore(hostname, process.env.NEXT_PUBLIC_APP_URL)
+  );
+}
+
 export function getBaseUrl(runtimeOrigin?: string): string {
   if (process.env.NODE_ENV !== "production") {
     if (runtimeOrigin) {
@@ -73,8 +84,9 @@ export function getBaseUrl(runtimeOrigin?: string): string {
   }
 
   const fromEnv =
-    normalizeProductionOrigin(process.env.NEXT_PUBLIC_APP_URL) ??
-    normalizeProductionOrigin(process.env.NEXT_PUBLIC_GPT_STORE_URL);
+    normalizeProductionOrigin(process.env.NEXT_PUBLIC_GPT_SITE_URL) ??
+    normalizeProductionOrigin(process.env.NEXT_PUBLIC_GPT_STORE_URL) ??
+    normalizeProductionOrigin(process.env.NEXT_PUBLIC_APP_URL);
 
   const fromRuntime = normalizeProductionOrigin(runtimeOrigin);
 
@@ -82,8 +94,8 @@ export function getBaseUrl(runtimeOrigin?: string): string {
     normalizeProductionOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL) ??
     normalizeProductionOrigin(process.env.VERCEL_URL);
 
-  const resolved = fromEnv ?? fromRuntime ?? fromVercel ?? PROD_BASE_URL;
-  if (isLocalOrigin(resolved)) return PROD_BASE_URL;
+  const resolved = fromEnv ?? fromRuntime ?? fromVercel ?? PROD_GPT_BASE_URL;
+  if (isLocalOrigin(resolved)) return PROD_GPT_BASE_URL;
   return resolved;
 }
 
@@ -99,17 +111,23 @@ export function getClientRuntimeOrigin(): string | undefined {
 export function getSiteBaseUrl(site: AuthSiteSlug, runtimeOrigin?: string): string {
   if (site === "subs-store") {
     const spotifyUrl =
+      normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SPOTIFY_SITE_URL) ??
       normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SPOTIFY_STORE_URL) ??
       normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SUBS_STORE_URL);
     if (spotifyUrl) {
       const parsed = new URL(spotifyUrl);
       const pathname = parsed.pathname.replace(/\/$/, "");
-      return pathname && pathname !== "/" ? `${parsed.origin}${pathname}` : `${parsed.origin}/spotify`;
+      return pathname && pathname !== "/" ? `${parsed.origin}${pathname}` : parsed.origin;
+    }
+    if (process.env.NODE_ENV === "production") {
+      return PROD_SPOTIFY_BASE_URL;
     }
     return `${getBaseUrl(runtimeOrigin)}/spotify`;
   }
 
-  const gpt = normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_GPT_STORE_URL);
+  const gpt =
+    normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_GPT_SITE_URL) ??
+    normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_GPT_STORE_URL);
   if (gpt) {
     const parsed = new URL(gpt);
     return parsed.origin;
@@ -121,12 +139,58 @@ export function getSiteBaseUrl(site: AuthSiteSlug, runtimeOrigin?: string): stri
 export function getSiteOrigin(site: AuthSiteSlug, runtimeOrigin?: string): string {
   if (site === "subs-store") {
     const spotifyUrl =
+      normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SPOTIFY_SITE_URL) ??
       normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SPOTIFY_STORE_URL) ??
       normalizeAbsoluteUrl(process.env.NEXT_PUBLIC_SUBS_STORE_URL);
     if (spotifyUrl) return new URL(spotifyUrl).origin;
+    if (process.env.NODE_ENV === "production") return PROD_SPOTIFY_BASE_URL;
     return getBaseUrl(runtimeOrigin);
   }
   return getSiteBaseUrl(site, runtimeOrigin);
+}
+
+export function getPublicBaseUrl(site: AuthSiteSlug, runtimeOrigin?: string): string {
+  if (site === "subs-store") return getSiteBaseUrl("subs-store", runtimeOrigin);
+  return getSiteBaseUrl("gpt-store", runtimeOrigin);
+}
+
+export function getSiteUrl(site: AuthSiteSlug, path: string, runtimeOrigin?: string): string {
+  const base = getPublicBaseUrl(site, runtimeOrigin);
+  const safePath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${safePath}`;
+}
+
+export function getAuthRedirectUrl(site: AuthSiteSlug, path: string, runtimeOrigin?: string): string {
+  return getSiteUrl(site, path, runtimeOrigin);
+}
+
+export function getPaymentReturnUrl(site: AuthSiteSlug, orderId: string, runtimeOrigin?: string): string {
+  const qp = `?order_id=${encodeURIComponent(orderId)}&site=${site}`;
+  return getSiteUrl(site, `/checkout/success${qp}`, runtimeOrigin);
+}
+
+export function getNotificationTargetUrl(
+  site: AuthSiteSlug,
+  entityType: string,
+  entityId: string,
+  runtimeOrigin?: string,
+): string {
+  if (entityType === "order") {
+    return getSiteUrl(
+      site,
+      `/dashboard/orders?site=${site}&order_id=${encodeURIComponent(entityId)}`,
+      runtimeOrigin,
+    );
+  }
+  if (entityType === "chat_thread" || entityType === "chat_session") {
+    const chatKey = site === "subs-store" ? "thread" : "session";
+    return getSiteUrl(
+      site,
+      `/dashboard/chat?site=${site}&${chatKey}=${encodeURIComponent(entityId)}`,
+      runtimeOrigin,
+    );
+  }
+  return getSiteUrl(site, `/dashboard?site=${site}`, runtimeOrigin);
 }
 
 export function getAuthCallbackUrl(site: AuthSiteSlug, returnUrl?: string, runtimeOrigin?: string): string {
