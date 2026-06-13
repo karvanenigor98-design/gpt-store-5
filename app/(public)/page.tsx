@@ -20,9 +20,7 @@ import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobile
 import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
 import { getLandingNavSession } from "@/lib/auth/landing-nav-session";
 import { getPublicSiteOrigin } from "@/lib/app-url";
-import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
-import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
-import { sortLandingReviewsNewestFirst } from "@/lib/reviews/landing-reviews-display";
+import { getStaticGptLandingPayload, getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
 import { withTimeout } from "@/lib/with-timeout";
 
 const APP_URL = getPublicSiteOrigin();
@@ -46,13 +44,13 @@ export const runtime = "nodejs";
 
 /** Только отзывы, одобренные в админке (вкладка «Опубликованы»). */
 export default async function HomePage() {
-  const [landingPayload, navSession, fromDb] = await Promise.all([
-    Promise.resolve(getStaticGptLandingPayload()),
-    withTimeout(getLandingNavSession("gpt-store"), 5000, { loggedIn: false, emailConfirmed: false }),
-    withTimeout(loadGptPublishedDbReviews("gpt-store", 120), 8000, []),
-  ]);
+  const landingPayload = getStaticGptLandingPayload();
+  const navSession = await withTimeout(getLandingNavSession("gpt-store"), 2000, {
+    loggedIn: false,
+    emailConfirmed: false,
+  });
   const { storeConfig } = landingPayload;
-  const reviews = sortLandingReviewsNewestFirst(fromDb);
+  const reviews = getStaticGptLandingReviews(40);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;

@@ -171,6 +171,21 @@ export async function getStoreConfig(): Promise<StoreConfig> {
     };
   }
 
+  const { withTimeout } = await import("@/lib/server/withTimeout");
+
+  return withTimeout(
+    getStoreConfigFromDb(),
+    4000,
+    {
+      plans: finalizeGptStorePlans(DEFAULT_PLANS, []),
+      promoCodes: [],
+      landingSections: DEFAULT_SECTIONS,
+      landingDiscounts: [],
+    },
+  );
+}
+
+async function getStoreConfigFromDb(): Promise<StoreConfig> {
   try {
     const supabase = tryCreateAdminClient();
     if (!supabase) {
