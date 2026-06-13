@@ -7,6 +7,7 @@ import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { PanelErrorBoundary } from "@/components/errors/PanelErrorBoundary";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { StaffSiteUrlSync } from "@/components/admin/StaffSiteUrlSync";
+import { StaffNotificationsProvider } from "@/components/admin/StaffNotificationsProvider";
 import { StaffNotificationToaster } from "@/components/admin/StaffNotificationToaster";
 import { requireStaffPanel } from "@/lib/auth/staff-access";
 
@@ -34,13 +35,15 @@ export default async function AdminLayout({
         <Suspense fallback={null}>
           <StaffSiteUrlSync />
         </Suspense>
-        <Suspense fallback={null}>
-          <PanelErrorBoundary title="Не удалось загрузить панель уведомлений">
-            <AdminAlertsBar />
-          </PanelErrorBoundary>
-        </Suspense>
-        <StaffNotificationToaster />
-        {children}
+        <StaffNotificationsProvider>
+          <Suspense fallback={null}>
+            <PanelErrorBoundary title="Не удалось загрузить панель уведомлений">
+              <AdminAlertsBar />
+            </PanelErrorBoundary>
+          </Suspense>
+          <StaffNotificationToaster />
+          {children}
+        </StaffNotificationsProvider>
       </div>
     </div>
   );

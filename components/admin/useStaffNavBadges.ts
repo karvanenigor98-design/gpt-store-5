@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tryCreateClient } from "@/lib/supabase/client";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
+import { debounceCallback } from "@/lib/admin/debounce-callback";
 import { getOrdersLastSeenAt } from "@/lib/admin/orders-last-seen";
 import { STAFF_NAV_BADGES_REFRESH } from "@/lib/admin/staff-nav-badges-client";
 
@@ -14,19 +15,24 @@ export type StaffNavBadges = {
 
 const EMPTY: StaffNavBadges = { notifications: 0, chat: 0, orders: 0 };
 
-const POLL_MS = 5000;
+const POLL_MS = 20_000;
+const REALTIME_DEBOUNCE_MS = 800;
 
 export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNavBadges {
   const [badges, setBadges] = useState<StaffNavBadges>(EMPTY);
   const supabase = useMemo(() => tryCreateClient(), []);
+  const inFlightRef = useRef(false);
 
   const reload = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
       const since = getOrdersLastSeenAt(siteSlug);
       const qs = new URLSearchParams({ site: siteSlug });
       if (since) qs.set("ordersSince", since);
       const res = await fetch(`/api/admin/staff-nav-badges?${qs.toString()}`, {
         credentials: "include",
+        cache: "no-store",
       });
       if (!res.ok) return;
       const j = (await res.json()) as StaffNavBadges;
@@ -37,8 +43,17 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
       });
     } catch {
       /* noop */
+    } finally {
+      inFlightRef.current = false;
     }
   }, [siteSlug]);
+
+  const debouncedReload = useMemo(
+    () => debounceCallback(() => void reload(), REALTIME_DEBOUNCE_MS),
+    [reload],
+  );
+
+  useEffect(() => () => debouncedReload.cancel(), [debouncedReload]);
 
   useEffect(() => {
     void reload();
@@ -57,25 +72,21 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
       if (!subs) return;
 
       const channel = subs
-        .channel(`staff-nav-badges-subs`)
+        .channel("staff-nav-badges-subs")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "notifications" },
-          () => void reload(),
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "notifications" },
-          () => void reload(),
+          () => debouncedReload(),
         )
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "orders" },
-          () => void reload(),
+          () => debouncedReload(),
         )
         .subscribe();
 
       return () => {
+        debouncedReload.cancel();
         void subs.removeChannel(channel);
       };
     }
@@ -87,39 +98,25 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
-        () => void reload(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "chat_messages" },
-        () => void reload(),
+        () => debouncedReload(),
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
-        () => void reload(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notifications" },
-        () => void reload(),
+        () => debouncedReload(),
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
-        () => void reload(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders" },
-        () => void reload(),
+        () => debouncedReload(),
       )
       .subscribe();
 
     return () => {
+      debouncedReload.cancel();
       void supabase.removeChannel(channel);
     };
-  }, [siteSlug, supabase, reload]);
+  }, [siteSlug, supabase, debouncedReload]);
 
   return badges;
 }

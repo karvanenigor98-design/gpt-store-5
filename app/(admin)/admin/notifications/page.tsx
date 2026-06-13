@@ -11,9 +11,8 @@ import {
   staffPanelRootFromPathname,
   type AdminNotificationSiteSlug,
 } from "@/lib/admin/notificationNavigation";
-import { loadNotificationSoundEnabled } from "@/lib/admin/notification-sound";
+import { useStaffNotificationsContext } from "@/components/admin/StaffNotificationsProvider";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
-import { useStaffNotifications } from "@/hooks/useStaffNotifications";
 import {
   notificationCardClass,
   notificationTitleClass,
@@ -79,19 +78,8 @@ function NotificationsPageContent() {
   const siteSlug = resolveSiteSlug(searchParams);
 
   const [filter, setFilter] = useState<FilterType>("all");
-  const [soundEnabled, setSoundEnabled] = useState(true);
-
-  useEffect(() => {
-    setSoundEnabled(loadNotificationSoundEnabled());
-  }, []);
-
   const { items, unread: unreadCount, loading, markingAll, loadError, markRead, markAllRead } =
-    useStaffNotifications({
-      siteSlug,
-      staffRoot,
-      soundEnabled,
-      soundVolume: 10,
-    });
+    useStaffNotificationsContext();
 
   const filteredItems = items.filter((i) => {
     if (filter === "unread") return !i.is_read;

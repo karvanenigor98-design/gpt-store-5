@@ -116,13 +116,9 @@ export async function countStaffUnreadNotifications(
     .from("notifications")
     .select("id, recipient_user_id, recipient_role, is_read, type");
 
-  if (siteId) {
-    if (params.siteSlug === "gpt-store") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
-    } else {
-      q = q.eq("site_id", siteId);
-    }
+  if (params.siteSlug === "gpt-store" && siteId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    q = (q as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof q;
   }
 
   const { data, error } = await q;
@@ -274,7 +270,10 @@ export async function markAllStaffNotificationsReadForUser(
   if (forReadsTable.length) {
     for (let i = 0; i < forReadsTable.length; i += CHUNK) {
       const chunk = forReadsTable.slice(i, i + CHUNK);
-      await admin.from("notifications").update({ is_read: true }).in("id", chunk);
+      const { error: updErr } = await admin.from("notifications").update({ is_read: true }).in("id", chunk);
+      if (updErr) {
+        return { ok: false, marked: 0, error: updErr.message };
+      }
     }
   }
 

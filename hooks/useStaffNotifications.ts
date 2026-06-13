@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { StaffPanelRoot } from "@/lib/admin/notificationNavigation";
 import { siteSlugFromAlertSiteId } from "@/lib/admin/notificationNavigation";
+import { debounceCallback } from "@/lib/admin/debounce-callback";
 import { safeMapStaffNotificationRow } from "@/lib/notifications/safe-map-staff-row";
 import { playNotificationPing } from "@/lib/admin/notification-sound";
 import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
@@ -33,12 +34,12 @@ type ApiItem = StaffNotificationRow;
 
 type SiteSlug = "gpt-store" | "subs-store";
 
-function notificationsApiForSite(
-  site: SiteSlug,
-  allowedSites: SiteSlug[],
-): Array<{ url: string; site: SiteSlug }> {
-  const sites = allowedSites.length ? allowedSites : [site];
-  return sites.map((s) => {
+const POLL_MS = 30_000;
+const REALTIME_DEBOUNCE_MS = 600;
+
+function notificationsApiForSites(sites: SiteSlug[]): Array<{ url: string; site: SiteSlug }> {
+  const unique = [...new Set(sites)];
+  return unique.map((s) => {
     if (s === "subs-store") {
       return { url: "/api/admin/subs-store/notifications", site: "subs-store" as const };
     }
@@ -69,30 +70,39 @@ export function useStaffNotifications(params: {
   soundEnabled: boolean;
   soundVolume: number;
 }) {
-  const { siteSlug, staffRoot, soundEnabled, soundVolume } = params;
+  const { staffRoot, soundEnabled, soundVolume } = params;
   const [items, setItems] = useState<StaffNotificationView[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [accessibleSites, setAccessibleSites] = useState<SiteSlug[]>(() =>
-    siteSlug === "subs-store" ? ["subs-store"] : ["gpt-store"],
-  );
+  const [accessibleSites, setAccessibleSites] = useState<SiteSlug[]>(["gpt-store"]);
   const bootRef = useRef(true);
   const knownIdsRef = useRef<Set<string>>(new Set());
+  const markingAllRef = useRef(false);
+  const accessibleSitesRef = useRef<SiteSlug[]>(accessibleSites);
   const channelSuffix = useId().replace(/:/g, "");
+
+  accessibleSitesRef.current = accessibleSites;
+
+  useEffect(() => {
+    markingAllRef.current = markingAll;
+  }, [markingAll]);
 
   const gptSupabase = useMemo(() => tryCreateClient(), []);
   const subsSupabase = useMemo(() => tryCreateSubsBrowserClient(), []);
 
-  const activeSites = useMemo(
-    () => (accessibleSites.includes(siteSlug) ? [siteSlug] : accessibleSites),
-    [accessibleSites, siteSlug],
+  const accessibleSitesKey = useMemo(
+    () => [...accessibleSites].sort().join(","),
+    [accessibleSites],
   );
 
   const reload = useCallback(async () => {
+    const sites = accessibleSitesRef.current;
+    if (!sites.length) return;
+
     try {
       const responses = await Promise.all(
-        notificationsApiForSite(siteSlug, [siteSlug]).map(async ({ url, site }) => {
+        notificationsApiForSites(sites).map(async ({ url, site }) => {
           const res = await fetch(url, { credentials: "include", cache: "no-store" });
           const data = (await res.json().catch(() => ({}))) as { items?: ApiItem[]; error?: string };
           return { url, site, res, data };
@@ -103,12 +113,13 @@ export function useStaffNotifications(params: {
       setLoadError(hasErrors ? "Не удалось загрузить часть уведомлений" : null);
       const merged: ApiItem[] = [];
       for (const { site, data } of responses) {
-        const sourceSite: SiteSlug = site;
         for (const row of data.items ?? []) {
-          merged.push({ ...row, site_id: sourceSite });
+          merged.push({ ...row, site_id: site });
         }
       }
-      const rows = merged.map((row) => safeMapStaffNotificationRow(row, (row.site_id as "gpt-store" | "subs-store") ?? siteSlug, staffRoot));
+      const rows = merged.map((row) =>
+        safeMapStaffNotificationRow(row, (row.site_id as SiteSlug) ?? "gpt-store", staffRoot),
+      );
 
       const isBoot = bootRef.current;
       if (!isBoot) {
@@ -136,70 +147,92 @@ export function useStaffNotifications(params: {
     } finally {
       setLoading(false);
     }
-  }, [accessibleSites, siteSlug, staffRoot, soundEnabled, soundVolume]);
+  }, [staffRoot, soundEnabled, soundVolume]);
+
+  const debouncedReload = useMemo(
+    () => debounceCallback(() => void reload(), REALTIME_DEBOUNCE_MS),
+    [reload],
+  );
+
+  useEffect(() => () => debouncedReload.cancel(), [debouncedReload]);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/auth/accessible-admin-sites", { credentials: "include" })
+    void fetch("/api/auth/accessible-admin-sites", { credentials: "include", cache: "no-store" })
       .then((r) => r.json())
       .then((j: { sites?: string[] }) => {
         if (cancelled) return;
         setAccessibleSites(normalizeAccessibleSites(j.sites ?? null));
       })
       .catch(() => {
-        if (!cancelled) {
-          setAccessibleSites(siteSlug === "subs-store" ? ["subs-store"] : ["gpt-store"]);
-        }
+        if (!cancelled) setAccessibleSites(["gpt-store"]);
       });
     return () => {
       cancelled = true;
     };
-  }, [siteSlug]);
+  }, []);
 
   useEffect(() => {
     bootRef.current = true;
     knownIdsRef.current = new Set();
+  }, [staffRoot]);
+
+  useEffect(() => {
     setLoading(true);
     void reload();
-  }, [reload]);
+  }, [reload, accessibleSitesKey]);
 
   useEffect(() => {
     if (markingAll) return;
-    const poll = window.setInterval(() => void reload(), 15_000);
+    const poll = window.setInterval(() => void reload(), POLL_MS);
     return () => window.clearInterval(poll);
   }, [reload, markingAll]);
 
   useEffect(() => {
+    const scheduleReload = () => {
+      if (markingAllRef.current) return;
+      debouncedReload();
+    };
+
     const channels: Array<{ client: unknown; channel: unknown }> = [];
     if (gptSupabase && accessibleSites.includes("gpt-store")) {
       try {
         const gptChannel = gptSupabase
           .channel(`staff-notifications-gpt-${staffRoot}-${channelSuffix}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => void reload())
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, () => void reload())
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => void reload())
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "notifications" },
+            scheduleReload,
+          )
           .subscribe();
         channels.push({ client: gptSupabase, channel: gptChannel });
-      } catch {}
+      } catch {
+        /* noop */
+      }
     }
     if (subsSupabase && accessibleSites.includes("subs-store")) {
       try {
         const subsChannel = subsSupabase
           .channel(`staff-notifications-subs-${staffRoot}-${channelSuffix}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => void reload())
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, () => void reload())
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => void reload())
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "notifications" },
+            scheduleReload,
+          )
           .subscribe();
         channels.push({ client: subsSupabase, channel: subsChannel });
-      } catch {}
+      } catch {
+        /* noop */
+      }
     }
     return () => {
+      debouncedReload.cancel();
       for (const item of channels) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         void (item.client as any).removeChannel(item.channel as any);
       }
     };
-  }, [accessibleSites, gptSupabase, subsSupabase, staffRoot, reload, channelSuffix]);
+  }, [accessibleSitesKey, gptSupabase, subsSupabase, staffRoot, debouncedReload, channelSuffix]);
 
   const unread = items.filter((i) => !i.is_read).length;
 
@@ -210,50 +243,48 @@ export function useStaffNotifications(params: {
     });
   }, [items]);
 
-  const markRead = useCallback(
-    async (id: string, site: SiteSlug = "gpt-store") => {
-      setItems((prev) =>
-        prev.map((x) =>
-          x.id === id && (x.site_id ?? "gpt-store") === site
-            ? { ...x, is_read: true }
-            : x,
-        ),
-      );
-      if (site === "subs-store") {
-        await fetch("/api/admin/subs-store/notifications", {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-          cache: "no-store",
-        });
-      } else {
-        await fetch("/api/admin/notifications", {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, site: "gpt-store" }),
-          cache: "no-store",
-        });
-      }
-      refreshStaffNavBadges();
-    },
-    [],
-  );
+  const markRead = useCallback(async (id: string, site: SiteSlug = "gpt-store") => {
+    setItems((prev) =>
+      prev.map((x) =>
+        x.id === id && (x.site_id ?? "gpt-store") === site ? { ...x, is_read: true } : x,
+      ),
+    );
+    if (site === "subs-store") {
+      await fetch("/api/admin/subs-store/notifications", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+        cache: "no-store",
+      });
+    } else {
+      await fetch("/api/admin/notifications", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, site: "gpt-store" }),
+        cache: "no-store",
+      });
+    }
+    refreshStaffNavBadges();
+  }, []);
 
   const markAllRead = useCallback(async () => {
-    if (markingAll) return;
-    if (!activeSites.length) return;
+    if (markingAllRef.current) return;
+    const sites = accessibleSitesRef.current;
+    if (!sites.length) return;
+
     const snapshot = items;
+    markingAllRef.current = true;
     setMarkingAll(true);
+    debouncedReload.cancel();
     setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
 
     try {
-      const targetSites = activeSites.filter((s) => accessibleSites.includes(s));
       const responses = await Promise.all(
-        targetSites.map((targetSite) =>
+        notificationsApiForSites(sites).map(({ site }) =>
           fetch(
-            targetSite === "subs-store"
+            site === "subs-store"
               ? "/api/admin/subs-store/notifications"
               : "/api/admin/notifications",
             {
@@ -261,7 +292,7 @@ export function useStaffNotifications(params: {
               credentials: "include",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(
-                targetSite === "subs-store"
+                site === "subs-store"
                   ? { mark_all: true }
                   : { mark_all: true, site: "gpt-store" },
               ),
@@ -280,16 +311,20 @@ export function useStaffNotifications(params: {
       }
 
       setLoadError(null);
+      for (const row of snapshot) {
+        knownIdsRef.current.add(`${row.site_id ?? "gpt-store"}:${row.id}`);
+      }
       refreshStaffNavBadges();
     } catch {
       setLoadError("Не удалось отметить уведомления");
       setItems(snapshot);
     } finally {
       await reload();
-      refreshStaffNavBadges();
+      markingAllRef.current = false;
       setMarkingAll(false);
+      refreshStaffNavBadges();
     }
-  }, [accessibleSites, activeSites, items, markingAll, reload]);
+  }, [items, reload, debouncedReload]);
 
   return {
     items: sortedItems,
@@ -300,7 +335,8 @@ export function useStaffNotifications(params: {
     reload,
     markRead,
     markAllRead,
+    accessibleSites,
     siteSlugFromRow: (row: StaffNotificationView) =>
-      siteSlugFromAlertSiteId(row.site_id ?? siteSlug),
+      siteSlugFromAlertSiteId(row.site_id ?? "gpt-store"),
   };
 }

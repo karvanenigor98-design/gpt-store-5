@@ -7,6 +7,7 @@ import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { PanelErrorBoundary } from "@/components/errors/PanelErrorBoundary";
 import { OperatorSidebar } from "@/components/admin/OperatorSidebar";
 import { StaffSiteUrlSync } from "@/components/admin/StaffSiteUrlSync";
+import { StaffNotificationsProvider } from "@/components/admin/StaffNotificationsProvider";
 import { StaffNotificationToaster } from "@/components/admin/StaffNotificationToaster";
 import { requireStaffPanel } from "@/lib/auth/staff-access";
 
@@ -37,6 +38,7 @@ export default async function OperatorLayout({ children }: { children: React.Rea
           <Suspense fallback={null}>
             <StaffSiteUrlSync />
           </Suspense>
+        <StaffNotificationsProvider>
           <Suspense fallback={null}>
             <PanelErrorBoundary title="Не удалось загрузить панель уведомлений">
               <AdminAlertsBar />
@@ -44,6 +46,7 @@ export default async function OperatorLayout({ children }: { children: React.Rea
           </Suspense>
           <StaffNotificationToaster />
           {children}
+        </StaffNotificationsProvider>
         </div>
       </div>
     );

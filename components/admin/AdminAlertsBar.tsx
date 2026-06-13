@@ -10,15 +10,11 @@ import {
   staffPanelRootFromPathname,
 } from "@/lib/admin/notificationNavigation";
 import {
-  loadNotificationSoundEnabled,
-  loadNotificationVolume,
   NOTIFICATION_VOLUME_MAX,
   NOTIFICATION_VOLUME_MIN,
   playNotificationPing,
-  saveNotificationSoundEnabled,
-  saveNotificationVolume,
 } from "@/lib/admin/notification-sound";
-import { useStaffNotifications } from "@/hooks/useStaffNotifications";
+import { useStaffNotificationsContext } from "@/components/admin/StaffNotificationsProvider";
 import { SiteSwitcher, getAdminSelectedSiteSlug } from "./SiteSwitcher";
 import { staffNotificationsHref } from "@/lib/admin/staffNavHref";
 
@@ -27,27 +23,26 @@ export function AdminAlertsBar() {
   const staffRoot = staffPanelRootFromPathname(pathname);
   const isOperatorPanel = staffRoot === "/operator";
   const [open, setOpen] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [soundVolume, setSoundVolume] = useState(10);
   const [currentSiteSlug, setCurrentSiteSlug] = useState<"gpt-store" | "subs-store">("gpt-store");
+  const {
+    items,
+    unread,
+    markingAll,
+    loadError,
+    markRead,
+    markAllRead,
+    soundEnabled,
+    setSoundEnabled,
+    soundVolume,
+    setSoundVolume,
+  } = useStaffNotificationsContext();
+
   function staffHref(href: string): string {
     if (staffRoot === "/operator" && href.startsWith("/admin")) {
       return href.replace(/^\/admin/, "/operator");
     }
     return href;
   }
-
-  const { items, unread, markingAll, loadError, markRead, markAllRead } = useStaffNotifications({
-    siteSlug: currentSiteSlug,
-    staffRoot,
-    soundEnabled,
-    soundVolume,
-  });
-
-  useEffect(() => {
-    setSoundEnabled(loadNotificationSoundEnabled());
-    setSoundVolume(loadNotificationVolume());
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -72,13 +67,11 @@ export function AdminAlertsBar() {
   function toggleSound() {
     const next = !soundEnabled;
     setSoundEnabled(next);
-    saveNotificationSoundEnabled(next);
     if (next) playNotificationPing({ volume: soundVolume });
   }
 
   function onVolumeChange(level: number) {
     setSoundVolume(level);
-    saveNotificationVolume(level);
   }
 
   function previewSound() {
