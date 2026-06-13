@@ -46,12 +46,9 @@ function notificationsApiForSite(
   });
 }
 
-function uniqueSiteSlugs(rows: StaffNotificationView[]): SiteSlug[] {
-  const out = new Set<SiteSlug>();
-  for (const row of rows) {
-    out.add((row.site_id === "subs-store" ? "subs-store" : "gpt-store") as SiteSlug);
-  }
-  return [...out];
+function normalizeAccessibleSites(raw: string[] | null | undefined): SiteSlug[] {
+  const out = (raw ?? []).filter((s): s is SiteSlug => s === "gpt-store" || s === "subs-store");
+  return out.length ? out : ["gpt-store"];
 }
 
 function toToast(item: StaffNotificationView): StaffToastPayload {
@@ -77,7 +74,9 @@ export function useStaffNotifications(params: {
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [accessibleSites, setAccessibleSites] = useState<SiteSlug[]>(["gpt-store"]);
+  const [accessibleSites, setAccessibleSites] = useState<SiteSlug[]>(() =>
+    siteSlug === "subs-store" ? ["subs-store"] : ["gpt-store"],
+  );
   const bootRef = useRef(true);
   const knownIdsRef = useRef<Set<string>>(new Set());
   const channelSuffix = useId().replace(/:/g, "");
@@ -93,8 +92,8 @@ export function useStaffNotifications(params: {
   const reload = useCallback(async () => {
     try {
       const responses = await Promise.all(
-        notificationsApiForSite(siteSlug, accessibleSites).map(async ({ url, site }) => {
-          const res = await fetch(url, { credentials: "include" });
+        notificationsApiForSite(siteSlug, [siteSlug]).map(async ({ url, site }) => {
+          const res = await fetch(url, { credentials: "include", cache: "no-store" });
           const data = (await res.json().catch(() => ({}))) as { items?: ApiItem[]; error?: string };
           return { url, site, res, data };
         }),
@@ -145,17 +144,17 @@ export function useStaffNotifications(params: {
       .then((r) => r.json())
       .then((j: { sites?: string[] }) => {
         if (cancelled) return;
-        const raw = Array.isArray(j.sites) ? j.sites : [];
-        const next = raw.filter((s): s is SiteSlug => s === "gpt-store" || s === "subs-store");
-        setAccessibleSites(next.length ? next : ["gpt-store"]);
+        setAccessibleSites(normalizeAccessibleSites(j.sites ?? null));
       })
       .catch(() => {
-        if (!cancelled) setAccessibleSites(["gpt-store"]);
+        if (!cancelled) {
+          setAccessibleSites(siteSlug === "subs-store" ? ["subs-store"] : ["gpt-store"]);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [siteSlug]);
 
   useEffect(() => {
     bootRef.current = true;
@@ -226,6 +225,7 @@ export function useStaffNotifications(params: {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),
+          cache: "no-store",
         });
       } else {
         await fetch("/api/admin/notifications", {
@@ -233,6 +233,7 @@ export function useStaffNotifications(params: {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, site: "gpt-store" }),
+          cache: "no-store",
         });
       }
       refreshStaffNavBadges();
@@ -248,8 +249,7 @@ export function useStaffNotifications(params: {
     setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
 
     try {
-      const fromItems = uniqueSiteSlugs(snapshot).filter((s) => accessibleSites.includes(s));
-      const targetSites = fromItems.length ? fromItems : accessibleSites;
+      const targetSites = activeSites.filter((s) => accessibleSites.includes(s));
       const responses = await Promise.all(
         targetSites.map((targetSite) =>
           fetch(
@@ -265,6 +265,7 @@ export function useStaffNotifications(params: {
                   ? { mark_all: true }
                   : { mark_all: true, site: "gpt-store" },
               ),
+              cache: "no-store",
             },
           ),
         ),
@@ -288,7 +289,7 @@ export function useStaffNotifications(params: {
       refreshStaffNavBadges();
       setMarkingAll(false);
     }
-  }, [accessibleSites, items, markingAll, reload]);
+  }, [accessibleSites, activeSites, items, markingAll, reload]);
 
   return {
     items: sortedItems,

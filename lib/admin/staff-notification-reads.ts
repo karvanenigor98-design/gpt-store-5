@@ -3,6 +3,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import type { UserRole } from "@/types/database";
 
+async function ensureStaffProfileForReads(
+  admin: SupabaseClient,
+  params: { userId: string; email?: string | null; role: UserRole },
+): Promise<void> {
+  const { data } = await admin.from("profiles").select("id").eq("id", params.userId).maybeSingle();
+  if (data) return;
+
+  const role = params.role === "admin" || params.role === "operator" ? params.role : "operator";
+  await admin.from("profiles").insert({
+    id: params.userId,
+    email: params.email ?? null,
+    role,
+  });
+}
+
 type NotifRow = {
   id: string;
   recipient_user_id: string | null;
@@ -83,8 +98,6 @@ export function isNotificationUnreadForStaff(
     return !row.is_read;
   }
 
-  // Per-user reads (notification_reads) + fallback на notifications.is_read
-  // когда таблица notification_reads ещё не создана / upsert недоступен.
   return !readIds.has(row.id) && !row.is_read;
 }
 
@@ -123,8 +136,16 @@ export async function countStaffUnreadNotifications(
 /** Пометить уведомление прочитанным для текущего staff-пользователя. */
 export async function markStaffNotificationRead(
   admin: SupabaseClient,
-  params: { notificationId: string; userId: string },
+  params: { notificationId: string; userId: string; role?: UserRole; email?: string | null },
 ): Promise<void> {
+  if (params.role) {
+    await ensureStaffProfileForReads(admin, {
+      userId: params.userId,
+      email: params.email,
+      role: params.role,
+    });
+  }
+
   const { data: row } = await admin
     .from("notifications")
     .select("id, recipient_user_id, type")
@@ -156,14 +177,15 @@ export async function markStaffNotificationRead(
   if (error) {
     const msg = error.message ?? "";
     if (msg.toLowerCase().includes("notification_reads")) {
-      let upd = admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
-      if (typed.recipient_user_id) {
-        upd = upd.eq("recipient_user_id", typed.recipient_user_id);
-      }
-      await upd;
+      await admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
       return;
     }
     console.error("[markStaffNotificationRead]", msg);
+    return;
+  }
+
+  if (staffInbox || !typed.recipient_user_id) {
+    await admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
   }
 }
 
@@ -179,8 +201,19 @@ export type MarkAllStaffNotificationsResult = {
  */
 export async function markAllStaffNotificationsReadForUser(
   admin: SupabaseClient,
-  params: { userId: string; role: UserRole; siteSlug: "gpt-store" | "subs-store" },
+  params: {
+    userId: string;
+    role: UserRole;
+    siteSlug: "gpt-store" | "subs-store";
+    email?: string | null;
+  },
 ): Promise<MarkAllStaffNotificationsResult> {
+  await ensureStaffProfileForReads(admin, {
+    userId: params.userId,
+    email: params.email,
+    role: params.role,
+  });
+
   const siteId = await getSiteUUID(params.siteSlug);
   const readIds = await loadStaffReadNotificationIds(admin, params.userId);
   const now = new Date().toISOString();
@@ -230,20 +263,18 @@ export async function markAllStaffNotificationsReadForUser(
     if (readsErr) {
       const msg = readsErr.message ?? "notification_reads upsert failed";
       if (msg.toLowerCase().includes("notification_reads")) {
-        // Таблица ещё не создана — fallback через notifications.is_read
-        for (const id of chunk) {
-          const row = rows.find((r) => r.id === id);
-          if (!row) continue;
-          let upd = admin.from("notifications").update({ is_read: true }).eq("id", id);
-          if (row.recipient_user_id) {
-            upd = upd.eq("recipient_user_id", row.recipient_user_id);
-          }
-          await upd;
-        }
+        await admin.from("notifications").update({ is_read: true }).in("id", chunk);
         continue;
       }
       console.error("[markAllStaffNotificationsReadForUser]", msg);
       return { ok: false, marked: 0, error: msg };
+    }
+  }
+
+  if (forReadsTable.length) {
+    for (let i = 0; i < forReadsTable.length; i += CHUNK) {
+      const chunk = forReadsTable.slice(i, i + CHUNK);
+      await admin.from("notifications").update({ is_read: true }).in("id", chunk);
     }
   }
 
@@ -257,19 +288,6 @@ export async function markAllStaffNotificationsReadForUser(
       if (updErr) {
         return { ok: false, marked: 0, error: updErr.message };
       }
-    }
-  }
-
-  // Broadcast staff-уведомления: дублируем в notifications.is_read,
-  // чтобы UI и badge обновлялись даже если notification_reads не подтянулся.
-  const broadcastIds = forReadsTable.filter((id) => {
-    const row = rows.find((r) => r.id === id);
-    return row && !row.recipient_user_id;
-  });
-  if (broadcastIds.length) {
-    for (let i = 0; i < broadcastIds.length; i += CHUNK) {
-      const chunk = broadcastIds.slice(i, i + CHUNK);
-      await admin.from("notifications").update({ is_read: true }).in("id", chunk);
     }
   }
 

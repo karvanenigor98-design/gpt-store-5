@@ -1,6 +1,7 @@
 ﻿import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
+import { unstable_noStore as noStore } from "next/cache";
 import { OrderStatusSelect } from "@/components/admin/OrderStatusSelect";
 import { SubsOrderStatusSelect } from "@/components/admin/SubsOrderStatusSelect";
 import type { OrderStatus } from "@/types/database";
@@ -19,6 +20,8 @@ import { AdminOrdersLiveRefresh } from "@/components/admin/AdminOrdersLiveRefres
 import { StaffOrderChatLink } from "@/components/admin/StaffOrderChatLink";
 
 export const metadata: Metadata = { title: "Admin · Заказы" };
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const GPT_STATUS_CLASSES: Record<string, string> = {
   pending: "bg-[#1DB954]/18 text-[#0a6b38] border-[#1DB954]/50 shadow-sm",
@@ -69,6 +72,7 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: Promise<{ status?: string; page?: string; site?: string; highlight?: string }>;
 }) {
+  noStore();
   const { status: filterStatus, page: pageParam, site: siteParam } = await searchParams;
   const siteSlug = resolveAdminSiteSlug({ site: siteParam });
   const site = getSiteBySlug(siteSlug);

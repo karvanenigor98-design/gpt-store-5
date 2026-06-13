@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
+import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
+import { resolveStaffSiteSlug } from "@/lib/admin/resolveStaffSiteSlug";
 import { getSiteBySlug } from "@/lib/sites";
 import { cn } from "@/lib/utils";
 
@@ -47,8 +49,7 @@ function withSiteQuery(path: string, site: string | null): string {
 export function AdminSidebar() {
   const pathname = usePathname();
   const sp = useSearchParams();
-  const raw = sp.get("site");
-  const site = raw === "subs-store" || raw === "gpt-store" ? raw : "gpt-store";
+  const site = resolveStaffSiteSlug(sp, getAdminSelectedSiteSlug());
   const siteDef = getSiteBySlug(site);
   const accent = siteDef.primaryColor;
   const badges = useStaffNavBadges(site);
@@ -76,6 +77,7 @@ export function AdminSidebar() {
             <Link
               key={item.href}
               href={href}
+              prefetch={item.href === "/admin/orders" ? false : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive

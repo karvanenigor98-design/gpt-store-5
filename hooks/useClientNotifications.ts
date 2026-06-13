@@ -37,7 +37,10 @@ export function useClientNotifications(siteSlug: SiteSlug) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(API_BY_SITE[siteSlug], { credentials: "include" });
+      const res = await fetch(API_BY_SITE[siteSlug], {
+        credentials: "include",
+        cache: "no-store",
+      });
       const j = (await res.json().catch(() => ({}))) as {
         items?: ClientNotificationItem[];
         error?: string;

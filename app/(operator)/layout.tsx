@@ -6,6 +6,7 @@ import { isRedirectError } from "next/dist/client/components/redirect";
 import { AdminAlertsBar } from "@/components/admin/AdminAlertsBar";
 import { PanelErrorBoundary } from "@/components/errors/PanelErrorBoundary";
 import { OperatorSidebar } from "@/components/admin/OperatorSidebar";
+import { StaffSiteUrlSync } from "@/components/admin/StaffSiteUrlSync";
 import { StaffNotificationToaster } from "@/components/admin/StaffNotificationToaster";
 import { requireStaffPanel } from "@/lib/auth/staff-access";
 
@@ -33,6 +34,9 @@ export default async function OperatorLayout({ children }: { children: React.Rea
           <OperatorSidebar />
         </Suspense>
         <div className="flex min-w-0 flex-1 flex-col">
+          <Suspense fallback={null}>
+            <StaffSiteUrlSync />
+          </Suspense>
           <Suspense fallback={null}>
             <PanelErrorBoundary title="Не удалось загрузить панель уведомлений">
               <AdminAlertsBar />

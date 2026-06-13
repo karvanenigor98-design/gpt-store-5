@@ -59,6 +59,7 @@ export async function PATCH(req: NextRequest) {
       userId: ctx.user.id,
       role: ctx.role,
       siteSlug: "subs-store",
+      email: ctx.user.email,
     });
     if (!result.ok) {
       return NextResponse.json(
@@ -74,6 +75,11 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id обязателен" }, { status: 400 });
   }
 
-  await markStaffNotificationRead(ctx.subs, { notificationId: id, userId: ctx.user.id });
+  await markStaffNotificationRead(ctx.subs, {
+    notificationId: id,
+    userId: ctx.user.id,
+    role: ctx.role,
+    email: ctx.user.email,
+  });
   return NextResponse.json({ ok: true });
 }

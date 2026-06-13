@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { LayoutDashboard, ShoppingBag, MessageCircle, UserCircle, Bell } from "lucide-react";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
+import { resolveStaffSiteSlug } from "@/lib/admin/resolveStaffSiteSlug";
 import { StaffNavBadge } from "@/components/admin/StaffNavBadge";
 import { useStaffNavBadges } from "@/components/admin/useStaffNavBadges";
 import { getSiteBySlug } from "@/lib/sites";
@@ -24,15 +25,15 @@ const NAV: Array<{
   { href: "/operator/notifications", label: "Уведомления", icon: Bell, badge: "notifications" },
 ];
 
-function resolveSite(raw: string | null): "gpt-store" | "subs-store" {
-  return raw === "subs-store" ? "subs-store" : "gpt-store";
+function resolveSite(sp: URLSearchParams): "gpt-store" | "subs-store" {
+  return resolveStaffSiteSlug(sp, getAdminSelectedSiteSlug());
 }
 
 export function OperatorSidebar() {
   const sp = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const siteSlug = resolveSite(sp.get("site"));
+  const siteSlug = resolveSite(sp);
   const site = getSiteBySlug(siteSlug);
   const accent = site.primaryColor;
   const badges = useStaffNavBadges(siteSlug);
@@ -69,6 +70,7 @@ export function OperatorSidebar() {
             <Link
               key={item.href}
               href={href}
+              prefetch={item.href === "/operator/orders" ? false : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive
