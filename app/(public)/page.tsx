@@ -18,10 +18,8 @@ import { TokenSafetySection } from "@/components/sections/TokenSafetySection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobileCta";
 import { LandingAnimatedBackground } from "@/components/ui/AnimatedBackground";
-import { getLandingNavSession } from "@/lib/auth/landing-nav-session";
-import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload, getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
-import { withTimeout } from "@/lib/with-timeout";
+import { getPublicSiteOrigin } from "@/lib/app-url";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -38,18 +36,11 @@ export const metadata: Metadata = {
   },
 };
 
-export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 export const runtime = "nodejs";
 
-/** Только отзывы, одобренные в админке (вкладка «Опубликованы»). */
-export default async function HomePage() {
-  const landingPayload = getStaticGptLandingPayload();
-  const navSession = await withTimeout(getLandingNavSession("gpt-store"), 2000, {
-    loggedIn: false,
-    emailConfirmed: false,
-  });
-  const { storeConfig } = landingPayload;
+/** Статический shell — Supabase только на клиенте (тарифы, сессия nav). */
+export default function HomePage() {
+  const { storeConfig } = getStaticGptLandingPayload();
   const reviews = getStaticGptLandingReviews(40);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
@@ -60,7 +51,7 @@ export default async function HomePage() {
     <>
       <div className="relative min-h-screen bg-white">
         <LandingAnimatedBackground />
-        <ChatGptLandingNav initialLoggedIn={navSession.loggedIn} />
+        <ChatGptLandingNav />
         <main className="relative z-[1] overflow-x-hidden pb-20 pt-0 md:pb-0">
           <div className="relative z-[1] bg-white">
             <HeroSection />
