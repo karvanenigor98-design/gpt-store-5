@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
   title: "Поддержка",
   description: "Чат поддержки — вопросы по подпискам GPT STORE и Spotify Store",
