@@ -84,7 +84,7 @@ mustInclude(
 // --- Subs count without bogus site_id filter ---
 const reads = read("lib/admin/staff-notification-reads.ts");
 assert(
-  reads.includes('params.siteSlug === "gpt-store" && siteId') &&
+  reads.includes('siteSlug === "gpt-store" && siteId') &&
     !reads.includes('q = q.eq("site_id", siteId);'),
   "countStaffUnreadNotifications: subs must not filter by GPT site_id",
 );
@@ -100,6 +100,12 @@ mustInclude(
   "hooks/useStaffNotifications.ts",
   ["debounceCallback", "REALTIME_DEBOUNCE_MS", "POLL_MS = 30_000"],
   "debounce and slower poll",
+);
+
+mustInclude(
+  "lib/admin/staff-notification-reads.ts",
+  ["resolveStaffNotificationUserId", "updateIsReadChunks", "MARK_ALL_CANDIDATE_LIMIT"],
+  "mark-all persists is_read first",
 );
 
 mustInclude(

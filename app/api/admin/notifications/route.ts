@@ -7,6 +7,7 @@ import {
   loadStaffReadNotificationIds,
   markAllStaffNotificationsReadForUser,
   markStaffNotificationRead,
+  resolveStaffNotificationUserId,
 } from "@/lib/admin/staff-notification-reads";
 
 /** GPT Store notifications (таблица в GPT Supabase). Subs — /api/admin/subs-store/notifications */
@@ -33,7 +34,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Не удалось загрузить уведомления" }, { status: 500 });
   }
 
-  const readIds = await loadStaffReadNotificationIds(ctx.admin, ctx.user.id);
+  const readIds = await loadStaffReadNotificationIds(
+    ctx.admin,
+    await resolveStaffNotificationUserId(ctx.admin, {
+      userId: ctx.user.id,
+      email: ctx.user.email,
+      role: ctx.role,
+    }),
+  );
 
   const items = (data ?? [])
     .filter((row) => {

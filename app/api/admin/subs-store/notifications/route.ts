@@ -5,6 +5,7 @@ import {
   loadStaffReadNotificationIds,
   markAllStaffNotificationsReadForUser,
   markStaffNotificationRead,
+  resolveStaffNotificationUserId,
 } from "@/lib/admin/staff-notification-reads";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 
@@ -21,7 +22,14 @@ export async function GET() {
     return NextResponse.json({ error: "Не удалось загрузить уведомления" }, { status: 500 });
   }
 
-  const readIds = await loadStaffReadNotificationIds(ctx.subs, ctx.user.id);
+  const readIds = await loadStaffReadNotificationIds(
+    ctx.subs,
+    await resolveStaffNotificationUserId(ctx.subs, {
+      userId: ctx.user.id,
+      email: ctx.user.email,
+      role: ctx.role,
+    }),
+  );
 
   const items = (data ?? [])
     .filter((row) => {

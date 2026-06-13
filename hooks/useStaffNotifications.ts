@@ -275,6 +275,7 @@ export function useStaffNotifications(params: {
     if (!sites.length) return;
 
     const snapshot = items;
+    const hadUnread = snapshot.some((x) => !x.is_read);
     markingAllRef.current = true;
     setMarkingAll(true);
     debouncedReload.cancel();
@@ -282,8 +283,8 @@ export function useStaffNotifications(params: {
 
     try {
       const responses = await Promise.all(
-        notificationsApiForSites(sites).map(({ site }) =>
-          fetch(
+        notificationsApiForSites(sites).map(async ({ site }) => {
+          const res = await fetch(
             site === "subs-store"
               ? "/api/admin/subs-store/notifications"
               : "/api/admin/notifications",
@@ -298,19 +299,37 @@ export function useStaffNotifications(params: {
               ),
               cache: "no-store",
             },
-          ),
-        ),
+          );
+          const data = (await res.json().catch(() => ({}))) as {
+            ok?: boolean;
+            marked?: number;
+            error?: string;
+          };
+          return { site, res, data };
+        }),
       );
 
-      const failed = responses.find((r) => !r.ok);
-      if (failed) {
-        const data = (await failed.json().catch(() => ({}))) as { error?: string };
-        setLoadError(data.error ?? "Не удалось отметить уведомления");
+      const failed = responses.filter(({ res }) => !res.ok);
+      const succeeded = responses.filter(({ res }) => res.ok);
+      const totalMarked = succeeded.reduce((sum, { data }) => sum + (data.marked ?? 0), 0);
+
+      if (failed.length === responses.length) {
+        const errMsg = failed[0]?.data.error ?? "Не удалось отметить уведомления";
+        setLoadError(errMsg);
         setItems(snapshot);
         return;
       }
 
-      setLoadError(null);
+      if (failed.length > 0) {
+        setLoadError("Часть уведомлений не обновилась — нажмите ещё раз");
+      } else if (hadUnread && totalMarked === 0) {
+        setLoadError("Не удалось сохранить прочитанное — обновите страницу и повторите");
+        setItems(snapshot);
+        return;
+      } else {
+        setLoadError(null);
+      }
+
       for (const row of snapshot) {
         knownIdsRef.current.add(`${row.site_id ?? "gpt-store"}:${row.id}`);
       }

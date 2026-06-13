@@ -27,6 +27,7 @@ async function countCombinedStaffNotifications(
   accessible: ("gpt-store" | "subs-store")[],
   userId: string,
   role: "admin" | "operator",
+  userEmail: string | null | undefined,
   gptAdmin: SupabaseClient,
   subsClient: SupabaseClient | null,
 ): Promise<number> {
@@ -37,6 +38,7 @@ async function countCombinedStaffNotifications(
         userId,
         role,
         siteSlug: "gpt-store",
+        email: userEmail,
       }),
       5000,
       0,
@@ -44,7 +46,7 @@ async function countCombinedStaffNotifications(
   }
   if (accessible.includes("subs-store") && subsClient) {
     total += await withTimeout(
-      countSubsStoreUnreadNotifications(subsClient, { userId, role }),
+      countSubsStoreUnreadNotifications(subsClient, { userId, role, email: userEmail }),
       5000,
       0,
     );
@@ -78,6 +80,7 @@ export async function GET(req: NextRequest) {
     accessible,
     user.id,
     role,
+    user.email,
     admin,
     subsClient,
   );
