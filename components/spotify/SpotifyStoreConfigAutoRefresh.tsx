@@ -52,7 +52,7 @@ export function SpotifyStoreConfigAutoRefresh() {
     }
 
     void sync();
-    const id = window.setInterval(() => void sync(), 5000);
+    const id = window.setInterval(() => void sync(), 60_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);

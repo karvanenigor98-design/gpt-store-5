@@ -9,7 +9,7 @@ import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
 import { useCheckoutAuthGate } from "@/hooks/useCheckoutAuthGate";
-import { reachSpotifyFunnelGoal } from "@/lib/analytics/spotify-funnel-goals";
+import { trackSpotifyPayClick, trackSpotifySelectPlan } from "@/lib/metrics";
 import {
   buildCheckoutAuthUrl,
   getCheckoutSessionUser,
@@ -36,8 +36,6 @@ export function SpotifyCheckoutFlow() {
   const plansHashRef = useRef(JSON.stringify(SPOTIFY_PLANS));
   const urlPlanInitDoneRef = useRef(false);
   const maxStepReachedRef = useRef(1);
-  const checkoutStartGoalFired = useRef(false);
-
   function goToStep(next: number) {
     maxStepReachedRef.current = Math.max(maxStepReachedRef.current, next);
     setStep(next);
@@ -74,15 +72,9 @@ export function SpotifyCheckoutFlow() {
     }
 
     void loadPlans();
-    const id = window.setInterval(() => void loadPlans(), 5000);
+    const id = window.setInterval(() => void loadPlans(), 30_000);
     return () => window.clearInterval(id);
   }, []);
-
-  useEffect(() => {
-    if (!authGate.ready || !ready || checkoutStartGoalFired.current) return;
-    checkoutStartGoalFired.current = true;
-    reachSpotifyFunnelGoal("spotify_checkout_start", { source: "checkout_page" });
-  }, [authGate.ready, ready]);
 
   // Только выбор тарифа из URL — шаг не трогаем (poll каждые 5 с)
   useEffect(() => {
@@ -101,10 +93,7 @@ export function SpotifyCheckoutFlow() {
     urlPlanInitDoneRef.current = true;
     setStep((current) => (current > 1 ? current : 2));
     maxStepReachedRef.current = Math.max(maxStepReachedRef.current, 2);
-    reachSpotifyFunnelGoal("spotify_select_plan", {
-      planId: found.id,
-      source: "checkout_url_or_intent",
-    });
+    trackSpotifySelectPlan(found.id, "checkout_url_or_intent");
   }, [planIdFromUrl, authGate.intent?.planId, authGate.ready, plans]);
 
   useEffect(() => {
@@ -146,10 +135,7 @@ export function SpotifyCheckoutFlow() {
   async function handlePay() {
     if (!selectedPlan || !agreeTerms) return;
 
-    reachSpotifyFunnelGoal("spotify_click_pay", {
-      planId: selectedPlan.id,
-      source: "checkout_step2",
-    });
+    trackSpotifyPayClick(selectedPlan.id, "checkout_step2");
 
     persistCheckoutIntent({
       siteSlug: "subs-store",
@@ -320,10 +306,7 @@ export function SpotifyCheckoutFlow() {
                     type="button"
                     onClick={() => {
                       setSelectedPlan(plan);
-                      reachSpotifyFunnelGoal("spotify_select_plan", {
-                        planId: plan.id,
-                        source: "checkout_step1",
-                      });
+                      trackSpotifySelectPlan(plan.id, "checkout_step1");
                     }}
                     className={cn(
                       "group relative rounded-2xl border p-5 text-left transition-all duration-200",

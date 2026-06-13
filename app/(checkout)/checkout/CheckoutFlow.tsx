@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
 import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
 import { useCheckoutAuthGate } from "@/hooks/useCheckoutAuthGate";
-import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
+import { trackGPTPayClick, trackGptSelectPlan } from "@/lib/metrics";
 import { buildCheckoutAuthUrl, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 
 const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
@@ -34,13 +34,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   );
   const plansHashRef = useRef(JSON.stringify(runtimePlans));
   const selectedPlanIdRef = useRef<string | null>(null);
-  const checkoutStartGoalFired = useRef(false);
-
-  useEffect(() => {
-    if (!authGate.ready || checkoutStartGoalFired.current) return;
-    checkoutStartGoalFired.current = true;
-    reachGptFunnelGoal("gpt_checkout_start", { source: "checkout_page" });
-  }, [authGate.ready]);
+  const urlPlanInitDoneRef = useRef(false);
 
   useEffect(() => {
     if (!authGate.ready || !authGate.intent) return;
@@ -59,20 +53,17 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     });
   }, [authGate.ready, selectedPlan, promoCode]);
 
-  // Предвыбор тарифа из URL (?plan=…) или checkout intent
+  // Предвыбор тарифа из URL (?plan=…) или checkout intent — цель один раз
   useEffect(() => {
-    if (!authGate.ready) return;
+    if (!authGate.ready || urlPlanInitDoneRef.current) return;
     const planId = searchParams.get("plan") ?? authGate.intent?.planId ?? null;
     if (!planId) return;
     const found = runtimePlans.find((p) => p.id === planId && p.inStock !== false);
-    if (found) {
-      setSelectedPlan(found);
-      setStep((current) => (current > 1 ? current : 2));
-      reachGptFunnelGoal("gpt_select_plan", {
-        planId: found.id,
-        source: "checkout_url_or_intent",
-      });
-    }
+    if (!found) return;
+    urlPlanInitDoneRef.current = true;
+    setSelectedPlan(found);
+    setStep((current) => (current > 1 ? current : 2));
+    trackGptSelectPlan(found.id, "checkout_url_or_intent");
   }, [searchParams, runtimePlans, authGate.ready, authGate.intent]);
 
   useEffect(() => {
@@ -110,7 +101,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     void syncPlans();
     const id = window.setInterval(() => {
       void syncPlans();
-    }, 5000);
+    }, 30_000);
 
     return () => {
       cancelled = true;
@@ -142,7 +133,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
   async function onPaymentSubmit() {
     if (!selectedPlan || selectedPlan.inStock === false || !agreeTerms) return;
-    reachGptFunnelGoal("gpt_click_pay", { planId: selectedPlan.id, source: "checkout_step2" });
+    trackGPTPayClick(selectedPlan.id, "checkout_step2");
     setIsSubmitting(true);
     setError(null);
 
@@ -261,10 +252,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
                   onClick={() => {
                     if (plan.inStock === false) return;
                     setSelectedPlan(plan);
-                    reachGptFunnelGoal("gpt_select_plan", {
-                      planId: plan.id,
-                      source: "checkout_step1",
-                    });
+                    trackGptSelectPlan(plan.id, "checkout_step1");
                   }}
                   disabled={plan.inStock === false}
                   className={cn(

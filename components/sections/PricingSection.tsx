@@ -140,7 +140,7 @@ export function PricingSection({
     void syncPlans();
     const intervalId = window.setInterval(() => {
       void syncPlans();
-    }, 5000);
+    }, 30_000);
 
     return () => {
       cancelled = true;

@@ -78,7 +78,7 @@ export function SpotifyPricing() {
     }
 
     void syncPlans();
-    const id = window.setInterval(() => void syncPlans(), 5000);
+    const id = window.setInterval(() => void syncPlans(), 30_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);

@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
 import {
   buildSpotifyLinkPreviewHtml,
@@ -30,6 +31,39 @@ import { isSpotifyStoreHostname } from "@/lib/site-url";
 function isGptPublicAuthConfigured(): boolean {
   return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 }
+
+/** Public marketing/checkout pages — no Supabase round-trip on every click. */
+function pathNeedsSessionLookup(path: string): boolean {
+  return (
+    path.startsWith("/dashboard") ||
+    path.startsWith("/cabinet") ||
+    path.startsWith("/admin") ||
+    path.startsWith("/operator") ||
+    path.startsWith("/login") ||
+    path.startsWith("/register") ||
+    path.startsWith("/auth/") ||
+    path.startsWith("/callback")
+  );
+}
+
+async function getUserWithTimeout(
+  sb: ReturnType<typeof createServerClient> | null,
+  ms: number,
+): Promise<User | null> {
+  if (!sb) return null;
+  try {
+    const result = await Promise.race([
+      sb.auth.getUser(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+    if (!result) return null;
+    return result.data?.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const AUTH_LOOKUP_MS = 3500;
 
 /** Supabase SSR: refreshed auth cookies must survive NextResponse.redirect. */
 function redirectPreservingCookies(target: URL, source: NextResponse): NextResponse {
@@ -88,6 +122,19 @@ function applyCurrentSiteCookie(
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  const host = request.nextUrl.hostname.toLowerCase();
+  const protocol = request.nextUrl.protocol;
+
+  if (process.env.NODE_ENV === "production") {
+    if (host === "www.gptplus-store.ru") {
+      const url = new URL(request.nextUrl.pathname + request.nextUrl.search, `${protocol}//gptplus-store.ru`);
+      return NextResponse.redirect(url, 308);
+    }
+    if (host === "www.spotify-store.ru") {
+      const url = new URL(request.nextUrl.pathname + request.nextUrl.search, `${protocol}//spotify-store.ru`);
+      return NextResponse.redirect(url, 308);
+    }
+  }
 
   if (path === "/spotify" || path === "/spotify/") {
     const ua = request.headers.get("user-agent");
@@ -140,6 +187,15 @@ export async function middleware(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request: incoming });
 
+  const cookieSiteEarlyRaw = incoming.cookies.get("current_site")?.value;
+  const cookieSiteEarly =
+    cookieSiteEarlyRaw === "subs-store" || cookieSiteEarlyRaw === "gpt-store" ? cookieSiteEarlyRaw : undefined;
+
+  if (!pathNeedsSessionLookup(path)) {
+    applyCurrentSiteCookie(supabaseResponse, path, siteQuery, request, cookieSiteEarly, devPort);
+    return supabaseResponse;
+  }
+
   const cookieApi = {
     getAll() {
       return incoming.cookies.getAll();
@@ -173,42 +229,30 @@ export async function middleware(request: NextRequest) {
       })
     : null;
 
-  let gptUser = null;
-  if (gptSb) {
-    try {
-      const { data } = await gptSb.auth.getUser();
-      gptUser = data.user;
-    } catch {
-      /* Supabase недоступен */
-    }
-  }
+  const staffPath = path.startsWith("/admin") || path.startsWith("/operator");
+  const needsSubsAuth =
+    !staffPath &&
+    (path.startsWith("/login") ||
+      path.startsWith("/register") ||
+      path.startsWith("/dashboard") ||
+      path.startsWith("/cabinet") ||
+      cookieSiteEarly === "subs-store");
 
-  let subsUser = null;
-  if (subsSb) {
-    try {
-      const { data } = await subsSb.auth.getUser();
-      subsUser = data.user;
-    } catch {
-      /* noop */
-    }
-  }
+  const [gptUser, subsUser] = await Promise.all([
+    getUserWithTimeout(gptSb, AUTH_LOOKUP_MS),
+    needsSubsAuth ? getUserWithTimeout(subsSb, AUTH_LOOKUP_MS) : Promise.resolve(null),
+  ]);
 
   const protectedPaths = ["/dashboard", "/cabinet", "/admin", "/operator"];
   const isProtected = protectedPaths.some((p) => path.startsWith(p));
   const isAuthPage = path.startsWith("/login") || path.startsWith("/register");
   const canSwitchAccount = request.nextUrl.searchParams.get("switch") === "1";
 
-  const cookieSiteEarlyRaw = incoming.cookies.get("current_site")?.value;
-  const cookieSiteEarly =
-    cookieSiteEarlyRaw === "subs-store" || cookieSiteEarlyRaw === "gpt-store" ? cookieSiteEarlyRaw : undefined;
-
   const guardedSiteSlug: SiteSlug = resolveSiteFromRequest(
     path,
     request.nextUrl.searchParams.get("site"),
     cookieSiteEarly,
   );
-
-  const staffPath = path.startsWith("/admin") || path.startsWith("/operator");
 
   const sessionUiActive = staffPath ?
     Boolean(gptUser) && !isSiteUiLoggedOut("gpt-store", incoming.cookies)

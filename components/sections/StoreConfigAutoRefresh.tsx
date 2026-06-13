@@ -53,7 +53,7 @@ export function StoreConfigAutoRefresh() {
     void syncConfig();
     const id = window.setInterval(() => {
       void syncConfig();
-    }, 5000);
+    }, 60_000);
 
     return () => {
       cancelled = true;
