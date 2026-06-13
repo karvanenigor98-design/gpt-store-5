@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { User } from "lucide-react";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -64,7 +63,6 @@ export function LandingAuthNavLink({
   onMouseEnter,
   onMouseLeave,
 }: LandingAuthNavLinkProps) {
-  const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [sessionChecked, setSessionChecked] = useState(initialLoggedIn);
 
@@ -79,32 +77,15 @@ export function LandingAuthNavLink({
   }, [siteSlug]);
 
   useEffect(() => {
-    void refreshSession();
+    const deferTimer = window.setTimeout(() => {
+      void refreshSession();
+    }, 1500);
+    return () => window.clearTimeout(deferTimer);
   }, [refreshSession]);
 
   const showCabinet = loggedIn && sessionChecked;
   const label = showCabinet ? "Кабинет" : "Войти";
   const href = showCabinet ? cabinetHref : loginHref;
-
-  function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    void (async () => {
-      const session = await refreshSession();
-
-      if (session.loggedIn) {
-        if (!session.emailConfirmed) {
-          router.push(loginHref);
-          return;
-        }
-        router.push(cabinetHref);
-        return;
-      }
-
-      router.push(loginHref);
-    })();
-  }
 
   return (
     <Link
@@ -114,7 +95,6 @@ export function LandingAuthNavLink({
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      onClick={handleClick}
     >
       <User size={14} />
       {label}

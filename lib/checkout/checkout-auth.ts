@@ -27,38 +27,39 @@ export function buildCheckoutAuthUrl(siteSlug: AuthSiteSlug, returnPath: string)
 }
 
 export async function getCheckoutSessionUser(siteSlug: AuthSiteSlug): Promise<CheckoutSessionState> {
+  const empty: CheckoutSessionState = { user: null, emailConfirmed: false };
+  try {
+    const result = await Promise.race([
+      readCheckoutSessionUser(siteSlug),
+      new Promise<CheckoutSessionState>((resolve) => {
+        setTimeout(() => resolve(empty), 2500);
+      }),
+    ]);
+    return result;
+  } catch {
+    return empty;
+  }
+}
+
+async function readCheckoutSessionUser(siteSlug: AuthSiteSlug): Promise<CheckoutSessionState> {
   try {
     if (siteSlug === "subs-store") {
       const subs = tryCreateSubsBrowserClient();
       if (!subs) return { user: null, emailConfirmed: false };
       const { data: sessionData } = await subs.auth.getSession();
       const sessionUser = sessionData.session?.user ?? null;
-      if (sessionUser) {
-        return {
-          user: sessionUser,
-          emailConfirmed: Boolean(sessionUser.email_confirmed_at),
-        };
-      }
-      const { data } = await subs.auth.getUser();
       return {
-        user: data.user ?? null,
-        emailConfirmed: Boolean(data.user?.email_confirmed_at),
+        user: sessionUser,
+        emailConfirmed: Boolean(sessionUser?.email_confirmed_at),
       };
     }
 
     const gpt = createClient();
     const { data: sessionData } = await gpt.auth.getSession();
     const sessionUser = sessionData.session?.user ?? null;
-    if (sessionUser) {
-      return {
-        user: sessionUser,
-        emailConfirmed: Boolean(sessionUser.email_confirmed_at),
-      };
-    }
-    const { data } = await gpt.auth.getUser();
     return {
-      user: data.user ?? null,
-      emailConfirmed: Boolean(data.user?.email_confirmed_at),
+      user: sessionUser,
+      emailConfirmed: Boolean(sessionUser?.email_confirmed_at),
     };
   } catch {
     return { user: null, emailConfirmed: false };
@@ -95,24 +96,5 @@ export async function navigateToCheckoutOrAuth(params: {
   const { siteSlug, planId, planName, promoCode, router } = params;
   const returnPath = buildCheckoutPath(siteSlug, planId);
   persistCheckoutIntent({ siteSlug, planId, planName, promoCode });
-
-  const { user, emailConfirmed } = await getCheckoutSessionUser(siteSlug);
-
-  if (user && emailConfirmed) {
-    router.push(returnPath);
-    return;
-  }
-
-  if (user && !emailConfirmed) {
-    const verifyParams = new URLSearchParams({
-      email: user.email ?? "",
-      flow: "checkout",
-    });
-    verifyParams.set("site", siteSlug);
-    verifyParams.set("returnUrl", returnPath);
-    router.push(`/verify-email?${verifyParams.toString()}`);
-    return;
-  }
-
-  router.push(buildCheckoutAuthUrl(siteSlug, returnPath));
+  router.push(returnPath);
 }

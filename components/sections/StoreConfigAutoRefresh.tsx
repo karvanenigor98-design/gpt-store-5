@@ -50,13 +50,16 @@ export function StoreConfigAutoRefresh() {
       }
     }
 
-    void syncConfig();
+    const deferTimer = window.setTimeout(() => {
+      void syncConfig();
+    }, 5_000);
     const id = window.setInterval(() => {
       void syncConfig();
     }, 60_000);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(deferTimer);
       window.clearInterval(id);
     };
   }, [router]);

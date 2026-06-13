@@ -63,7 +63,8 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   useEffect(() => {
     const loadUser = async () => {
       if (isSubsStore && subsSupabase) {
-        const { data: { user: authUser } } = await subsSupabase.auth.getUser();
+        const { data: { session: authSession } } = await subsSupabase.auth.getSession();
+        const authUser = authSession?.user ?? null;
         if (!authUser) {
           setLoading(false);
           return;
@@ -86,7 +87,8 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
         setLoading(false);
         return;
       }
-      const { data: { user: authUser } } = await gptSupabase.auth.getUser();
+      const { data: { session: authSession } } = await gptSupabase.auth.getSession();
+      const authUser = authSession?.user ?? null;
       if (!authUser) {
         setLoading(false);
         return;
@@ -99,7 +101,10 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
       setUser(profile as Profile);
       setLoading(false);
     };
-    void loadUser();
+    const deferTimer = window.setTimeout(() => {
+      void loadUser();
+    }, 4_000);
+    return () => window.clearTimeout(deferTimer);
   }, [gptSupabase, isSubsStore, subsSupabase]);
 
   useEffect(() => {

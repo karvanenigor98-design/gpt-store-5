@@ -51,10 +51,11 @@ export function SpotifyStoreConfigAutoRefresh() {
       }
     }
 
-    void sync();
+    const deferTimer = window.setTimeout(() => void sync(), 5_000);
     const id = window.setInterval(() => void sync(), 60_000);
     return () => {
       cancelled = true;
+      window.clearTimeout(deferTimer);
       window.clearInterval(id);
     };
   }, [router]);

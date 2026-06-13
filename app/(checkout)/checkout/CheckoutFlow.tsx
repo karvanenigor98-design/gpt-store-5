@@ -98,13 +98,16 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
       }
     }
 
-    void syncPlans();
+    const firstSyncTimer = window.setTimeout(() => {
+      void syncPlans();
+    }, 800);
     const id = window.setInterval(() => {
       void syncPlans();
-    }, 30_000);
+    }, 60_000);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(firstSyncTimer);
       window.clearInterval(id);
     };
   }, []);

@@ -99,6 +99,7 @@ export function PricingSection({
     initialPlans && initialPlans.length ? initialPlans : [...PLUS_PLANS, ...PRO_PLANS]
   );
   const lastPlansHashRef = useRef(JSON.stringify(runtimePlans));
+  const hasInitialPlans = Boolean(initialPlans && initialPlans.length);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,17 +137,21 @@ export function PricingSection({
       }
     }
 
-    // Первичная синхронизация и периодическое автообновление витринных скидок.
-    void syncPlans();
+    // Не блокируем первый рендер: статические тарифы уже на странице.
+    const firstSyncDelayMs = hasInitialPlans ? 8_000 : 800;
+    const firstSyncTimer = window.setTimeout(() => {
+      void syncPlans();
+    }, firstSyncDelayMs);
     const intervalId = window.setInterval(() => {
       void syncPlans();
-    }, 30_000);
+    }, 60_000);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(firstSyncTimer);
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [hasInitialPlans]);
 
   const plans = useMemo(
     () => runtimePlans.filter((p) => p.productId === activeProduct),

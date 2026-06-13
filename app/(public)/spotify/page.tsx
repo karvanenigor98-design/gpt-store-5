@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { defaultSpotifySeoTitle, normalizeSpotifyStoreLabel, SPOTIFY_STORE_LINK_NAME } from "@/lib/brand/spotify-store-brand";
+import {
+  defaultSpotifySeoTitle,
+  SPOTIFY_STORE_LINK_NAME,
+} from "@/lib/brand/spotify-store-brand";
 import { SPOTIFY_LINK_PREVIEW_DESCRIPTION } from "@/lib/brand/spotify-link-preview-html";
 import { getPublicSiteOrigin } from "@/lib/app-url";
-import { getLandingNavSession } from "@/lib/auth/landing-nav-session";
-import { buildSpotifyJsonLd, getSpotifyLandingPageData } from "@/lib/landing/get-spotify-landing-payload";
+import { buildSpotifyJsonLd } from "@/lib/landing/get-spotify-landing-payload";
+import { getStaticSpotifyLandingPayload } from "@/lib/landing/spotify-landing-static-payload";
 import { SpotifyNav } from "@/components/spotify/SpotifyNav";
 import { SpotifyHero } from "@/components/spotify/SpotifyHero";
 import { SpotifyTicker } from "@/components/spotify/SpotifyTicker";
@@ -27,44 +30,34 @@ import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobile
 
 const APP_URL = getPublicSiteOrigin();
 const SPOTIFY_URL = `${APP_URL}/spotify`;
+const SPOTIFY_TITLE = defaultSpotifySeoTitle();
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: { absolute: SPOTIFY_TITLE },
+  description: SPOTIFY_LINK_PREVIEW_DESCRIPTION,
+  openGraph: {
+    title: SPOTIFY_TITLE,
+    description: SPOTIFY_LINK_PREVIEW_DESCRIPTION,
+    url: SPOTIFY_URL,
+    siteName: SPOTIFY_STORE_LINK_NAME,
+    locale: "ru_RU",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SPOTIFY_TITLE,
+    description: SPOTIFY_LINK_PREVIEW_DESCRIPTION,
+  },
+  alternates: { canonical: SPOTIFY_URL },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
 
-export async function generateMetadata(): Promise<Metadata> {
-  const { seo } = await getSpotifyLandingPageData();
-  const title = defaultSpotifySeoTitle();
-  const description =
-    normalizeSpotifyStoreLabel(seo.description) || SPOTIFY_LINK_PREVIEW_DESCRIPTION;
-  return {
-    title: { absolute: title },
-    description,
-    keywords: seo.keywords,
-    openGraph: {
-      title,
-      description,
-      url: SPOTIFY_URL,
-      siteName: SPOTIFY_STORE_LINK_NAME,
-      locale: "ru_RU",
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
-    alternates: { canonical: SPOTIFY_URL },
-    robots: {
-      index: true,
-      follow: true,
-    },
-  };
-}
-
-export default async function SpotifyPage() {
-  const [{ payload }, navSession] = await Promise.all([
-    getSpotifyLandingPageData(),
-    getLandingNavSession("subs-store"),
-  ]);
+/** Статический shell — тарифы/сессия подтягиваются на клиенте. */
+export default function SpotifyPage() {
+  const payload = getStaticSpotifyLandingPayload();
   const jsonLd = buildSpotifyJsonLd(payload, SPOTIFY_URL);
 
   return (
@@ -77,7 +70,7 @@ export default async function SpotifyPage() {
       <SpotifyLandingProvider payload={payload}>
         <SpotifyStoreConfigAutoRefresh />
         <div className="relative" style={{ background: "#0a0a0a", color: "#ffffff" }}>
-          <SpotifyNav initialLoggedIn={navSession.loggedIn} />
+          <SpotifyNav />
           <main className="overflow-x-hidden pb-20 pt-14 md:pb-0">
             <SpotifyHero />
             <AnimateSection>
