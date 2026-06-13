@@ -23,6 +23,7 @@ import { getPublicSiteOrigin } from "@/lib/app-url";
 import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
 import { loadGptPublishedDbReviews } from "@/lib/reviews/load-published-db-reviews";
 import { sortLandingReviewsNewestFirst } from "@/lib/reviews/landing-reviews-display";
+import { withTimeout } from "@/lib/with-timeout";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -47,8 +48,8 @@ export const runtime = "nodejs";
 export default async function HomePage() {
   const [landingPayload, navSession, fromDb] = await Promise.all([
     Promise.resolve(getStaticGptLandingPayload()),
-    getLandingNavSession("gpt-store"),
-    loadGptPublishedDbReviews("gpt-store", 5000),
+    withTimeout(getLandingNavSession("gpt-store"), 5000, { loggedIn: false, emailConfirmed: false }),
+    withTimeout(loadGptPublishedDbReviews("gpt-store", 120), 8000, []),
   ]);
   const { storeConfig } = landingPayload;
   const reviews = sortLandingReviewsNewestFirst(fromDb);

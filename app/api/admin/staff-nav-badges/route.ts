@@ -12,6 +12,9 @@ import {
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { listAccessibleAdminSiteSlugs, requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { requireStaffApi } from "@/lib/admin/require-staff-api";
+import { withTimeout } from "@/lib/with-timeout";
+
+const SUBS_CTX_TIMEOUT_MS = 4000;
 
 function parseOrdersSince(raw: string | null): string | null {
   if (!raw?.trim()) return null;
@@ -25,20 +28,26 @@ async function countCombinedStaffNotifications(
   userId: string,
   role: "admin" | "operator",
   gptAdmin: SupabaseClient,
+  subsClient: SupabaseClient | null,
 ): Promise<number> {
   let total = 0;
   if (accessible.includes("gpt-store")) {
-    total += await countGptStoreUnreadNotifications(gptAdmin, {
-      userId,
-      role,
-      siteSlug: "gpt-store",
-    });
+    total += await withTimeout(
+      countGptStoreUnreadNotifications(gptAdmin, {
+        userId,
+        role,
+        siteSlug: "gpt-store",
+      }),
+      5000,
+      0,
+    );
   }
-  if (accessible.includes("subs-store")) {
-    const subsCtx = await requireSubsStaffContext();
-    if (!(subsCtx instanceof NextResponse)) {
-      total += await countSubsStoreUnreadNotifications(subsCtx.subs, { userId, role });
-    }
+  if (accessible.includes("subs-store") && subsClient) {
+    total += await withTimeout(
+      countSubsStoreUnreadNotifications(subsClient, { userId, role }),
+      5000,
+      0,
+    );
   }
   return total;
 }
@@ -56,12 +65,28 @@ export async function GET(req: NextRequest) {
   }
 
   const accessible = await listAccessibleAdminSiteSlugs(user, admin, role);
-  const notifUnread = await countCombinedStaffNotifications(accessible, user.id, role, admin);
+
+  let subsClient: SupabaseClient | null = null;
+  if (accessible.includes("subs-store")) {
+    const subsCtx = await withTimeout(requireSubsStaffContext(), SUBS_CTX_TIMEOUT_MS, null);
+    if (subsCtx && !(subsCtx instanceof NextResponse)) {
+      subsClient = subsCtx.subs;
+    }
+  }
+
+  const notifUnread = await countCombinedStaffNotifications(
+    accessible,
+    user.id,
+    role,
+    admin,
+    subsClient,
+  );
 
   if (siteSlug === "subs-store") {
-    const subsCtx = await requireSubsStaffContext();
-    if (subsCtx instanceof NextResponse) return subsCtx;
-    const { subs } = subsCtx;
+    if (!subsClient) {
+      return NextResponse.json({ notifications: notifUnread, chat: 0, orders: 0 });
+    }
+    const subs = subsClient;
 
     let ordersQ = subs.from("orders").select("id", { count: "exact", head: true });
     if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
