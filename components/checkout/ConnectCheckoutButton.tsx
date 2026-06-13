@@ -4,8 +4,7 @@ import { useState, type AnchorHTMLAttributes, type MouseEvent, type ReactNode } 
 import { useRouter } from "next/navigation";
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
-import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
-import { reachSpotifyFunnelGoal } from "@/lib/analytics/spotify-funnel-goals";
+import { trackGptSelectPlan, trackSpotifySelectPlan } from "@/lib/metrics";
 import { navigateToCheckoutOrAuth } from "@/lib/checkout/checkout-auth";
 import { getCheckoutEmailStepPath } from "@/lib/checkout/checkout-navigation";
 
@@ -35,9 +34,9 @@ export function ConnectCheckoutButton({
     setBusy(true);
     try {
       if (siteSlug === "gpt-store") {
-        reachGptFunnelGoal("gpt_select_plan", { planId, source: "landing_pricing" });
+        trackGptSelectPlan(planId, "landing_pricing");
       } else if (siteSlug === "subs-store") {
-        reachSpotifyFunnelGoal("spotify_select_plan", { planId, source: "landing_pricing" });
+        trackSpotifySelectPlan(planId, "landing_pricing");
       }
       await navigateToCheckoutOrAuth({
         siteSlug,

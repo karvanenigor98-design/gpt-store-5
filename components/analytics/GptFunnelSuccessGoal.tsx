@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { reachGptFunnelGoal } from "@/lib/analytics/gpt-funnel-goals";
+import { trackGPTPaymentSuccess } from "@/lib/metrics";
 
 type Props = {
   siteSlug: "gpt-store" | "subs-store";
@@ -16,10 +16,7 @@ export function GptFunnelSuccessGoal({ siteSlug, orderId }: Props) {
   useEffect(() => {
     if (siteSlug !== "gpt-store" || fired.current) return;
     fired.current = true;
-    reachGptFunnelGoal("gpt_payment_success", {
-      orderId: orderId ?? undefined,
-      source: "checkout_success",
-    });
+    trackGPTPaymentSuccess(orderId, "checkout_success");
   }, [siteSlug, orderId]);
 
   return null;

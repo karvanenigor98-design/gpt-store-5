@@ -1,11 +1,13 @@
 import { buildYandexMetrikaInlineScript } from "@/lib/analytics/yandex-metrika-snippet";
 
 /** Счётчик Я.Метрики только для витрины GPT STORE (не Subs / админка / кабинет). */
+export const GPT_STORE_YM_COUNTER_ID = 109608543;
 
-export function getGptStoreYmId(): number | null {  const raw =
-    process.env.NEXT_PUBLIC_GPT_STORE_YM_ID ?? process.env.NEXT_PUBLIC_YM_ID;
+export function getGptStoreYmId(): number | null {
+  const raw = process.env.NEXT_PUBLIC_GPT_STORE_YM_ID;
   const id = Number(raw);
-  return Number.isFinite(id) && id > 0 ? id : null;
+  if (Number.isFinite(id) && id > 0) return id;
+  return GPT_STORE_YM_COUNTER_ID;
 }
 
 function isSubsStorePath(pathname: string, siteQuery?: string | null): boolean {

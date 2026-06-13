@@ -2,10 +2,14 @@ import { parseSiteQueryFromSearch } from "@/lib/analytics/gpt-store-metrika";
 
 export { parseSiteQueryFromSearch };
 
+/** Счётчик Я.Метрики только для витрины SPOTIFY STORE (spotify-store.ru). */
+export const SUBS_STORE_YM_COUNTER_ID = 109609539;
+
 export function getSubsStoreYmId(): number | null {
   const raw = process.env.NEXT_PUBLIC_SUBS_STORE_YM_ID;
   const id = Number(raw);
-  return Number.isFinite(id) && id > 0 ? id : null;
+  if (Number.isFinite(id) && id > 0) return id;
+  return SUBS_STORE_YM_COUNTER_ID;
 }
 
 export function isSubsStoreMetrikaPath(

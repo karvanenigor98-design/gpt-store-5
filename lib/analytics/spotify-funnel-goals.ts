@@ -1,43 +1,53 @@
-import { getSubsStoreYmId } from "@/lib/analytics/subs-store-metrika";
+import type { MetrikaGoalParams } from "@/lib/metrics";
+import {
+  trackSpotifyCheckout,
+  trackSpotifyPayClick,
+  trackSpotifyPaymentFail,
+  trackSpotifyPaymentSuccess,
+  trackSpotifySelectPlan,
+  trackGoal,
+} from "@/lib/metrics";
 
 /** Идентификаторы целей в кабинете Я.Метрики (тип: JavaScript-событие / reachGoal). */
 export type SpotifyFunnelGoalName =
   | "spotify_select_plan"
-  | "spotify_checkout_start"
+  | "spotify_checkout"
   | "spotify_click_pay"
   | "spotify_payment_success"
   | "spotify_payment_fail";
 
 export const SPOTIFY_FUNNEL_METRIKA_GOALS: SpotifyFunnelGoalName[] = [
   "spotify_select_plan",
-  "spotify_checkout_start",
+  "spotify_checkout",
   "spotify_click_pay",
   "spotify_payment_success",
   "spotify_payment_fail",
 ];
 
-export type SpotifyFunnelGoalParams = {
-  planId?: string;
-  source?: string;
-  orderId?: string;
-};
+export type SpotifyFunnelGoalParams = MetrikaGoalParams;
 
+/** @deprecated Предпочитайте прямые вызовы из @/lib/metrics */
 export function reachSpotifyFunnelGoal(
   goal: SpotifyFunnelGoalName,
   params?: SpotifyFunnelGoalParams,
 ): void {
-  if (typeof window === "undefined") return;
-
-  const ymId = getSubsStoreYmId();
-  const ym = (window as { ym?: (id: number, action: string, ...args: unknown[]) => void }).ym;
-  if (!ymId || typeof ym !== "function") return;
-
-  try {
-    ym(ymId, "reachGoal", goal, params ?? {});
-    if (process.env.NODE_ENV === "development") {
-      console.log("[ym:spotify]", ymId, "reachGoal", goal, params ?? {});
-    }
-  } catch {
-    /* analytics must not break UX */
+  switch (goal) {
+    case "spotify_select_plan":
+      if (params?.planId) trackSpotifySelectPlan(params.planId, params.source);
+      break;
+    case "spotify_checkout":
+      trackSpotifyCheckout(params);
+      break;
+    case "spotify_click_pay":
+      if (params?.planId) trackSpotifyPayClick(params.planId, params.source);
+      break;
+    case "spotify_payment_success":
+      trackSpotifyPaymentSuccess(params?.orderId, params?.source);
+      break;
+    case "spotify_payment_fail":
+      trackSpotifyPaymentFail(params?.source);
+      break;
+    default:
+      trackGoal("spotify", goal, params);
   }
 }

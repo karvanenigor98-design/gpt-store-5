@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { reachSpotifyFunnelGoal } from "@/lib/analytics/spotify-funnel-goals";
+import { trackSpotifyPaymentFail } from "@/lib/metrics";
 
 type Props = {
   siteSlug: "gpt-store" | "subs-store";
@@ -15,7 +15,7 @@ export function SpotifyFunnelFailGoal({ siteSlug }: Props) {
   useEffect(() => {
     if (siteSlug !== "subs-store" || fired.current) return;
     fired.current = true;
-    reachSpotifyFunnelGoal("spotify_payment_fail", { source: "checkout_fail" });
+    trackSpotifyPaymentFail("checkout_fail");
   }, [siteSlug]);
 
   return null;
