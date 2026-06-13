@@ -9,7 +9,7 @@ const nextConfig = {
   distDir: devDistDir,
   experimental: {
     // Меньше «бочковых» импортов lucide — стабильнее граф модулей в dev (Windows).
-    optimizePackageImports: ["lucide-react"],
+    optimizePackageImports: ["lucide-react", "framer-motion"],
     outputFileTracingIncludes: {
       "/reviews": ["./data/gpt-telegram-reviews.json", "./public/gpt-telegram-reviews.json"],
       "/": ["./data/gpt-telegram-reviews.json", "./public/gpt-telegram-reviews.json"],

@@ -1,9 +1,3 @@
-import type { Metadata } from "next";
-import {
-  defaultSpotifySeoTitle,
-  SPOTIFY_STORE_LINK_NAME,
-} from "@/lib/brand/spotify-store-brand";
-import { SPOTIFY_LINK_PREVIEW_DESCRIPTION } from "@/lib/brand/spotify-link-preview-html";
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { buildSpotifyJsonLd } from "@/lib/landing/get-spotify-landing-payload";
 import { getStaticSpotifyLandingPayload } from "@/lib/landing/spotify-landing-static-payload";
@@ -25,35 +19,13 @@ import { SpotifyFooter } from "@/components/spotify/SpotifyFooter";
 import { SpotifyLandingProvider } from "@/components/spotify/SpotifyLandingProvider";
 import { SpotifyStoreConfigAutoRefresh } from "@/components/spotify/SpotifyStoreConfigAutoRefresh";
 import { AnimateSection } from "@/components/ui/AnimateSection";
-import { ChatWidget } from "@/components/sections/ChatWidget";
+import { LazyChatWidget } from "@/components/chat/LazyChatWidget";
 import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobileCta";
 
 const APP_URL = getPublicSiteOrigin();
 const SPOTIFY_URL = `${APP_URL}/spotify`;
-const SPOTIFY_TITLE = defaultSpotifySeoTitle();
 
-export const metadata: Metadata = {
-  title: { absolute: SPOTIFY_TITLE },
-  description: SPOTIFY_LINK_PREVIEW_DESCRIPTION,
-  openGraph: {
-    title: SPOTIFY_TITLE,
-    description: SPOTIFY_LINK_PREVIEW_DESCRIPTION,
-    url: SPOTIFY_URL,
-    siteName: SPOTIFY_STORE_LINK_NAME,
-    locale: "ru_RU",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: SPOTIFY_TITLE,
-    description: SPOTIFY_LINK_PREVIEW_DESCRIPTION,
-  },
-  alternates: { canonical: SPOTIFY_URL },
-  robots: {
-    index: true,
-    follow: true,
-  },
-};
+export const dynamic = "force-static";
 
 /** Статический shell — тарифы/сессия подтягиваются на клиенте. */
 export default function SpotifyPage() {
@@ -118,7 +90,7 @@ export default function SpotifyPage() {
             accentHover="#17a349"
             variant="dark"
           />
-          <ChatWidget siteSlug="subs-store" />
+          <LazyChatWidget siteSlug="subs-store" />
         </div>
       </SpotifyLandingProvider>
     </>

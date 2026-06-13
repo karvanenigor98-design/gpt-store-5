@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ChatGptLandingNav } from "@/components/sections/ChatGptLandingNav";
-import { ChatWidget } from "@/components/sections/ChatWidget";
+import { LazyChatWidget } from "@/components/chat/LazyChatWidget";
 import { GuaranteeSection } from "@/components/sections/GuaranteeSection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 
@@ -19,7 +19,7 @@ export default function GuaranteePage() {
           <GuaranteeSection />
         </main>
         <LandingFooter />
-        <ChatWidget />
+        <LazyChatWidget />
       </div>
     </div>
   );

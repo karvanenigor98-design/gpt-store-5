@@ -30,9 +30,12 @@ export function LandingOrderStatusChip({ siteSlug }: { siteSlug: SiteSlug }) {
       }
     };
 
-    void load();
+    const deferTimer = window.setTimeout(() => {
+      void load();
+    }, 6_000);
     return () => {
       cancelled = true;
+      window.clearTimeout(deferTimer);
     };
   }, [siteSlug]);
 

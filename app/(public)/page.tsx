@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AnimateSection } from "@/components/ui/AnimateSection";
 import { ChatGptLandingNav } from "@/components/sections/ChatGptLandingNav";
-import { ChatWidget } from "@/components/sections/ChatWidget";
+import { LazyChatWidget } from "@/components/chat/LazyChatWidget";
 import { CompareSection } from "@/components/sections/CompareSection";
 import { CrossSellSection } from "@/components/sections/CrossSellSection";
 import { FaqSection } from "@/components/sections/FaqSection";
@@ -23,6 +23,8 @@ import { getPublicSiteOrigin } from "@/lib/app-url";
 
 const APP_URL = getPublicSiteOrigin();
 
+export const dynamic = "force-static";
+
 export const metadata: Metadata = {
   title: "ChatGPT Plus без иностранной карты",
   description:
@@ -36,12 +38,10 @@ export const metadata: Metadata = {
   },
 };
 
-export const runtime = "nodejs";
-
-/** Статический shell — Supabase только на клиенте (тарифы, сессия nav). */
+/** Статический shell — отдаётся из CDN без SSR на каждый запрос. */
 export default function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
-  const reviews = getStaticGptLandingReviews(40);
+  const reviews = getStaticGptLandingReviews(12);
 
   const showReviews = storeConfig.landingSections.showReviews !== false;
   const showFaq = storeConfig.landingSections.showFaq !== false;
@@ -106,7 +106,7 @@ export default function HomePage() {
           accentColor="#10a37f"
           accentHover="#0d8f68"
         />
-        <ChatWidget />
+        <LazyChatWidget />
         <StoreConfigAutoRefresh />
       </div>
     </>

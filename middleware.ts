@@ -63,7 +63,7 @@ async function getUserWithTimeout(
   }
 }
 
-const AUTH_LOOKUP_MS = 3500;
+const AUTH_LOOKUP_MS = 2000;
 
 /** Supabase SSR: refreshed auth cookies must survive NextResponse.redirect. */
 function redirectPreservingCookies(target: URL, source: NextResponse): NextResponse {

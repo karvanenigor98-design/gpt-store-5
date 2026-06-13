@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { ChatGptLandingNav } from "@/components/sections/ChatGptLandingNav";
-import { ChatWidget } from "@/components/sections/ChatWidget";
+import { LazyChatWidget } from "@/components/chat/LazyChatWidget";
 import { FaqSection } from "@/components/sections/FaqSection";
 import { LandingFooter } from "@/components/layout/LandingFooter";
+
+export const dynamic = "force-static";
 
 export const metadata: Metadata = {
   title: "FAQ — частые вопросы",
@@ -19,7 +21,7 @@ export default function FaqPage() {
           <FaqSection />
         </main>
         <LandingFooter />
-        <ChatWidget />
+        <LazyChatWidget />
       </div>
     </div>
   );

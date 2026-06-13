@@ -1,30 +1,23 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 
-import { resolveAuthSiteContext, resolvePortFromHeaders } from "@/lib/auth/devStoreProfile";
+import { resolveAuthSiteContext } from "@/lib/auth/devStoreProfile";
 import { LoginForm } from "./LoginForm";
 
-export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Вход" };
 
-export default async function LoginPage({
+export default function LoginPage({
   searchParams,
 }: {
   searchParams: { returnUrl?: string; site?: string; error?: string; reset?: string; verified?: string };
 }) {
   const returnUrl = searchParams.returnUrl ?? "";
   const siteDirect = searchParams.site ?? "";
-  const h = await headers();
-  const devProfile = h.get("x-dev-store-profile");
-  const authSite =
-    devProfile === "gpt-store" || devProfile === "subs-store"
-      ? devProfile
-      : resolveAuthSiteContext({
-          siteDirect,
-          returnUrl,
-          port: resolvePortFromHeaders(h),
-          pathname: "/login",
-        });
+  const authSite = resolveAuthSiteContext({
+    siteDirect,
+    returnUrl,
+    port: null,
+    pathname: "/login",
+  });
   const isSubsStore = authSite === "subs-store";
   const registerHref =
     isSubsStore
