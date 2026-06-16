@@ -404,22 +404,28 @@ export async function notifyDelayedSession(sessionId: string, delayMinutes: numb
 }
 
 /** Ошибки оплаты / обработки заказа (без чувствительных данных в тексте). */
-export async function notifyOperationalFailure(payload: { context: string; detail?: string }) {
+export async function notifyOperationalFailure(payload: {
+  context: string;
+  detail?: string;
+  siteSlug?: "gpt-store" | "subs-store";
+}) {
+  const siteSlug: "gpt-store" | "subs-store" = payload.siteSlug ?? "gpt-store";
   const safeDetail = payload.detail ? payload.detail.slice(0, 500) : "";
   const text = `⚠️ <b>Ошибка в работе сервиса</b>
 📌 ${payload.context}
 ${safeDetail ? `\n<i>${safeDetail.replace(/</g, "")}</i>` : ""}
 🔗 <a href="${APP_URL}/admin/orders">Админка</a>`;
-  await sendTelegramMessage(ADMIN_CHAT_ID, text);
-  const { recordGptStaffNotification } = await import("@/lib/notifications/staff-events");
-  await recordGptStaffNotification({
-    type: "order_problem",
-    title: `⚠️ ${payload.context}`,
-    message: safeDetail || payload.context,
-    siteSlug: "gpt-store",
-  });
-  await emailStaffOrderProblem({
-    siteSlug: "gpt-store",
+  void sendTelegramMessage(ADMIN_CHAT_ID, text);
+  void import("@/lib/notifications/staff-events").then(({ recordGptStaffNotification }) =>
+    recordGptStaffNotification({
+      type: "order_problem",
+      title: `⚠️ ${payload.context}`,
+      message: safeDetail || payload.context,
+      siteSlug,
+    }),
+  );
+  void emailStaffOrderProblem({
+    siteSlug,
     title: `Ошибка: ${payload.context}`,
     message: safeDetail || payload.context,
   });
