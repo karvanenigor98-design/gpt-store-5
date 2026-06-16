@@ -247,8 +247,8 @@ async function formatPallyError(
   if (fieldErrors) {
     if (/неактивн/i.test(fieldErrors)) {
       return (
-        "Pally: магазин неактивен (shop_id в PALLY_SHOP_ID). " +
-        "В кабинете Pally → Магазины → включите магазин (модерация, договор, верификация)."
+        "Pally: магазин Spotify неактивен (PALLY_SHOP_ID_SUBS). " +
+        "В кабинете Pally → Магазины → включите магазин Spotify (модерация, договор, верификация)."
       );
     }
     return `Pally: ${fieldErrors}`;

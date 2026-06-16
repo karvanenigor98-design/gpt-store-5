@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { appendCheckoutReturnCookie } from "@/lib/payments/checkout-return-cookie";
 import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
-import { isPallyConfigError } from "@/lib/payments/pally-env-hint";
 import { applyPromo, findPromo } from "@/lib/store-config";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
 import { createSubsAwaitingPaymentOrder } from "@/lib/subs/create-subs-order";
@@ -183,9 +182,7 @@ export async function POST(request: NextRequest) {
       });
 
       const userMessage =
-        detail && isPallyConfigError(detail)
-          ? "Оплата временно недоступна. Заказ сохранён, оператор свяжется с вами."
-          : detail ?? "Не удалось создать ссылку на оплату. Заказ сохранён, попробуйте позже.";
+        detail ?? "Не удалось создать ссылку на оплату. Заказ сохранён, попробуйте позже.";
 
       return appendCheckoutReturnCookie(
         NextResponse.json(

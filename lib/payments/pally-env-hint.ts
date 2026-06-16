@@ -13,8 +13,8 @@ export function getPallyEnvSetupHint(): string {
 
 export function isPallyConfigError(message: string | undefined): boolean {
   if (!message) return false;
-  if (/url_not_allowed|настройками магазина/i.test(message)) return false;
-  return /pally|fetch failed|PALLY_|не настроен|временно недоступна|связаться с pally|ENOTFOUND|ip_access|белом списке/i.test(
+  if (/url_not_allowed|настройками магазина|магазин неактивен|неактивн/i.test(message)) return false;
+  return /pally|fetch failed|PALLY_|не настроен|связаться с pally|ENOTFOUND|ip_access|белом списке|relay недоступен/i.test(
     message,
   );
 }
@@ -25,6 +25,9 @@ export function formatPallyCheckoutError(message: string): string {
   }
   if (/ip_access|белом списке/i.test(message)) {
     return `${message} Заказ сохранён — оплату можно повторить после настройки Pally.`;
+  }
+  if (/магазин неактивен|неактивн/i.test(message)) {
+    return `${message} Заказ сохранён в админке — повторите оплату после активации магазина в Pally.`;
   }
   if (isPallyConfigError(message)) {
     return `${message}${getPallyEnvSetupHint()}`;

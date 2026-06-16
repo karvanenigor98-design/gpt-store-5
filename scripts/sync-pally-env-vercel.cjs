@@ -32,6 +32,7 @@ const KEYS = [
   "PALLY_TEST_MODE",
   "PALLY_RELAY_URL",
   "PALLY_RELAY_SECRET",
+  "PALLY_RELAY_STRICT",
   "PALLY_HTTP_PROXY",
   "NEXT_PUBLIC_APP_URL",
 ];
@@ -174,6 +175,9 @@ const ENVIRONMENTS = process.argv.includes("--preview")
         key === "NEXT_PUBLIC_SUBS_STORE_URL"
       ) {
         value = resolveStoreSiteUrlForVercel(value, PROD_SPOTIFY_SITE_URL);
+      }
+      if (key === "PALLY_RELAY_STRICT" && environment === "production") {
+        value = "false";
       }
       const r = await upsertEnv(key, value, environment);
       if (!r.ok) failed += 1;
