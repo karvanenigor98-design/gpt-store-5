@@ -3,7 +3,7 @@ import { XCircle } from "lucide-react";
 
 import { SpotifyFunnelFailGoal } from "@/components/analytics/SpotifyFunnelFailGoal";
 import { CheckoutFailActions } from "@/components/checkout/CheckoutFailActions";
-import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
+import { resolveCheckoutSiteSlug } from "@/lib/payments/resolve-checkout-site";
 
 export const metadata: Metadata = { title: "Ошибка оплаты" };
 
@@ -13,9 +13,9 @@ export default async function CheckoutFailPage({
   searchParams: Promise<{ site?: string }>;
 }) {
   const params = await searchParams;
-  const isSubs = params.site === "subs-store";
+  const siteSlug = await resolveCheckoutSiteSlug(params.site);
+  const isSubs = siteSlug === "subs-store";
   const accent = isSubs ? "#1DB954" : "#10a37f";
-  const siteSlug: AuthSiteSlug = isSubs ? "subs-store" : "gpt-store";
   const homeHref = isSubs ? "/spotify" : "/";
   const ordersHref = `/dashboard/orders?site=${siteSlug}`;
 

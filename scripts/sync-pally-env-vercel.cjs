@@ -16,6 +16,12 @@ const DRY = process.argv.includes("--dry-run");
 
 const KEYS = [
   "APP_URL",
+  "GPT_SITE_URL",
+  "SPOTIFY_SITE_URL",
+  "NEXT_PUBLIC_GPT_SITE_URL",
+  "NEXT_PUBLIC_SPOTIFY_SITE_URL",
+  "NEXT_PUBLIC_SPOTIFY_STORE_URL",
+  "NEXT_PUBLIC_SUBS_STORE_URL",
   "PALLY_SHOP_ID",
   "PALLY_SHOP_ID_GPT",
   "PALLY_SHOP_ID_SUBS",
@@ -97,6 +103,8 @@ if (!DRY) {
 }
 
 const PROD_APP_URL = "https://gpt-store-5.vercel.app";
+const PROD_GPT_SITE_URL = "https://gptplus-store.ru";
+const PROD_SPOTIFY_SITE_URL = "https://spotify-store.ru";
 
 function resolveAppUrlForVercel(localValue, environment) {
   const raw = (localValue || "").trim();
@@ -112,6 +120,21 @@ function resolveAppUrlForVercel(localValue, environment) {
     return u.origin;
   } catch {
     return PROD_APP_URL;
+  }
+}
+
+function resolveStoreSiteUrlForVercel(localValue, fallback) {
+  const raw = (localValue || "").trim();
+  if (!raw) return fallback;
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`);
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".local")) {
+      return fallback;
+    }
+    return u.origin;
+  } catch {
+    return fallback;
   }
 }
 
@@ -140,6 +163,17 @@ const ENVIRONMENTS = process.argv.includes("--preview")
           key === "APP_URL" ? value || PROD_APP_URL : value,
           environment,
         );
+      }
+      if (key === "GPT_SITE_URL" || key === "NEXT_PUBLIC_GPT_SITE_URL") {
+        value = resolveStoreSiteUrlForVercel(value, PROD_GPT_SITE_URL);
+      }
+      if (
+        key === "SPOTIFY_SITE_URL" ||
+        key === "NEXT_PUBLIC_SPOTIFY_SITE_URL" ||
+        key === "NEXT_PUBLIC_SPOTIFY_STORE_URL" ||
+        key === "NEXT_PUBLIC_SUBS_STORE_URL"
+      ) {
+        value = resolveStoreSiteUrlForVercel(value, PROD_SPOTIFY_SITE_URL);
       }
       const r = await upsertEnv(key, value, environment);
       if (!r.ok) failed += 1;

@@ -3,7 +3,7 @@ import {
   CHECKOUT_RETURN_COOKIE,
   parseCheckoutReturnCookieValue,
 } from "@/lib/payments/checkout-return-cookie";
-
+import { resolveCheckoutSiteSlug } from "@/lib/payments/resolve-checkout-site";
 const ORDER_QUERY_KEYS = [
   "order",
   "orderId",
@@ -34,7 +34,7 @@ export async function resolveCheckoutSuccessContext(params: {
   bill_id?: string;
   orderid?: string;
 }): Promise<{ orderId: string | null; siteSlug: SiteSlug }> {
-  const siteSlug: SiteSlug = params.site === "subs-store" ? "subs-store" : "gpt-store";
+  const siteSlug = await resolveCheckoutSiteSlug(params.site);
   const fromQuery = pickOrderId(params);
 
   if (fromQuery) {

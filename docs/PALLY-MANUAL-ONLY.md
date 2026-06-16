@@ -26,9 +26,14 @@
 | `PALLY_TEST_MODE` | `false` |
 | `PALLY_RELAY_URL` | `.env.local` (если relay живой) |
 | `PALLY_RELAY_SECRET` | `.env.local` |
-| `NEXT_PUBLIC_APP_URL` | `https://gpt-store-5.vercel.app` |
+| `NEXT_PUBLIC_GPT_SITE_URL` | `https://gptplus-store.ru` |
+| `GPT_SITE_URL` | `https://gptplus-store.ru` |
+| `NEXT_PUBLIC_SPOTIFY_SITE_URL` | `https://spotify-store.ru` |
+| `SPOTIFY_SITE_URL` | `https://spotify-store.ru` |
 
 **Redeploy** production после сохранения.
+
+Локально: `npm run pally:cabinet-urls` — ссылки для кабинета Pally.
 
 Или с ПК (если `vercel login`):
 
@@ -38,13 +43,29 @@ npm run pally:env:sync
 
 ### 2. Pally — оба магазина (GPT + Spotify)
 
-В кабинете Pally для shop **G8vrGYLmLR** и **Ok706gzmqj**:
+В кабинете Pally → каждый shop → **Ссылки** (символ-в-символ, иначе `url_not_allowed`):
 
-1. **Webhook URL:**
-   ```
-   https://gpt-store-5.vercel.app/api/payments/pally/webhook
-   ```
-2. **IP whitelist:** добавь `5.129.221.84` (VPS Timeweb) **или** отключи фильтр IP на время проверки.
+#### GPT (`PALLY_SHOP_ID` / `PALLY_SHOP_ID_GPT`)
+
+| Поле | URL |
+|------|-----|
+| URL магазина | `https://gptplus-store.ru/` |
+| Success URL | `https://gptplus-store.ru/checkout/success` |
+| Fail URL | `https://gptplus-store.ru/checkout/fail` |
+| Result URL | `https://gptplus-store.ru/api/payments/pally/webhook` |
+
+#### Spotify (`PALLY_SHOP_ID_SUBS`)
+
+| Поле | URL |
+|------|-----|
+| URL магазина | `https://spotify-store.ru/` |
+| Success URL | `https://spotify-store.ru/checkout/success` |
+| Fail URL | `https://spotify-store.ru/checkout/fail` |
+| Result URL | `https://spotify-store.ru/api/payments/pally/webhook` |
+
+Refund / Chargeback — оставить пустыми.
+
+**IP whitelist:** relay VPS IP **или** отключи фильтр IP на время проверки.
 
 ### 3. VPS relay (если cloudflare URL умер)
 
@@ -60,8 +81,8 @@ export PALLY_RELAY_SECRET='из .env.local PALLY_RELAY_SECRET'
 
 ### 4. Проверка
 
-- GPT: https://gpt-store-5.vercel.app/checkout  
-- Spotify: https://gpt-store-5.vercel.app/checkout/spotify  
+- GPT: https://gptplus-store.ru/checkout  
+- Spotify: https://spotify-store.ru/checkout/spotify  
 
 Кнопка «Оплатить» → редирект на pally.info.
 

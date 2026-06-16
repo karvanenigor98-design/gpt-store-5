@@ -69,7 +69,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (created) {
-      const accountEmailValue = accountEmail?.trim() || user.email || null;
       await insertGptCustomerNotification({
         recipientUserId: user.id,
         type: "new_order",
@@ -78,21 +77,10 @@ export async function POST(request: NextRequest) {
         entity_type: "order",
         entity_id: order.id,
       }).catch(() => {});
-      await notifyNewOrder(
-        {
-          id: order.id,
-          plan_name: plan.name,
-          price: finalPrice,
-          account_email: accountEmailValue,
-          product: plan.productId ?? "chatgpt-plus",
-        },
-        { email: user.email ?? null },
-        { siteSlug: "gpt-store" },
-      ).catch(() => {});
     }
 
-    const { getServerSiteOrigin } = await import("@/lib/app-url");
-    const appUrl = getServerSiteOrigin();
+    const { getPallyAppUrlFromRequest } = await import("@/lib/app-url");
+    const appUrl = getPallyAppUrlFromRequest(request, "gpt-store");
     const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "gpt-store");
 
     let payment: { paymentId: string; paymentUrl: string };
@@ -109,10 +97,11 @@ export async function POST(request: NextRequest) {
       });
     } catch (payErr) {
       const detail = payErr instanceof Error ? payErr.message : undefined;
-      await notifyOperationalFailure({
+      void notifyOperationalFailure({
         context: "Ошибка создания платежа Pally",
         detail,
-      }).catch(() => {});
+        siteSlug: "gpt-store",
+      });
 
       return appendCheckoutReturnCookie(
         NextResponse.json(
@@ -135,6 +124,21 @@ export async function POST(request: NextRequest) {
         pally_order_id: payment.paymentId,
       })
       .eq("id", order.id);
+
+    if (created) {
+      const accountEmailValue = accountEmail?.trim() || user.email || null;
+      await notifyNewOrder(
+        {
+          id: order.id,
+          plan_name: plan.name,
+          price: finalPrice,
+          account_email: accountEmailValue,
+          product: plan.productId ?? "chatgpt-plus",
+        },
+        { email: user.email ?? null },
+        { siteSlug: "gpt-store" },
+      ).catch(() => {});
+    }
 
     if (user.email) {
       await notifyCustomerOrderCreated({

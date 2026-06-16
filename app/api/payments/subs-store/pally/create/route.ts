@@ -158,8 +158,8 @@ export async function POST(request: NextRequest) {
         .or(`user_id.is.null,user_id.neq.${subsUserId}`);
     }
 
-    const { getServerSiteOrigin } = await import("@/lib/app-url");
-    const appUrl = getServerSiteOrigin();
+    const { getPallyAppUrlFromRequest } = await import("@/lib/app-url");
+    const appUrl = getPallyAppUrlFromRequest(request, "subs-store");
     const { successUrl, failUrl } = buildPallyRedirectUrls(appUrl, "subs-store");
 
     let payment: { paymentId: string; paymentUrl: string };
@@ -176,10 +176,11 @@ export async function POST(request: NextRequest) {
       });
     } catch (payErr) {
       const detail = payErr instanceof Error ? payErr.message : undefined;
-      await notifyOperationalFailure({
+      void notifyOperationalFailure({
         context: "Subs Store: ошибка Pally",
         detail,
-      }).catch(() => {});
+        siteSlug: "subs-store",
+      });
 
       const userMessage =
         detail && isPallyConfigError(detail)
@@ -221,16 +222,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (createdNew) {
-      await notifySubsStoreStaffOrderEvent({
+      void notifySubsStoreStaffOrderEvent({
         type: "new_order",
         title: "SPOTIFY STORE: новый заказ ожидает оплаты",
         message: msg,
         orderId,
         emailSubject: "🔔 Новый заказ ожидает оплаты — SPOTIFY STORE",
         emailBody: `Новый заказ SPOTIFY STORE\nТариф: ${planLabel}\nСумма: ${finalPrice} ₽\nEmail: ${customerEmail}\n\nАдминка: ${appUrl}/admin/orders?site=subs-store&status=awaiting_payment&highlight=${orderId}`,
-      });
+      }).catch(() => {});
 
-      await notifyNewOrder(
+      void notifyNewOrder(
         {
           id: orderId,
           plan_name: planLabel,
@@ -240,7 +241,7 @@ export async function POST(request: NextRequest) {
         },
         { email: sessionEmail ?? customerEmail },
         { siteSlug: "subs-store" },
-      );
+      ).catch(() => {});
 
       await notifyCustomerOrderCreated({
         customerEmail,

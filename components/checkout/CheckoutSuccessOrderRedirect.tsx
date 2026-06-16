@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { buildCustomerOrdersListHref } from "@/lib/dashboard/customer-order-view";
+import { isSpotifyStoreHostname } from "@/lib/site-url";
 
 function readOrderIdFromSearch(searchParams: URLSearchParams): string | null {
   const keys = [
@@ -32,7 +33,14 @@ export function CheckoutSuccessOrderRedirect() {
   const handledRef = useRef(false);
 
   const siteParam = searchParams.get("site");
-  const siteSlug: SiteSlug = siteParam === "subs-store" ? "subs-store" : "gpt-store";
+  const siteSlug: SiteSlug =
+    siteParam === "subs-store"
+      ? "subs-store"
+      : siteParam === "gpt-store"
+        ? "gpt-store"
+        : typeof window !== "undefined" && isSpotifyStoreHostname(window.location.hostname)
+          ? "subs-store"
+          : "gpt-store";
   const ordersHref = buildCustomerOrdersListHref(siteSlug);
   const isSubs = siteSlug === "subs-store";
   const accent = isSubs ? "#1DB954" : "#10a37f";
@@ -51,7 +59,7 @@ export function CheckoutSuccessOrderRedirect() {
 
     try {
       const stored =
-        (siteParam === "subs-store"
+        (siteSlug === "subs-store"
           ? sessionStorage.getItem("subs-checkout-order")
           : sessionStorage.getItem("gpt-checkout-order")) ??
         sessionStorage.getItem("subs-checkout-order") ??
@@ -60,7 +68,7 @@ export function CheckoutSuccessOrderRedirect() {
       if (stored) {
         handledRef.current = true;
         const q = new URLSearchParams({ order: stored });
-        if (siteParam) q.set("site", siteParam);
+        if (siteSlug === "subs-store") q.set("site", "subs-store");
         router.replace(`/checkout/success?${q.toString()}`);
         return;
       }

@@ -1,4 +1,5 @@
-const FALLBACK_ORIGIN = "https://gpt-store-5.vercel.app";
+const FALLBACK_ORIGIN = "https://gptplus-store.ru";
+const FALLBACK_SPOTIFY_ORIGIN = "https://spotify-store.ru";
 
 /**
  * Безопасный базовый URL для metadataBase, sitemap, JSON-LD.
@@ -33,9 +34,21 @@ function originFromEnvValue(raw: string | undefined): string | null {
 }
 
 export function getPublicSiteOrigin(): string {
-  const fromPublic = originFromEnvValue(process.env.NEXT_PUBLIC_APP_URL);
+  const fromPublic =
+    originFromEnvValue(process.env.NEXT_PUBLIC_GPT_SITE_URL) ||
+    originFromEnvValue(process.env.NEXT_PUBLIC_GPT_STORE_URL) ||
+    originFromEnvValue(process.env.NEXT_PUBLIC_APP_URL);
   if (fromPublic) return fromPublic;
   return FALLBACK_ORIGIN;
+}
+
+export function getPublicSpotifySiteOrigin(): string {
+  const fromPublic =
+    originFromEnvValue(process.env.NEXT_PUBLIC_SPOTIFY_SITE_URL) ||
+    originFromEnvValue(process.env.NEXT_PUBLIC_SPOTIFY_STORE_URL) ||
+    originFromEnvValue(process.env.NEXT_PUBLIC_SUBS_STORE_URL);
+  if (fromPublic) return fromPublic;
+  return FALLBACK_SPOTIFY_ORIGIN;
 }
 
 /**
@@ -44,6 +57,9 @@ export function getPublicSiteOrigin(): string {
  */
 export function getServerSiteOrigin(): string {
   const fromServer =
+    originFromEnvValue(process.env.GPT_SITE_URL) ||
+    originFromEnvValue(process.env.NEXT_PUBLIC_GPT_SITE_URL) ||
+    originFromEnvValue(process.env.NEXT_PUBLIC_GPT_STORE_URL) ||
     originFromEnvValue(process.env.APP_URL) ||
     originFromEnvValue(process.env.SITE_URL);
 
@@ -54,6 +70,42 @@ export function getServerSiteOrigin(): string {
   }
 
   return getPublicSiteOrigin();
+}
+
+export function getServerSiteOriginBySlug(siteSlug: "gpt-store" | "subs-store"): string {
+  if (siteSlug === "subs-store") {
+    return (
+      originFromEnvValue(process.env.SPOTIFY_SITE_URL) ||
+      originFromEnvValue(process.env.NEXT_PUBLIC_SPOTIFY_SITE_URL) ||
+      originFromEnvValue(process.env.NEXT_PUBLIC_SPOTIFY_STORE_URL) ||
+      originFromEnvValue(process.env.NEXT_PUBLIC_SUBS_STORE_URL) ||
+      FALLBACK_SPOTIFY_ORIGIN
+    );
+  }
+  return getServerSiteOrigin();
+}
+
+function normalizeStoreHostname(host: string): string {
+  return host.toLowerCase().split(":")[0];
+}
+
+/** Origin для Pally bill/create: домен запроса, если это известный storefront. */
+export function getPallyAppUrlFromRequest(
+  request: { headers: { get(name: string): string | null } },
+  siteSlug: "gpt-store" | "subs-store",
+): string {
+  const forwarded = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = normalizeStoreHostname(forwarded || request.headers.get("host") || "");
+
+  if (siteSlug === "subs-store") {
+    if (host === "spotify-store.ru" || host === "www.spotify-store.ru") {
+      return FALLBACK_SPOTIFY_ORIGIN;
+    }
+  } else if (host === "gptplus-store.ru" || host === "www.gptplus-store.ru") {
+    return FALLBACK_ORIGIN;
+  }
+
+  return getServerSiteOriginBySlug(siteSlug);
 }
 
 export function getMetadataBase(): URL {

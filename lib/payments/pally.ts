@@ -1,5 +1,6 @@
 ﻿import crypto from "crypto";
 
+import { getServerSiteOriginBySlug } from "@/lib/app-url";
 import { detectEgressIp, pallyHttpPost } from "@/lib/payments/pally-http";
 
 const PALLY_REQUEST_TIMEOUT_MS = 20_000;
@@ -65,15 +66,54 @@ export function buildPallyRedirectUrls(
   site: PallyStoreSlug = "gpt-store",
 ): { successUrl: string; failUrl: string } {
   const base = appUrl.replace(/\/$/, "");
-  if (site === "subs-store") {
-    return {
-      successUrl: `${base}/checkout/success?site=subs-store`,
-      failUrl: `${base}/checkout/fail?site=subs-store`,
-    };
-  }
   return {
     successUrl: `${base}/checkout/success`,
     failUrl: `${base}/checkout/fail`,
+  };
+}
+
+export function buildPallyBillUrlCandidates(
+  appUrl: string,
+  site: PallyStoreSlug = "gpt-store",
+): Array<{ successUrl: string; failUrl: string; webhookUrl: string }> {
+  const base = appUrl.replace(/\/$/, "");
+  const webhookUrl = `${base}/api/payments/pally/webhook`;
+  const plain = buildPallyRedirectUrls(base, site);
+
+  const candidates = [{ ...plain, webhookUrl }];
+
+  if (site === "subs-store") {
+    candidates.push({
+      successUrl: `${base}/checkout/success?site=subs-store`,
+      failUrl: `${base}/checkout/fail?site=subs-store`,
+      webhookUrl,
+    });
+  }
+
+  const seen = new Set<string>();
+  return candidates.filter((c) => {
+    const key = `${c.successUrl}|${c.failUrl}|${c.webhookUrl}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Ссылки для кабинета Pally → «Ссылки» (должны совпадать с bill/create). */
+export function getPallyCabinetUrls(site: PallyStoreSlug): {
+  shopUrl: string;
+  successUrl: string;
+  failUrl: string;
+  resultUrl: string;
+} {
+  const slug = site === "subs-store" ? "subs-store" : "gpt-store";
+  const origin = getServerSiteOriginBySlug(slug).replace(/\/$/, "");
+  const { successUrl, failUrl } = buildPallyRedirectUrls(origin, site);
+  return {
+    shopUrl: `${origin}/`,
+    successUrl,
+    failUrl,
+    resultUrl: `${origin}/api/payments/pally/webhook`,
   };
 }
 
@@ -162,6 +202,19 @@ function extractDeniedIp(data: Record<string, unknown>): string | null {
   return m?.[1] ?? null;
 }
 
+function extractPallyFieldErrors(data: Record<string, unknown>): string | null {
+  const errors = data.errors;
+  if (!errors || typeof errors !== "object" || Array.isArray(errors)) return null;
+  const parts: string[] = [];
+  for (const messages of Object.values(errors as Record<string, unknown>)) {
+    const list = Array.isArray(messages) ? messages : [messages];
+    for (const msg of list) {
+      if (typeof msg === "string" && msg.trim()) parts.push(msg.trim());
+    }
+  }
+  return parts.length ? parts.join(" ") : null;
+}
+
 async function formatPallyError(
   data: Record<string, unknown>,
   status: number,
@@ -182,6 +235,16 @@ async function formatPallyError(
       "В кабинете Pally → магазин → «Ссылки» укажите те же success/fail/webhook, что в docs/PALLY-MANUAL-ONLY.md " +
       "(без лишних ?order= в Success/Fail)."
     );
+  }
+  const fieldErrors = extractPallyFieldErrors(data);
+  if (fieldErrors) {
+    if (/неактивн/i.test(fieldErrors)) {
+      return (
+        "Pally: магазин неактивен (shop_id в PALLY_SHOP_ID). " +
+        "В кабинете Pally → Магазины → включите магазин (модерация, договор, верификация)."
+      );
+    }
+    return `Pally: ${fieldErrors}`;
   }
   if (message) return `Pally: ${message}`;
   return `Pally API ошибка (HTTP ${status})`;
@@ -229,77 +292,100 @@ export async function createPallyPayment(
   }
 
   const sign = buildSign(config.shopId, config.secretKey, params.orderId, params.amount);
-
-  const body: Record<string, unknown> = {
-    shop_id: config.shopId,
-    order_id: params.orderId,
-    amount: params.amount,
-    currency: "RUB",
-    desc: params.description,
-    success_url: params.successUrl,
-    fail_url: params.failUrl,
-    webhook_url: params.webhookUrl,
-    result_url: params.webhookUrl,
-    email: params.customerEmail,
-    sign,
-    test: config.testMode ? 1 : 0,
-    site_slug: site,
-    site: site,
-  };
+  const urlCandidates = buildPallyBillUrlCandidates(
+    params.successUrl.replace(/\/checkout\/success.*$/, ""),
+    site,
+  );
+  const billUrlSets =
+    urlCandidates.length > 0
+      ? urlCandidates
+      : [
+          {
+            successUrl: params.successUrl,
+            failUrl: params.failUrl,
+            webhookUrl: params.webhookUrl,
+          },
+        ];
 
   const networkErrors: string[] = [];
   let lastApiError: string | null = null;
 
-  for (const apiUrl of config.apiUrls) {
-    try {
-      const { response, data, endpoint } = await postBillCreate(
-        apiUrl,
-        config.shopId,
-        config.secretKey,
-        body,
-      );
+  for (const urls of billUrlSets) {
+    const body: Record<string, unknown> = {
+      shop_id: config.shopId,
+      order_id: params.orderId,
+      amount: params.amount,
+      currency: "RUB",
+      desc: params.description,
+      success_url: urls.successUrl,
+      fail_url: urls.failUrl,
+      webhook_url: urls.webhookUrl,
+      result_url: urls.webhookUrl,
+      email: params.customerEmail,
+      sign,
+      test: config.testMode ? 1 : 0,
+      site_slug: site,
+      site: site,
+    };
 
-      const paymentUrl = resolvePaymentUrl(data);
-      const successFlag = data.success;
-      const success =
-        successFlag === true ||
-        successFlag === "true" ||
-        successFlag === 1 ||
-        successFlag === "1" ||
-        Boolean(paymentUrl);
+    for (const apiUrl of config.apiUrls) {
+      try {
+        const { response, data } = await postBillCreate(
+          apiUrl,
+          config.shopId,
+          config.secretKey,
+          body,
+        );
 
-      if (!response.ok || !success || !paymentUrl) {
-        lastApiError = await formatPallyError(data, response.status);
-        continue;
+        const paymentUrl = resolvePaymentUrl(data);
+        const successFlag = data.success;
+        const success =
+          successFlag === true ||
+          successFlag === "true" ||
+          successFlag === 1 ||
+          successFlag === "1" ||
+          Boolean(paymentUrl);
+
+        if (!response.ok || !success || !paymentUrl) {
+          const errText = await formatPallyError(data, response.status);
+          lastApiError = errText;
+          if (/url_not_allowed/i.test(errText)) {
+            break;
+          }
+          continue;
+        }
+
+        const nested =
+          data.data && typeof data.data === "object" && !Array.isArray(data.data)
+            ? (data.data as Record<string, unknown>)
+            : null;
+
+        return {
+          paymentId: String(
+            data.payment_id ?? data.id ?? nested?.payment_id ?? nested?.id ?? params.orderId,
+          ),
+          paymentUrl,
+          status: String(data.status ?? nested?.status ?? "pending"),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const cause =
+          err instanceof Error && err.cause && typeof err.cause === "object" && "code" in err.cause
+            ? String((err.cause as { code?: string }).code ?? "")
+            : "";
+        if (cause === "ENOTFOUND" || /fetch failed|timeout|ECONNREFUSED/i.test(message)) {
+          networkErrors.push(`${apiUrl}/bill/create`);
+          continue;
+        }
+        if (message.startsWith("Pally API:") || message.startsWith("Pally:")) {
+          lastApiError = message;
+          if (/url_not_allowed/i.test(message)) {
+            break;
+          }
+          continue;
+        }
+        throw err instanceof Error ? err : new Error("Ошибка сети при обращении к Pally");
       }
-
-      const nested =
-        data.data && typeof data.data === "object" && !Array.isArray(data.data)
-          ? (data.data as Record<string, unknown>)
-          : null;
-
-      return {
-        paymentId: String(
-          data.payment_id ?? data.id ?? nested?.payment_id ?? nested?.id ?? params.orderId,
-        ),
-        paymentUrl,
-        status: String(data.status ?? nested?.status ?? "pending"),
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const cause =
-        err instanceof Error && err.cause && typeof err.cause === "object" && "code" in err.cause
-          ? String((err.cause as { code?: string }).code ?? "")
-          : "";
-      if (cause === "ENOTFOUND" || /fetch failed|timeout|ECONNREFUSED/i.test(message)) {
-        networkErrors.push(`${apiUrl}/bill/create`);
-        continue;
-      }
-      if (message.startsWith("Pally API:") || message.startsWith("Pally:")) {
-        lastApiError = message;
-        continue;
-      }
-      throw err instanceof Error ? err : new Error("Ошибка сети при обращении к Pally");
     }
   }
 
