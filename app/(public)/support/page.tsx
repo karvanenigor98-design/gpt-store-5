@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Send, Home, MessageCircle, ShoppingBag, User } from "lucide-react";
@@ -213,7 +213,7 @@ const NAV = [
   { Icon: User, label: "Профиль", href: "/dashboard/profile" },
 ];
 
-export default function SupportPage() {
+function SupportPageContent() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -612,5 +612,19 @@ export default function SupportPage() {
         </div>
       </aside>
     </div>
+  );
+}
+
+export default function SupportPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center text-sm text-gray-500">
+          Загрузка поддержки…
+        </div>
+      }
+    >
+      <SupportPageContent />
+    </Suspense>
   );
 }

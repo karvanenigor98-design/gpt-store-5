@@ -6,6 +6,7 @@ import { CheckoutFailActions } from "@/components/checkout/CheckoutFailActions";
 import { resolveCheckoutSiteSlug } from "@/lib/payments/resolve-checkout-site";
 
 export const metadata: Metadata = { title: "Ошибка оплаты" };
+export const dynamic = "force-dynamic";
 
 export default async function CheckoutFailPage({
   searchParams,
