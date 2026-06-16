@@ -59,8 +59,8 @@ npm run pally:env:sync
 | Поле | URL |
 |------|-----|
 | URL магазина | `https://spotify-store.ru/` |
-| Success URL | `https://spotify-store.ru/checkout/success` |
-| Fail URL | `https://spotify-store.ru/checkout/fail` |
+| Success URL | `https://spotify-store.ru/checkout/success?site=subs-store` |
+| Fail URL | `https://spotify-store.ru/checkout/fail?site=subs-store` |
 | Result URL | `https://spotify-store.ru/api/payments/pally/webhook` |
 
 Refund / Chargeback — оставить пустыми.

@@ -66,6 +66,12 @@ export function buildPallyRedirectUrls(
   site: PallyStoreSlug = "gpt-store",
 ): { successUrl: string; failUrl: string } {
   const base = appUrl.replace(/\/$/, "");
+  if (site === "subs-store") {
+    return {
+      successUrl: `${base}/checkout/success?site=subs-store`,
+      failUrl: `${base}/checkout/fail?site=subs-store`,
+    };
+  }
   return {
     successUrl: `${base}/checkout/success`,
     failUrl: `${base}/checkout/fail`,
@@ -78,16 +84,17 @@ export function buildPallyBillUrlCandidates(
 ): Array<{ successUrl: string; failUrl: string; webhookUrl: string }> {
   const base = appUrl.replace(/\/$/, "");
   const webhookUrl = `${base}/api/payments/pally/webhook`;
-  const plain = buildPallyRedirectUrls(base, site);
+  const primary = buildPallyRedirectUrls(base, site);
 
-  const candidates = [{ ...plain, webhookUrl }];
+  const candidates = [{ ...primary, webhookUrl }];
 
   if (site === "subs-store") {
-    candidates.push({
-      successUrl: `${base}/checkout/success?site=subs-store`,
-      failUrl: `${base}/checkout/fail?site=subs-store`,
+    const plain = {
+      successUrl: `${base}/checkout/success`,
+      failUrl: `${base}/checkout/fail`,
       webhookUrl,
-    });
+    };
+    candidates.push(plain);
   }
 
   const seen = new Set<string>();

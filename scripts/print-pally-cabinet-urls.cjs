@@ -19,6 +19,14 @@ const SPOTIFY_ORIGIN = (
 
 function cabinetUrls(origin, site) {
   const base = origin.replace(/\/$/, "");
+  if (site === "subs-store") {
+    return {
+      shopUrl: `${base}/`,
+      successUrl: `${base}/checkout/success?site=subs-store`,
+      failUrl: `${base}/checkout/fail?site=subs-store`,
+      resultUrl: `${base}/api/payments/pally/webhook`,
+    };
+  }
   return {
     shopUrl: `${base}/`,
     successUrl: `${base}/checkout/success`,
