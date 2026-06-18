@@ -12,6 +12,7 @@ import {
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { listAccessibleAdminSiteSlugs, requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { requireStaffApi } from "@/lib/admin/require-staff-api";
+import { resolveSubsInboxRecipientUserId } from "@/lib/subs/subs-notifications";
 import { withTimeout } from "@/lib/with-timeout";
 
 const SUBS_CTX_TIMEOUT_MS = 4000;
@@ -30,6 +31,7 @@ async function countCombinedStaffNotifications(
   userEmail: string | null | undefined,
   gptAdmin: SupabaseClient,
   subsClient: SupabaseClient | null,
+  subsSharedInboxUserId: string | null,
 ): Promise<number> {
   let total = 0;
   if (accessible.includes("gpt-store")) {
@@ -46,7 +48,12 @@ async function countCombinedStaffNotifications(
   }
   if (accessible.includes("subs-store") && subsClient) {
     total += await withTimeout(
-      countSubsStoreUnreadNotifications(subsClient, { userId, role, email: userEmail }),
+      countSubsStoreUnreadNotifications(subsClient, {
+        userId,
+        role,
+        email: userEmail,
+        sharedInboxUserId: subsSharedInboxUserId,
+      }),
       5000,
       0,
     );
@@ -69,10 +76,16 @@ export async function GET(req: NextRequest) {
   const accessible = await listAccessibleAdminSiteSlugs(user, admin, role);
 
   let subsClient: SupabaseClient | null = null;
+  let subsSharedInboxUserId: string | null = null;
   if (accessible.includes("subs-store")) {
-    const subsCtx = await withTimeout(requireSubsStaffContext(), SUBS_CTX_TIMEOUT_MS, null);
+    const subsCtx = await withTimeout(
+      requireSubsStaffContext({ skipSiteMembershipCheck: true }),
+      SUBS_CTX_TIMEOUT_MS,
+      null,
+    );
     if (subsCtx && !(subsCtx instanceof NextResponse)) {
       subsClient = subsCtx.subs;
+      subsSharedInboxUserId = await resolveSubsInboxRecipientUserId(subsClient);
     }
   }
 
@@ -83,6 +96,7 @@ export async function GET(req: NextRequest) {
     user.email,
     admin,
     subsClient,
+    subsSharedInboxUserId,
   );
 
   if (siteSlug === "subs-store") {

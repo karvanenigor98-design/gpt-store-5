@@ -23,12 +23,18 @@ export async function countGptStoreUnreadNotifications(
 
 export async function countSubsStoreUnreadNotifications(
   subs: SupabaseClient,
-  params: { userId: string; role: UserRole; email?: string | null },
+  params: {
+    userId: string;
+    role: UserRole;
+    email?: string | null;
+    sharedInboxUserId?: string | null;
+  },
 ): Promise<number> {
   return countStaffUnreadNotifications(subs, {
     userId: params.userId,
     role: params.role,
     siteSlug: "subs-store",
     email: params.email,
+    sharedInboxUserId: params.sharedInboxUserId,
   });
 }

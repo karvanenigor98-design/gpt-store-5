@@ -1,6 +1,3 @@
-import type { User } from "@supabase/supabase-js";
-
-import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
 import { normalizeAuthEmail } from "@/lib/auth/superAdmin";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
@@ -82,7 +79,6 @@ export async function collectStaffRecipientsForSite(
   const excludeEmail = normalizeAuthEmail(options?.excludeEmail);
   const accessMap = await userSiteAccessMap();
   const rows = await profileStaffRows();
-  const gptAdmin = createAdminClient();
   const out: StaffRecipient[] = [];
   const seen = new Set<string>();
 
@@ -93,24 +89,17 @@ export async function collectStaffRecipientsForSite(
     if (excludeEmail && email === excludeEmail) continue;
 
     const role = row.role === "admin" ? "admin" : "operator";
+    const explicitAccess = accessMap.get(row.id);
+    if (explicitAccess && !explicitAccess.has(siteSlug)) {
+      continue;
+    }
 
-    /** Все операторы — на любую витрину (GPT + Spotify), без site_memberships. */
-    if (role === "operator") {
+    /** Все staff получают уведомления обеих витрин (если нет явного opt-out в user_site_access). */
+    if (role === "operator" || role === "admin") {
       seen.add(email);
       out.push({ userId: row.id, email, role });
       continue;
     }
-
-    const pseudoUser = { id: row.id, email } as User;
-    const sites = await listAccessibleAdminSiteSlugs(pseudoUser, gptAdmin, row.role);
-    if (!sites.includes(siteSlug as "gpt-store" | "subs-store")) {
-      const explicit = accessMap.get(row.id);
-      if (explicit && !explicit.has(siteSlug)) continue;
-      if (!explicit) continue;
-    }
-
-    seen.add(email);
-    out.push({ userId: row.id, email, role });
   }
 
   const subs = createSubsStoreAdminClient();

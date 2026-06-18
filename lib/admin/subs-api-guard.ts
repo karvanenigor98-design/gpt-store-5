@@ -45,8 +45,11 @@ export function hasEnvListedStaffAccess(email: string | null | undefined): boole
 export async function requireSubsStaffContext(options?: {
   /** If true, only `admin` role (not operator). Default false. */
   adminOnly?: boolean;
+  /** Для уведомлений/бейджей: пропустить проверку site_memberships. */
+  skipSiteMembershipCheck?: boolean;
 }): Promise<SubsApiOk | NextResponse> {
   const adminOnly = options?.adminOnly ?? false;
+  const skipSiteMembershipCheck = options?.skipSiteMembershipCheck ?? false;
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,7 +75,7 @@ export async function requireSubsStaffContext(options?: {
   }
 
   const gptAdmin = createAdminClient();
-  if (role === "operator") {
+  if (role === "operator" && !skipSiteMembershipCheck) {
     const canUseSubsByEmail = isSuperAdminEmail(user.email) || hasEnvListedStaffAccess(user.email);
     if (!canUseSubsByEmail) {
       try {
@@ -103,8 +106,8 @@ export async function listAccessibleAdminSiteSlugs(
 
   const subsConfigured = Boolean(createSubsStoreAdminClient());
 
-  /** Админ видит оба магазина, если Subs подключён. */
-  if (role === "admin" && subsConfigured) {
+  /** Staff (admin/operator) видит оба магазина, если Subs подключён. */
+  if ((role === "admin" || role === "operator") && subsConfigured) {
     return ["gpt-store", "subs-store"];
   }
 
@@ -112,7 +115,6 @@ export async function listAccessibleAdminSiteSlugs(
     return subsConfigured ? ["gpt-store", "subs-store"] : base;
   }
 
-  /** Оператор с profiles.role=operator: оба магазина, если есть subs-store membership в GPT БД. */
   if (role === "operator" && !subsConfigured) {
     return base;
   }

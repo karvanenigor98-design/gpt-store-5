@@ -8,11 +8,13 @@ import {
   resolveStaffNotificationUserId,
 } from "@/lib/admin/staff-notification-reads";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
+import { resolveSubsInboxRecipientUserId } from "@/lib/subs/subs-notifications";
 
 /** Subs notifications — другая схема, без site_id. */
 export async function GET() {
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ skipSiteMembershipCheck: true });
   if (ctx instanceof NextResponse) return ctx;
+  const sharedInboxUserId = await resolveSubsInboxRecipientUserId(ctx.subs);
 
   const query = ctx.subs.from("notifications").select("*").order("created_at", { ascending: false }).limit(120);
 
@@ -44,7 +46,9 @@ export async function GET() {
         is_read: boolean;
         type?: string;
       };
-      const unread = isNotificationUnreadForStaff(r, ctx.user.id, ctx.role, readIds);
+      const unread = isNotificationUnreadForStaff(r, ctx.user.id, ctx.role, readIds, {
+        sharedInboxUserId,
+      });
       return { ...row, is_read: !unread };
     });
 
@@ -52,8 +56,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireSubsStaffContext();
+  const ctx = await requireSubsStaffContext({ skipSiteMembershipCheck: true });
   if (ctx instanceof NextResponse) return ctx;
+  const sharedInboxUserId = await resolveSubsInboxRecipientUserId(ctx.subs);
 
   let body: { id?: string; mark_all?: boolean };
   try {
@@ -68,6 +73,7 @@ export async function PATCH(req: NextRequest) {
       role: ctx.role,
       siteSlug: "subs-store",
       email: ctx.user.email,
+      sharedInboxUserId,
     });
     if (!result.ok) {
       return NextResponse.json(
@@ -88,6 +94,7 @@ export async function PATCH(req: NextRequest) {
     userId: ctx.user.id,
     role: ctx.role,
     email: ctx.user.email,
+    sharedInboxUserId,
   });
   return NextResponse.json({ ok: true });
 }
