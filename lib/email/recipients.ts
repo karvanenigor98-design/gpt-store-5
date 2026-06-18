@@ -18,13 +18,35 @@ async function profileStaffRows(): Promise<
     const { data } = await admin
       .from("profiles")
       .select("id, email, role")
-      .in("role", ["admin", "operator"])
       .not("email", "is", null)
-      .limit(300);
+      .limit(800);
     return (data ?? []) as { id: string; email: string | null; role: UserRole }[];
   } catch {
     return [];
   }
+}
+
+async function membershipStaffRoleByUserId(siteSlug: SiteSlug): Promise<Map<string, "admin" | "operator">> {
+  const out = new Map<string, "admin" | "operator">();
+  try {
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (admin.from("site_memberships") as any)
+      .select("user_id, role")
+      .eq("site_slug", siteSlug)
+      .in("role", ["admin", "operator"])
+      .limit(800);
+    for (const row of data ?? []) {
+      const userId = String((row as { user_id?: string }).user_id ?? "");
+      const role = (row as { role?: string }).role === "admin" ? "admin" : "operator";
+      if (!userId) continue;
+      const prev = out.get(userId);
+      if (prev !== "admin") out.set(userId, role);
+    }
+  } catch {
+    /* ignore */
+  }
+  return out;
 }
 
 async function userSiteAccessMap(): Promise<Map<string, Set<string>>> {
@@ -77,6 +99,7 @@ export async function collectStaffRecipientsForSite(
 ): Promise<StaffRecipient[]> {
   const excludeId = options?.excludeUserId ?? null;
   const excludeEmail = normalizeAuthEmail(options?.excludeEmail);
+  const membershipStaffRoles = await membershipStaffRoleByUserId(siteSlug);
   const accessMap = await userSiteAccessMap();
   const rows = await profileStaffRows();
   const out: StaffRecipient[] = [];
@@ -88,7 +111,13 @@ export async function collectStaffRecipientsForSite(
     if (excludeId && row.id === excludeId) continue;
     if (excludeEmail && email === excludeEmail) continue;
 
-    const role = row.role === "admin" ? "admin" : "operator";
+    const hasStaffProfileRole = row.role === "admin" || row.role === "operator";
+    const membershipRole = membershipStaffRoles.get(row.id);
+    const hasStaffMembershipRole = Boolean(membershipRole);
+    if (!hasStaffProfileRole && !hasStaffMembershipRole) {
+      continue;
+    }
+    const role = row.role === "admin" || membershipRole === "admin" ? "admin" : "operator";
     const explicitAccess = accessMap.get(row.id);
     if (explicitAccess && !explicitAccess.has(siteSlug)) {
       continue;

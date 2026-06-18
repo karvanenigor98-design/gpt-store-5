@@ -13,7 +13,8 @@ const SUBS_URL = process.env.SUBS_SUPABASE_URL;
 const SUBS_KEY = process.env.SUBS_SUPABASE_SERVICE_ROLE_KEY;
 
 async function tableOk(client, name) {
-  const { error } = await client.from(name).select("id").limit(1);
+  const col = name === "notification_reads" ? "notification_id" : "id";
+  const { error } = await client.from(name).select(col).limit(1);
   if (!error) return { ok: true };
   return { ok: false, error: error.message };
 }

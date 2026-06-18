@@ -279,7 +279,8 @@ export async function dispatchStaffSiteEmails(params: {
 
   const baseKey = params.dedupeKey ?? `${params.eventType}:${params.siteSlug}:${params.relatedEntityId ?? "x"}`;
 
-  await Promise.all(
+  // Не блокируем checkout/API: Resend rate limit не должен задерживать ответ клиенту.
+  void Promise.all(
     staff.map((s, idx) =>
       dispatchSiteEmail({
         siteSlug: params.siteSlug,
@@ -296,5 +297,7 @@ export async function dispatchStaffSiteEmails(params: {
         relatedEntityId: params.relatedEntityId,
       }),
     ),
-  );
+  ).catch((err) => {
+    console.error("[email/dispatch] staff batch failed:", err);
+  });
 }

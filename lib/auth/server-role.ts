@@ -18,6 +18,50 @@ function roleFromEnvFallback(email: string | null | undefined): UserRole {
   return fromEnv === "admin" || fromEnv === "operator" ? fromEnv : "client";
 }
 
+async function loadStaffRoleByEmail(
+  admin: NonNullable<ReturnType<typeof tryCreateAdminClient>>,
+  email: string | null | undefined,
+): Promise<UserRole | null> {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return null;
+
+  try {
+    const { data: profileRows } = await admin
+      .from("profiles")
+      .select("id, role")
+      .ilike("email", normalized)
+      .limit(5);
+
+    const ids = (profileRows ?? [])
+      .map((row) => String((row as { id?: string }).id ?? ""))
+      .filter(Boolean);
+
+    let best: UserRole = "client";
+    for (const row of profileRows ?? []) {
+      const mapped = effectiveRoleFromProfile((row as { role?: UserRole | null }).role ?? null, normalized);
+      best = mergeStaffRoles(best, mapped);
+    }
+
+    if (ids.length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: membershipRows } = await (admin.from("site_memberships") as any)
+        .select("role")
+        .in("user_id", ids)
+        .in("role", ["admin", "operator"]);
+      for (const row of membershipRows ?? []) {
+        const role = (row as { role?: string }).role;
+        if (role === "admin" || role === "operator") {
+          best = mergeStaffRoles(best, role);
+        }
+      }
+    }
+
+    return best === "admin" || best === "operator" ? best : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveServerRole(user: User | null): Promise<UserRole> {
   if (!user) return "client";
 
@@ -33,14 +77,12 @@ export async function resolveServerRole(user: User | null): Promise<UserRole> {
       .maybeSingle();
 
     const profileRole = data?.role ?? null;
-    if (profileRole === "client" || profileRole === "operator" || profileRole === "admin") {
+    if (profileRole === "admin" || profileRole === "operator") {
       return effectiveRoleFromProfile(profileRole, user.email);
     }
 
     const fromProfile = effectiveRoleFromProfile(profileRole, user.email);
-    if (fromProfile === "admin" || fromProfile === "operator") {
-      return fromProfile;
-    }
+    const fromEmail = await loadStaffRoleByEmail(admin, user.email);
 
     const [fromMembership, fromAudit] = await Promise.all([
       loadStaffRoleFromSiteMemberships(admin, user.id),
@@ -48,6 +90,7 @@ export async function resolveServerRole(user: User | null): Promise<UserRole> {
     ]);
     const restored = mergeStaffRoles(
       fromProfile,
+      fromEmail ?? "client",
       fromMembership ?? "client",
       fromAudit ?? "client",
       roleFromEnvFallback(user.email),
