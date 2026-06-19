@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
+import { getYandexSiteVerification } from "@/lib/brand/yandex-site-verification";
 import { defaultSpotifySeoTitle } from "@/lib/brand/spotify-store-brand";
 import { SPOTIFY_LINK_PREVIEW_DESCRIPTION } from "@/lib/brand/spotify-link-preview-html";
 
 const SPOTIFY_TITLE = defaultSpotifySeoTitle();
+
+const spotifyYandexVerification = getYandexSiteVerification("subs-store");
 
 export const metadata: Metadata = {
   title: { absolute: "SPOTIFY STORE" },
@@ -28,6 +31,7 @@ export const metadata: Metadata = {
   other: {
     "theme-color": "#1DB954",
   },
+  ...(spotifyYandexVerification ? { verification: { yandex: spotifyYandexVerification } } : {}),
 };
 
 export default function SpotifySectionLayout({ children }: { children: React.ReactNode }) {

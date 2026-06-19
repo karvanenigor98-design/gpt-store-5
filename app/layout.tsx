@@ -5,6 +5,7 @@ import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getPublicSiteOrigin, getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
+import { getYandexSiteVerification } from "@/lib/brand/yandex-site-verification";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { SubsStoreYandexMetrika } from "@/components/analytics/SubsStoreYandexMetrika";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
@@ -62,6 +63,8 @@ export async function generateMetadata(): Promise<Metadata> {
     : "Подписка ChatGPT Plus/Pro в России, безопасная оплата и быстрое подключение.";
   const ogImage = isSpotify ? "/icons/spotify/og-image.png" : "/icons/gpt/og-image.png";
 
+  const yandexVerification = getYandexSiteVerification(site);
+
   return {
     title: { default: title, template: `%s | ${title}` },
     description,
@@ -84,13 +87,7 @@ export async function generateMetadata(): Promise<Metadata> {
     other: {
       "theme-color": isSpotify ? "#1DB954" : "#10a37f",
     },
-    ...(!isSpotify
-      ? {
-          verification: {
-            yandex: process.env.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION ?? "cd9de2df2aae5a87",
-          },
-        }
-      : {}),
+    ...(yandexVerification ? { verification: { yandex: yandexVerification } } : {}),
   };
 }
 
