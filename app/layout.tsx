@@ -84,6 +84,13 @@ export async function generateMetadata(): Promise<Metadata> {
     other: {
       "theme-color": isSpotify ? "#1DB954" : "#10a37f",
     },
+    ...(!isSpotify
+      ? {
+          verification: {
+            yandex: process.env.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION ?? "cd9de2df2aa05a87",
+          },
+        }
+      : {}),
   };
 }
 
