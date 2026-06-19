@@ -87,7 +87,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ...(!isSpotify
       ? {
           verification: {
-            yandex: process.env.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION ?? "cd9de2df2aa05a87",
+            yandex: process.env.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION ?? "cd9de2df2aae5a87",
           },
         }
       : {}),
