@@ -28,6 +28,29 @@ import {
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { isSpotifyStoreHostname } from "@/lib/site-url";
 
+function resolveBrandIconBase(request: NextRequest): string {
+  const port = request.nextUrl.port || null;
+  if (isSubsDevPort(port)) return "/icons/spotify";
+  if (isSpotifyStoreHostname(request.nextUrl.hostname)) return "/icons/spotify";
+  return "/icons/gpt";
+}
+
+function maybeRewriteBrandIcon(request: NextRequest): NextResponse | null {
+  const path = request.nextUrl.pathname;
+  if (
+    path !== "/favicon.ico" &&
+    path !== "/apple-touch-icon.png" &&
+    path !== "/apple-touch-icon-precomposed.png"
+  ) {
+    return null;
+  }
+
+  const base = resolveBrandIconBase(request);
+  const target =
+    path === "/favicon.ico" ? `${base}/favicon.ico` : `${base}/apple-touch-icon.png`;
+  return NextResponse.rewrite(new URL(target, request.url));
+}
+
 function isGptPublicAuthConfigured(): boolean {
   return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 }
@@ -124,6 +147,9 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const host = request.nextUrl.hostname.toLowerCase();
   const protocol = request.nextUrl.protocol;
+
+  const brandIconResponse = maybeRewriteBrandIcon(request);
+  if (brandIconResponse) return brandIconResponse;
 
   if (process.env.NODE_ENV === "production") {
     if (host === "www.gptplus-store.ru") {
@@ -355,5 +381,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|api/).*)"],
+  matcher: ["/((?!_next|api/).*)"],
 };

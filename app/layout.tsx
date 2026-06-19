@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
-import { getMetadataBase } from "@/lib/app-url";
+import { getPublicSiteOrigin, getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { SubsStoreYandexMetrika } from "@/components/analytics/SubsStoreYandexMetrika";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
@@ -51,12 +51,13 @@ function iconsFor(site: SiteMetaContext) {
   const base = site === "subs-store" ? "/icons/spotify" : "/icons/gpt";
   return {
     icon: [
+      { url: "/favicon.ico", type: "image/x-icon" },
       { url: `${base}/favicon.ico`, type: "image/x-icon" },
       { url: `${base}/favicon-32x32.png`, sizes: "32x32", type: "image/png" },
       { url: `${base}/icon-192.png`, sizes: "192x192", type: "image/png" },
     ],
     apple: [{ url: `${base}/apple-touch-icon.png`, sizes: "180x180", type: "image/png" }],
-    shortcut: [`${base}/favicon.ico`],
+    shortcut: ["/favicon.ico"],
   };
 }
 
@@ -73,7 +74,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: title, template: `%s | ${title}` },
     description,
-    metadataBase: getMetadataBase(),
+    metadataBase: new URL(isSpotify ? getPublicSpotifySiteOrigin() : getPublicSiteOrigin()),
     manifest: `/api/manifest?site=${site}`,
     icons: iconsFor(site),
     applicationName: title,
