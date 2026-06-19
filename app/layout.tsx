@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getPublicSiteOrigin, getPublicSpotifySiteOrigin } from "@/lib/app-url";
+import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
+import { BrandFaviconLinks } from "@/components/seo/BrandFaviconLinks";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { SubsStoreYandexMetrika } from "@/components/analytics/SubsStoreYandexMetrika";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
@@ -48,17 +50,7 @@ async function resolveMetadataContext(): Promise<SiteMetaContext> {
 }
 
 function iconsFor(site: SiteMetaContext) {
-  const base = site === "subs-store" ? "/icons/spotify" : "/icons/gpt";
-  return {
-    icon: [
-      { url: "/favicon.ico", type: "image/x-icon" },
-      { url: `${base}/favicon.ico`, type: "image/x-icon" },
-      { url: `${base}/favicon-32x32.png`, sizes: "32x32", type: "image/png" },
-      { url: `${base}/icon-192.png`, sizes: "192x192", type: "image/png" },
-    ],
-    apple: [{ url: `${base}/apple-touch-icon.png`, sizes: "180x180", type: "image/png" }],
-    shortcut: ["/favicon.ico"],
-  };
+  return buildSiteIconsMetadata(site);
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -107,6 +99,9 @@ export default function RootLayout({
       className={cn(unbounded.variable, golos.variable)}
       suppressHydrationWarning
     >
+      <head>
+        <BrandFaviconLinks />
+      </head>
       <body className="min-h-screen bg-white font-sans text-foreground antialiased">
         <div className="relative" style={{ zIndex: 1 }}>
           <Suspense fallback={null}>

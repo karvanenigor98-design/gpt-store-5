@@ -8,7 +8,12 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        allow: ["/", "/favicon.ico", "/favicon.svg", "/icons/"],
+        disallow: ["/admin/", "/api/", "/dashboard/", "/cabinet/", "/checkout/"],
+      },
+      {
+        userAgent: "Yandex",
+        allow: ["/", "/favicon.ico", "/favicon.svg", "/icons/"],
         disallow: ["/admin/", "/api/", "/dashboard/", "/cabinet/", "/checkout/"],
       },
     ],

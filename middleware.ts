@@ -39,6 +39,7 @@ function maybeRewriteBrandIcon(request: NextRequest): NextResponse | null {
   const path = request.nextUrl.pathname;
   if (
     path !== "/favicon.ico" &&
+    path !== "/favicon.svg" &&
     path !== "/apple-touch-icon.png" &&
     path !== "/apple-touch-icon-precomposed.png"
   ) {
@@ -47,7 +48,11 @@ function maybeRewriteBrandIcon(request: NextRequest): NextResponse | null {
 
   const base = resolveBrandIconBase(request);
   const target =
-    path === "/favicon.ico" ? `${base}/favicon.ico` : `${base}/apple-touch-icon.png`;
+    path === "/favicon.ico"
+      ? `${base}/favicon.ico`
+      : path === "/favicon.svg"
+        ? `${base}/icon.svg`
+        : `${base}/apple-touch-icon.png`;
   return NextResponse.rewrite(new URL(target, request.url));
 }
 
