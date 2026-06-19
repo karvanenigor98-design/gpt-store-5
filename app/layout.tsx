@@ -5,7 +5,6 @@ import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getPublicSiteOrigin, getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
-import { BrandFaviconLinks } from "@/components/seo/BrandFaviconLinks";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { SubsStoreYandexMetrika } from "@/components/analytics/SubsStoreYandexMetrika";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
@@ -99,9 +98,6 @@ export default function RootLayout({
       className={cn(unbounded.variable, golos.variable)}
       suppressHydrationWarning
     >
-      <head>
-        <BrandFaviconLinks />
-      </head>
       <body className="min-h-screen bg-white font-sans text-foreground antialiased">
         <div className="relative" style={{ zIndex: 1 }}>
           <Suspense fallback={null}>
