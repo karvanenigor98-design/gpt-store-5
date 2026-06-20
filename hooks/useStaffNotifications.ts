@@ -244,30 +244,32 @@ export function useStaffNotifications(params: {
   }, [items]);
 
   const markRead = useCallback(async (id: string, site: SiteSlug = "gpt-store") => {
-    setItems((prev) =>
-      prev.map((x) =>
+    const prev = items;
+    setItems((current) =>
+      current.map((x) =>
         x.id === id && (x.site_id ?? "gpt-store") === site ? { ...x, is_read: true } : x,
       ),
     );
-    if (site === "subs-store") {
-      await fetch("/api/admin/subs-store/notifications", {
+    const res = await fetch(
+      site === "subs-store" ? "/api/admin/subs-store/notifications" : "/api/admin/notifications",
+      {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify(
+          site === "subs-store" ? { id } : { id, site: "gpt-store" },
+        ),
         cache: "no-store",
-      });
-    } else {
-      await fetch("/api/admin/notifications", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, site: "gpt-store" }),
-        cache: "no-store",
-      });
+      },
+    );
+    if (!res.ok) {
+      setItems(prev);
+      setLoadError("Не удалось отметить уведомление");
+      return;
     }
+    knownIdsRef.current.add(`${site}:${id}`);
     refreshStaffNavBadges();
-  }, []);
+  }, [items]);
 
   const markAllRead = useCallback(async () => {
     if (markingAllRef.current) return;
@@ -333,14 +335,15 @@ export function useStaffNotifications(params: {
       for (const row of snapshot) {
         knownIdsRef.current.add(`${row.site_id ?? "gpt-store"}:${row.id}`);
       }
+      setItems((current) => current.map((x) => ({ ...x, is_read: true })));
       refreshStaffNavBadges();
     } catch {
       setLoadError("Не удалось отметить уведомления");
       setItems(snapshot);
     } finally {
-      await reload();
       markingAllRef.current = false;
       setMarkingAll(false);
+      void reload();
       refreshStaffNavBadges();
     }
   }, [items, reload, debouncedReload]);

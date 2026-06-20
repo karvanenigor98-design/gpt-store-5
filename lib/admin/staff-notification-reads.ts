@@ -298,7 +298,7 @@ async function loadUnreadCandidates(
 
     .select("id, recipient_user_id, recipient_role, is_read, type")
 
-    .eq("is_read", false)
+    .or("is_read.eq.false,is_read.is.null")
 
     .order("created_at", { ascending: false })
 
@@ -351,7 +351,7 @@ async function upsertReadChunks(
 
   readAt: string,
 
-): Promise<void> {
+): Promise<string | null> {
 
   for (let i = 0; i < ids.length; i += CHUNK) {
 
@@ -377,9 +377,13 @@ async function upsertReadChunks(
 
       console.warn("[upsertReadChunks]", error.message);
 
+      return error.message;
+
     }
 
   }
+
+  return null;
 
 }
 
@@ -514,7 +518,11 @@ export async function markStaffNotificationRead(
     return;
   }
 
-  await upsertReadChunks(admin, [params.notificationId], readsUserId, new Date().toISOString());
+  const readAt = new Date().toISOString();
+
+  await upsertReadChunks(admin, [params.notificationId], readsUserId, readAt);
+
+  await admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
 
 }
 
@@ -587,7 +595,6 @@ export async function markAllStaffNotificationsReadForUser(
 
 
   const toMark: string[] = [];
-  const directMarkIds: string[] = [];
 
   const forReadsTable: string[] = [];
 
@@ -617,12 +624,8 @@ export async function markAllStaffNotificationsReadForUser(
 
     toMark.push(row.id);
 
-    if (row.recipient_user_id === params.userId && !isStaffInboxNotification(row)) {
-      directMarkIds.push(row.id);
-    } else {
-
+    if (row.recipient_user_id !== params.userId || isStaffInboxNotification(row)) {
       forReadsTable.push(row.id);
-
     }
 
   }
@@ -637,11 +640,10 @@ export async function markAllStaffNotificationsReadForUser(
 
 
 
-  if (directMarkIds.length) {
-    const isReadErr = await updateIsReadChunks(admin, directMarkIds);
-    if (isReadErr) {
-      return { ok: false, marked: 0, error: isReadErr };
-    }
+  // Сначала is_read на строках notifications — надёжно для staff inbox / broadcast.
+  const isReadErr = await updateIsReadChunks(admin, toMark);
+  if (isReadErr) {
+    return { ok: false, marked: 0, error: isReadErr };
   }
 
 
