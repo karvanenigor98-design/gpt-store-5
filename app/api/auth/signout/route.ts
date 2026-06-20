@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
   );
 
   const redirectPath = redirectAfterSignout(request, site);
-  const response = NextResponse.redirect(new URL(redirectPath, request.url));
+  // 303: after HTML form POST the browser must follow with GET (307 keeps POST → 405 on /).
+  const response = NextResponse.redirect(new URL(redirectPath, request.url), 303);
 
   if (global) {
     const gpt = await tryCreateClient();
