@@ -36,7 +36,17 @@ export async function GET() {
   const items = (data ?? [])
     .filter((row) => {
       const t = (row as { type?: string }).type;
-      return t !== "chat_reply";
+      if (t === "chat_reply") return false;
+      const recipient = (row as { recipient_user_id?: string | null }).recipient_user_id;
+      if (
+        t === "new_order" &&
+        recipient &&
+        sharedInboxUserId &&
+        recipient !== sharedInboxUserId
+      ) {
+        return false;
+      }
+      return true;
     })
     .map((row) => {
       const r = row as {

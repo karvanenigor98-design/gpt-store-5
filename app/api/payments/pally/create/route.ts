@@ -68,16 +68,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (created) {
-      await insertGptCustomerNotification({
-        recipientUserId: user.id,
-        type: "new_order",
-        title: "Заказ создан",
-        message: `${plan.name} · ${finalPrice} ₽`,
-        entity_type: "order",
-        entity_id: order.id,
-      }).catch(() => {});
-    }
+    await insertGptCustomerNotification({
+      recipientUserId: user.id,
+      type: "new_order",
+      title: "Заказ создан",
+      message: `${plan.name} · ${finalPrice} ₽`,
+      entity_type: "order",
+      entity_id: order.id,
+    }).catch(() => {});
 
     const { getPallyAppUrlFromRequest } = await import("@/lib/app-url");
     const appUrl = getPallyAppUrlFromRequest(request, "gpt-store");

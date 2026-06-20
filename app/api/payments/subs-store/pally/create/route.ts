@@ -5,7 +5,6 @@ import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally
 import { applyPromo, findPromo } from "@/lib/store-config";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
 import { createSubsAwaitingPaymentOrder } from "@/lib/subs/create-subs-order";
-import { notifySubsStoreStaffOrderEvent } from "@/lib/subs/subs-notifications";
 import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
 import {
   notifyCustomerOrderCreated,
@@ -207,7 +206,7 @@ export async function POST(request: NextRequest) {
 
     const msg = `${planLabel} · ${finalPrice} ₽ · ${customerEmail}`;
 
-    if (createdNew && subsUserId) {
+    if (subsUserId) {
       await insertSubsStoreNotification({
         recipientUserId: subsUserId,
         type: "new_order",
@@ -219,15 +218,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (createdNew) {
-      void notifySubsStoreStaffOrderEvent({
-        type: "new_order",
-        title: "SPOTIFY STORE: новый заказ ожидает оплаты",
-        message: msg,
-        orderId,
-        emailSubject: "🔔 Новый заказ ожидает оплаты — SPOTIFY STORE",
-        emailBody: `Новый заказ SPOTIFY STORE\nТариф: ${planLabel}\nСумма: ${finalPrice} ₽\nEmail: ${customerEmail}\n\nАдминка: ${appUrl}/admin/orders?site=subs-store&status=awaiting_payment&highlight=${orderId}`,
-      }).catch(() => {});
-
       void notifyNewOrder(
         {
           id: orderId,

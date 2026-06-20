@@ -39,7 +39,7 @@ export async function insertGptCustomerNotification(params: {
     const admin = createAdminClient();
     const siteId = await getSiteUUID("gpt-store");
 
-    const { error } = await admin.from("notifications").insert({
+    const base = {
       site_id: siteId,
       recipient_user_id: params.recipientUserId,
       recipient_role: "client",
@@ -49,7 +49,14 @@ export async function insertGptCustomerNotification(params: {
       entity_type: params.entity_type ?? null,
       entity_id: params.entity_id ?? null,
       is_read: false,
-    });
+    };
+
+    let { error } = await admin.from("notifications").insert(base);
+
+    if (error && siteId && /site_id|foreign key/i.test(error.message)) {
+      const { site_id: _drop, ...withoutSite } = base;
+      ({ error } = await admin.from("notifications").insert(withoutSite));
+    }
 
     if (error) {
       console.error("[gpt-customer-notifications] insert:", error.message);

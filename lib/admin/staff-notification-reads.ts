@@ -68,6 +68,10 @@ function isStaffInboxNotification(row: { type?: string }): boolean {
 
 }
 
+function isClientNotification(row: { recipient_role?: string | null }): boolean {
+  return row.recipient_role === "client";
+}
+
 
 
 function matchesRecipient(
@@ -79,6 +83,8 @@ function matchesRecipient(
   role: UserRole,
   options?: RecipientMatchOptions,
 ): boolean {
+
+  if (isClientNotification(row)) return false;
 
   if (row.recipient_user_id === authUserId) return true;
 
@@ -307,8 +313,11 @@ async function loadUnreadCandidates(
 
 
   if (siteSlug === "gpt-store" && siteId) {
-    q = q.or(`site_id.eq.${siteId},site_id.is.null`);
-
+    const subsSiteId = await getSiteUUID("subs-store");
+    const siteFilter = subsSiteId
+      ? `site_id.eq.${siteId},site_id.eq.${subsSiteId},site_id.is.null`
+      : `site_id.eq.${siteId},site_id.is.null`;
+    q = q.or(siteFilter);
   }
 
 
@@ -487,7 +496,15 @@ export async function markStaffNotificationRead(
 
 
 
-  const typed = row as { id: string; recipient_user_id: string | null; type?: string; is_read: boolean };
+  const typed = row as {
+    id: string;
+    recipient_user_id: string | null;
+    recipient_role?: string | null;
+    type?: string;
+    is_read: boolean;
+  };
+
+  if (isClientNotification(typed)) return;
 
   const staffInbox = isStaffInboxNotification(typed);
   const sharedInboxUserId = params.sharedInboxUserId?.trim() ?? null;
@@ -522,7 +539,9 @@ export async function markStaffNotificationRead(
 
   await upsertReadChunks(admin, [params.notificationId], readsUserId, readAt);
 
-  await admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
+  if (!isClientNotification(typed)) {
+    await admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
+  }
 
 }
 
@@ -640,10 +659,17 @@ export async function markAllStaffNotificationsReadForUser(
 
 
 
-  // Сначала is_read на строках notifications — надёжно для staff inbox / broadcast.
-  const isReadErr = await updateIsReadChunks(admin, toMark);
-  if (isReadErr) {
-    return { ok: false, marked: 0, error: isReadErr };
+  // is_read глобально — только staff/broadcast; client-строки не трогаем.
+  const staffGlobalMarkIds = toMark.filter((id) => {
+    const row = loaded.find((r) => r.id === id);
+    return row ? !isClientNotification(row) : false;
+  });
+
+  if (staffGlobalMarkIds.length) {
+    const isReadErr = await updateIsReadChunks(admin, staffGlobalMarkIds);
+    if (isReadErr) {
+      return { ok: false, marked: 0, error: isReadErr };
+    }
   }
 
 

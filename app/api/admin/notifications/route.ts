@@ -22,8 +22,12 @@ export async function GET(req: NextRequest) {
 
   if (siteId) {
     if (siteSlug === "gpt-store") {
+      const subsSiteId = await getSiteUUID("subs-store");
+      const siteFilter = subsSiteId
+        ? `site_id.eq.${siteId},site_id.eq.${subsSiteId},site_id.is.null`
+        : `site_id.eq.${siteId},site_id.is.null`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      query = (query as any).or(`site_id.eq.${siteId},site_id.is.null`) as typeof query;
+      query = (query as any).or(siteFilter) as typeof query;
     } else {
       query = query.eq("site_id", siteId);
     }
@@ -46,6 +50,8 @@ export async function GET(req: NextRequest) {
   const items = (data ?? [])
     .filter((row) => {
       const t = (row as { type?: string }).type;
+      const role = (row as { recipient_role?: string | null }).recipient_role;
+      if (role === "client") return false;
       return t !== "chat_reply";
     })
     .map((row) => {

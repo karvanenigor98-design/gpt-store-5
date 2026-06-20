@@ -41,7 +41,7 @@ async function fetchOrderRows(
   let q = admin.from("orders").select(select).order("created_at", { ascending: false }).limit(maxRows);
 
   if (gptSiteId) {
-    q = q.eq("site_id", gptSiteId);
+    q = q.or(`site_id.eq.${gptSiteId},site_id.is.null`);
   } else {
     q = q.not("product", "ilike", "spotify%");
   }
