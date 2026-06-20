@@ -15,6 +15,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { alertStaffOnClientSupportMessage } from "@/lib/notifications/client-chat-alert";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
+import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 import type { ChatMessage } from "@/types";
 import type { Json } from "@/types/database";
 
@@ -160,11 +161,15 @@ export async function POST(req: NextRequest) {
   }
 
   const sessionId = body.session_id?.trim();
-  const content = body.content?.trim() ?? "";
+  const content = typeof body.content === "string" ? body.content : "";
+  const contentLengthError = getMessageLengthError(content);
   if (!sessionId) {
     return NextResponse.json({ error: "session_id обязателен" }, { status: 400 });
   }
-  if (!content && !body.attachment?.url) {
+  if (contentLengthError) {
+    return NextResponse.json({ error: contentLengthError }, { status: 400 });
+  }
+  if (isBlankMessage(content) && !body.attachment?.url) {
     return NextResponse.json({ error: "Пустое сообщение" }, { status: 400 });
   }
 
@@ -217,7 +222,7 @@ export async function POST(req: NextRequest) {
     session_id: sessionId,
     sender_id: user.id,
     sender_type: senderType,
-    content: content || (body.attachment ? `📎 ${body.attachment.name}` : " "),
+    content: isBlankMessage(content) ? (body.attachment ? `📎 ${body.attachment.name}` : " ") : content,
     attachments,
     is_read: false,
     ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
@@ -248,7 +253,7 @@ export async function POST(req: NextRequest) {
       .eq("id", sessionId);
   }
 
-  const textForNotify = content || body.attachment?.name || "вложение";
+  const textForNotify = isBlankMessage(content) ? body.attachment?.name || "вложение" : content;
   if (session.type === "operator" || session.type === "ai") {
     const subsStoreChat =
       session.site_id != null ? await isChatSessionForSubsStore(session.site_id) : false;

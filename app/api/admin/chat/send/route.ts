@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { resolveHumanSenderType } from "@/lib/chat/messageSender";
+import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 
 export async function POST(req: NextRequest) {
   let body: { userId?: string; content?: string };
@@ -13,8 +14,15 @@ export async function POST(req: NextRequest) {
   }
 
   const userId = body.userId?.trim();
-  const content = body.content?.trim();
-  if (!userId || !content) {
+  const content = typeof body.content === "string" ? body.content : "";
+  const contentLengthError = getMessageLengthError(content);
+  if (!userId) {
+    return NextResponse.json({ error: "userId и content обязательны" }, { status: 400 });
+  }
+  if (contentLengthError) {
+    return NextResponse.json({ error: contentLengthError }, { status: 400 });
+  }
+  if (isBlankMessage(content)) {
     return NextResponse.json({ error: "userId и content обязательны" }, { status: 400 });
   }
 

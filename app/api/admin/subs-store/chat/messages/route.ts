@@ -5,6 +5,7 @@ import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { mapSubsChatMessageToChatMessage } from "@/lib/admin/subs-chat-map";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
+import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 import { notifySubsStoreCustomerChatReply } from "@/lib/subs/subs-notifications";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
 import { createClient } from "@/lib/supabase/server";
@@ -79,9 +80,16 @@ export async function POST(req: NextRequest) {
   }
 
   const threadId = body.thread_id?.trim();
-  const content = body.content?.trim() ?? "";
+  const content = typeof body.content === "string" ? body.content : "";
+  const contentLengthError = getMessageLengthError(content);
   const replyToMessageId = body.reply_to_message_id?.trim() || null;
-  if (!threadId || !content) {
+  if (!threadId) {
+    return NextResponse.json({ error: "thread_id и content обязательны" }, { status: 400 });
+  }
+  if (contentLengthError) {
+    return NextResponse.json({ error: contentLengthError }, { status: 400 });
+  }
+  if (isBlankMessage(content)) {
     return NextResponse.json({ error: "thread_id и content обязательны" }, { status: 400 });
   }
 

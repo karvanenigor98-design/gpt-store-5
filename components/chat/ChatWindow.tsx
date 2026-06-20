@@ -275,10 +275,10 @@ export function ChatWindow({
           credentials: "include",
           body: JSON.stringify(
             isSubs
-              ? { thread_id: sessionId, content: text.trim(), reply_to_message_id: replyToMessageId ?? null }
+              ? { thread_id: sessionId, content: text, reply_to_message_id: replyToMessageId ?? null }
               : {
                   session_id: sessionId,
-                  content: text.trim(),
+                  content: text,
                   attachment: attachment ?? null,
                   reply_to_message_id: replyToMessageId ?? null,
                 },

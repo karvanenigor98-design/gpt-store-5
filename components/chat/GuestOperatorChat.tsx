@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 
 import { OPERATOR_CHAT_QUICK_REPLIES } from "@/lib/chat/scriptedFaq";
 import { cn } from "@/lib/utils";
+import { MAX_CHAT_MESSAGE_LENGTH, getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 import type { ChatMessage } from "@/types";
 
 const STORAGE_KEY = "guest_operator_session_id";
@@ -16,6 +17,7 @@ export function GuestOperatorChat() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [inputError, setInputError] = useState<string | null>(null);
   const isSendingRef = useRef(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -98,13 +100,19 @@ export function GuestOperatorChat() {
   }, [sessionId]);
 
   async function sendMessage(content?: string) {
-    const text = (content ?? input).trim();
-    if (!text || !sessionId || isSending) return;
+    const text = content ?? input;
+    if (isBlankMessage(text) || !sessionId || isSending) return;
+    const contentLengthError = getMessageLengthError(text);
+    if (contentLengthError) {
+      setInputError(contentLengthError);
+      return;
+    }
 
     setIsSending(true);
     isSendingRef.current = true;
     forceScrollRef.current = true;
     setInput("");
+    setInputError(null);
 
     const optimistic: ChatMessage = {
       id: `temp-${Date.now()}`,
@@ -205,7 +213,7 @@ export function GuestOperatorChat() {
                     {labelByType(msg.sender_type)}
                   </p>
                 )}
-                <div className={cn("rounded-2xl px-4 py-2.5 text-sm leading-relaxed", bubbleByType(msg.sender_type))}>
+                <div className={cn("rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]", bubbleByType(msg.sender_type))}>
                   {msg.content}
                 </div>
               </div>
@@ -233,6 +241,7 @@ export function GuestOperatorChat() {
         </div>
 
         <div className="border-t border-black/[0.06] p-3">
+          {inputError && <p className="mb-2 text-xs text-red-500">{inputError}</p>}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -240,21 +249,41 @@ export function GuestOperatorChat() {
             }}
             className="flex gap-2"
           >
-            <input
-              type="text"
+            <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                if (inputError) setInputError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendMessage();
+                }
+              }}
               placeholder="Напишите оператору..."
-              className="flex-1 rounded-xl border border-black/[0.1] px-3 py-2 text-sm outline-none focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/20"
+              rows={1}
+              maxLength={MAX_CHAT_MESSAGE_LENGTH}
+              className="max-h-32 min-h-[38px] flex-1 resize-none overflow-y-auto rounded-xl border border-black/[0.1] px-3 py-2 text-sm outline-none focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/20"
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+              }}
             />
             <button
               type="submit"
-              disabled={isSending || !input.trim() || !sessionId}
+              disabled={isSending || isBlankMessage(input) || !sessionId}
               className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#10a37f] text-white disabled:opacity-40"
             >
               {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             </button>
           </form>
+          {input.length > MAX_CHAT_MESSAGE_LENGTH * 0.8 && (
+            <p className="mt-1 text-right text-[11px] text-gray-400">
+              {input.length}/{MAX_CHAT_MESSAGE_LENGTH}
+            </p>
+          )}
         </div>
       </div>
     </div>

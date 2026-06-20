@@ -1,3 +1,5 @@
+import { MAX_CHAT_MESSAGE_LENGTH, validateMessageText } from "@/lib/chat/message-validation";
+
 /**
  * Семантика типов `chat_sessions.type` в БД:
  * - `operator` — CLIENT_SUPPORT: клиент ↔ поддержка (оператор/админ);
@@ -7,7 +9,7 @@
 export const CHAT_TYPE_CLIENT_SUPPORT = "operator" as const;
 export const CHAT_TYPE_ADMIN_OPERATOR = "staff" as const;
 
-export const MAX_MESSAGE_LENGTH = 4000;
+export const MAX_MESSAGE_LENGTH = MAX_CHAT_MESSAGE_LENGTH;
 
 export function formatTime(iso: string): string {
   try {
@@ -32,10 +34,7 @@ export function formatDate(iso: string): string {
 }
 
 export function validateMessage(text: string): string | null {
-  const t = text.trim();
-  if (!t) return "Введите сообщение";
-  if (t.length > MAX_MESSAGE_LENGTH) return `Максимум ${MAX_MESSAGE_LENGTH} символов`;
-  return null;
+  return validateMessageText(text);
 }
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;

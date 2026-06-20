@@ -51,7 +51,7 @@ export function ChatInput({
     setSending(true);
     setError(null);
     try {
-      await onSend(text.trim(), preview ?? undefined, replyTo?.id ?? null);
+      await onSend(text, preview ?? undefined, replyTo?.id ?? null);
       setText("");
       setPreview(null);
       textRef.current?.focus();

@@ -4,6 +4,7 @@ import { mapSubsChatMessageToChatMessage } from "@/lib/admin/subs-chat-map";
 import { createSubsAuthServerClient } from "@/lib/supabase/subs-auth-server";
 import { isSubsPublicAuthConfigured } from "@/lib/supabase/subs-auth-env";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
+import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 
 import type { ChatMessage } from "@/types";
 
@@ -109,9 +110,16 @@ export async function POST(req: NextRequest) {
   }
 
   const threadId = body.thread_id?.trim();
-  const content = body.content?.trim() ?? "";
+  const content = typeof body.content === "string" ? body.content : "";
+  const contentLengthError = getMessageLengthError(content);
   const replyToMessageId = body.reply_to_message_id?.trim() || null;
-  if (!threadId || !content) {
+  if (!threadId) {
+    return jsonDiagnostic(400, "Укажите thread_id и текст сообщения", "missing_body");
+  }
+  if (contentLengthError) {
+    return jsonDiagnostic(400, contentLengthError, "message_too_long");
+  }
+  if (isBlankMessage(content)) {
     return jsonDiagnostic(400, "Укажите thread_id и текст сообщения", "missing_body");
   }
 

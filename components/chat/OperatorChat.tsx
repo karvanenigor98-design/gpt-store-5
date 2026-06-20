@@ -5,6 +5,7 @@ import { Send, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { OPERATOR_CHAT_QUICK_REPLIES } from "@/lib/chat/scriptedFaq";
+import { MAX_CHAT_MESSAGE_LENGTH, getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 import type { ChatMessage, ChatSenderType } from "@/types";
 
 interface Props {
@@ -21,6 +22,7 @@ export function OperatorChat({ sessionId, userId, initialMessages = [], replyAsO
   const [isSending, setIsSending] = useState(false);
   const isSendingRef = useRef(false);
   const [loadingMessages, setLoadingMessages] = useState(initialMessages.length === 0);
+  const [inputError, setInputError] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const forceScrollRef = useRef(false);
@@ -84,9 +86,16 @@ export function OperatorChat({ sessionId, userId, initialMessages = [], replyAsO
   }, [messages]);
 
   async function sendMessage(text: string) {
-    if (!text.trim() || isSending) return;
-    const content = text.trim();
+    if (isSending) return;
+    if (isBlankMessage(text)) return;
+    const content = text;
+    const contentLengthError = getMessageLengthError(content);
+    if (contentLengthError) {
+      setInputError(contentLengthError);
+      return;
+    }
     setInput("");
+    setInputError(null);
     setIsSending(true);
     isSendingRef.current = true;
     forceScrollRef.current = true;
@@ -224,7 +233,7 @@ export function OperatorChat({ sessionId, userId, initialMessages = [], replyAsO
                   )}
                   <div
                     className={cn(
-                      "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                      "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]",
                       isOwnMessage
                         ? "bg-[#10a37f] text-white"
                         : senderColor(msg.sender_type)
@@ -258,22 +267,43 @@ export function OperatorChat({ sessionId, userId, initialMessages = [], replyAsO
           )}
 
           <div className="border-t border-black/[0.06] p-3">
+            {inputError && <p className="mb-2 text-xs text-red-500">{inputError}</p>}
             <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex gap-2">
-              <input
-                type="text"
+              <textarea
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  if (inputError) setInputError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void sendMessage(input);
+                  }
+                }}
                 placeholder="Напишите оператору..."
-                className="flex-1 rounded-xl border border-black/[0.1] px-3 py-2 text-sm outline-none focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/20"
+                rows={1}
+                maxLength={MAX_CHAT_MESSAGE_LENGTH}
+                className="max-h-32 min-h-[38px] flex-1 resize-none overflow-y-auto rounded-xl border border-black/[0.1] px-3 py-2 text-sm outline-none focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/20"
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+                }}
               />
               <button
                 type="submit"
-                disabled={isSending || !input.trim()}
+                disabled={isSending || isBlankMessage(input)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#10a37f] text-white disabled:opacity-40"
               >
                 {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               </button>
             </form>
+            {input.length > MAX_CHAT_MESSAGE_LENGTH * 0.8 && (
+              <p className="mt-1 text-right text-[11px] text-gray-400">
+                {input.length}/{MAX_CHAT_MESSAGE_LENGTH}
+              </p>
+            )}
           </div>
         </div>
       </div>

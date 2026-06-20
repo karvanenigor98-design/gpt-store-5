@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatMessage } from "@/types";
-import { formatTime, isImageType, sanitizeText } from "@/lib/chat/constants";
+import { formatTime, isImageType } from "@/lib/chat/constants";
 import { cn } from "@/lib/utils";
 import { CornerDownRight, MoreVertical } from "lucide-react";
 import { replyAuthorLabel, truncateForPreview } from "@/lib/chat/message-utils";
@@ -171,13 +171,7 @@ export function MessageBubble({
             </div>
           )}
 
-          {message.content && (
-            <span
-              dangerouslySetInnerHTML={{
-                __html: sanitizeText(message.content).replace(/\n/g, "<br/>"),
-              }}
-            />
-          )}
+          {message.content && <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.content}</span>}
         </div>
 
         {canShowMenu && (

@@ -12,6 +12,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
+import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId")?.trim() ?? null;
@@ -70,9 +71,16 @@ export async function POST(req: NextRequest) {
   }
 
   const sessionId = body.sessionId?.trim();
-  const content = body.content?.trim();
+  const content = typeof body.content === "string" ? body.content : "";
+  const contentLengthError = getMessageLengthError(content);
 
-  if (!sessionId || !content) {
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId и content обязательны" }, { status: 400 });
+  }
+  if (contentLengthError) {
+    return NextResponse.json({ error: contentLengthError }, { status: 400 });
+  }
+  if (isBlankMessage(content)) {
     return NextResponse.json({ error: "sessionId и content обязательны" }, { status: 400 });
   }
 
