@@ -491,7 +491,7 @@ export async function markStaffNotificationRead(
     sharedInboxUserId?: string | null;
   },
 
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
 
   const role = params.role ?? "operator";
 
@@ -519,7 +519,7 @@ export async function markStaffNotificationRead(
 
 
 
-  if (!row) return;
+  if (!row) return { ok: true };
 
 
 
@@ -531,7 +531,7 @@ export async function markStaffNotificationRead(
     is_read: boolean;
   };
 
-  if (isClientNotification(typed)) return;
+  if (isClientNotification(typed)) return { ok: true };
 
   const staffInbox = isStaffInboxNotification(typed);
   const sharedInboxUserId = params.sharedInboxUserId?.trim() ?? null;
@@ -544,7 +544,7 @@ export async function markStaffNotificationRead(
 
   if (typed.recipient_user_id === params.userId && !staffInbox) {
 
-    await admin
+    const { error } = await admin
 
       .from("notifications")
 
@@ -554,17 +554,21 @@ export async function markStaffNotificationRead(
 
       .eq("recipient_user_id", params.userId);
 
-    return;
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
 
   }
 
   if (typed.recipient_user_id && !isSharedInboxRow) {
-    return;
+    return { ok: true };
   }
 
   const readAt = new Date().toISOString();
 
-  await upsertReadChunks(admin, [params.notificationId], readsUserId, readAt);
+  const upsertErr = await upsertReadChunks(admin, [params.notificationId], readsUserId, readAt);
+  if (upsertErr) return { ok: false, error: upsertErr };
+
+  return { ok: true };
 
 }
 
@@ -697,8 +701,10 @@ export async function markAllStaffNotificationsReadForUser(
 
 
   if (forReadsTable.length) {
-
-    await upsertReadChunks(admin, forReadsTable, readsUserId, now);
+    const upsertErr = await upsertReadChunks(admin, forReadsTable, readsUserId, now);
+    if (upsertErr) {
+      return { ok: false, marked: 0, error: upsertErr };
+    }
 
   }
 

@@ -108,12 +108,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id обязателен" }, { status: 400 });
   }
 
-  await markStaffNotificationRead(ctx.subs, {
+  const result = await markStaffNotificationRead(ctx.subs, {
     notificationId: id,
     userId: ctx.user.id,
     role: ctx.role,
     email: ctx.user.email,
     sharedInboxUserId,
   });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error ?? "Не удалось отметить уведомление" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }
