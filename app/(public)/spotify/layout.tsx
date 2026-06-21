@@ -40,3 +40,5 @@ export const metadata: Metadata = {
 export default function SpotifySectionLayout({ children }: { children: React.ReactNode }) {
   return children;
 }
+
+export const dynamic = "force-dynamic";

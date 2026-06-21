@@ -29,7 +29,10 @@ export function getYandexSiteVerificationForHost(
   }
 
   if (!normalizedHost) {
-    return getYandexSiteVerification(site);
+    if (site === "subs-store") {
+      return getYandexSiteVerification("subs-store");
+    }
+    return process.env.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION?.trim() || undefined;
   }
 
   return undefined;
