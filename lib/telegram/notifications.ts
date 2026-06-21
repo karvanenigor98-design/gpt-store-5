@@ -97,15 +97,20 @@ async function sendTelegramMessage(chatId: string, text: string) {
   }
 }
 
-async function hasNewOrderNotification(orderId: string): Promise<boolean> {
+async function hasRecentNewOrderNotification(
+  orderId: string,
+  withinMinutes = 10,
+): Promise<boolean> {
   try {
     const admin = createAdminClient();
+    const cutoff = new Date(Date.now() - withinMinutes * 60_000).toISOString();
     const { count } = await admin
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("type", "new_order")
       .eq("entity_type", "order")
       .eq("entity_id", orderId)
+      .gte("created_at", cutoff)
       .limit(1);
     return (count ?? 0) > 0;
   } catch {
@@ -144,7 +149,7 @@ export async function notifyNewOrder(
   const siteSlug: "gpt-store" | "subs-store" =
     options?.siteSlug ??
     (order.product?.toLowerCase().includes("spotify") ? "subs-store" : "gpt-store");
-  if (await hasNewOrderNotification(order.id)) {
+  if (await hasRecentNewOrderNotification(order.id)) {
     return;
   }
   const brand = siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";

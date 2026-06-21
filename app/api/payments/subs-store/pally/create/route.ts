@@ -217,19 +217,19 @@ export async function POST(request: NextRequest) {
       }).catch(() => ({ ok: false as const, reason: "insert_failed" }));
     }
 
-    if (createdNew) {
-      void notifyNewOrder(
-        {
-          id: orderId,
-          plan_name: planLabel,
-          price: finalPrice,
-          account_email: customerEmail,
-          product: "spotify-premium",
-        },
-        { email: sessionEmail ?? customerEmail },
-        { siteSlug: "subs-store" },
-      ).catch(() => {});
+    void notifyNewOrder(
+      {
+        id: orderId,
+        plan_name: planLabel,
+        price: finalPrice,
+        account_email: customerEmail,
+        product: "spotify-premium",
+      },
+      { email: sessionEmail ?? customerEmail },
+      { siteSlug: "subs-store" },
+    ).catch(() => {});
 
+    if (createdNew) {
       await notifyCustomerOrderCreated({
         customerEmail,
         orderId,
