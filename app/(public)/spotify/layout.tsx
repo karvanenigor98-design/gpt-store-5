@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
-import { getYandexSiteVerification } from "@/lib/brand/yandex-site-verification";
+import { getYandexSiteVerificationForHost } from "@/lib/brand/yandex-site-verification";
 import { defaultSpotifySeoTitle } from "@/lib/brand/spotify-store-brand";
 import { SPOTIFY_LINK_PREVIEW_DESCRIPTION } from "@/lib/brand/spotify-link-preview-html";
 
 const SPOTIFY_TITLE = defaultSpotifySeoTitle();
 
-const spotifyYandexVerification = getYandexSiteVerification("subs-store");
+const spotifyYandexVerification = getYandexSiteVerificationForHost(
+  "subs-store",
+  "spotify-store.ru",
+);
 
 export const metadata: Metadata = {
   title: { absolute: "SPOTIFY STORE" },

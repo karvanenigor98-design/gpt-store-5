@@ -5,7 +5,7 @@ import { Unbounded, Golos_Text } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { getPublicSiteOrigin, getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
-import { getYandexSiteVerification } from "@/lib/brand/yandex-site-verification";
+import { getYandexSiteVerificationForHost } from "@/lib/brand/yandex-site-verification";
 import { CookieBanner } from "@/components/ui/CookieBanner";
 import { SubsStoreYandexMetrika } from "@/components/analytics/SubsStoreYandexMetrika";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
@@ -28,25 +28,25 @@ const golos = Golos_Text({
 
 type SiteMetaContext = "gpt-store" | "subs-store";
 
-async function resolveMetadataContext(): Promise<SiteMetaContext> {
+async function resolveMetadataContext(): Promise<{ site: SiteMetaContext; host: string }> {
   const h = await headers();
   const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").toLowerCase();
-  if (host.includes("spotify-store.ru")) return "subs-store";
+  if (host.includes("spotify-store.ru")) return { site: "subs-store", host };
 
   const pathname = h.get("x-invoke-pathname") ?? "";
   if (pathname.startsWith("/spotify") || pathname.startsWith("/checkout/spotify")) {
-    return "subs-store";
+    return { site: "subs-store", host };
   }
 
   const search = h.get("x-invoke-search") ?? "";
   try {
     const sp = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
-    if (sp.get("site") === "subs-store") return "subs-store";
+    if (sp.get("site") === "subs-store") return { site: "subs-store", host };
   } catch {
     /* noop */
   }
 
-  return "gpt-store";
+  return { site: "gpt-store", host };
 }
 
 function iconsFor(site: SiteMetaContext) {
@@ -54,7 +54,7 @@ function iconsFor(site: SiteMetaContext) {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const site = await resolveMetadataContext();
+  const { site, host } = await resolveMetadataContext();
   const isSpotify = site === "subs-store";
 
   const title = isSpotify ? "SPOTIFY STORE" : "GPT STORE";
@@ -63,7 +63,7 @@ export async function generateMetadata(): Promise<Metadata> {
     : "Подписка ChatGPT Plus/Pro в России, безопасная оплата и быстрое подключение.";
   const ogImage = isSpotify ? "/icons/spotify/og-image.png" : "/icons/gpt/og-image.png";
 
-  const yandexVerification = getYandexSiteVerification(site);
+  const yandexVerification = getYandexSiteVerificationForHost(site, host);
 
   return {
     title: { default: title, template: `%s | ${title}` },
