@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  countStaffUnreadNotifications,
   isNotificationUnreadForStaff,
   loadStaffReadNotificationIds,
   markAllStaffNotificationsReadForUser,
@@ -62,7 +63,15 @@ export async function GET() {
       return { ...row, is_read: !unread };
     });
 
-  return NextResponse.json({ items: items.slice(0, 100) });
+  const unread = await countStaffUnreadNotifications(ctx.subs, {
+    userId: ctx.user.id,
+    role: ctx.role,
+    siteSlug: "subs-store",
+    email: ctx.user.email,
+    sharedInboxUserId,
+  });
+
+  return NextResponse.json({ items: items.slice(0, 100), unread });
 }
 
 export async function PATCH(req: NextRequest) {

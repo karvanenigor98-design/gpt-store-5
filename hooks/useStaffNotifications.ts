@@ -31,6 +31,7 @@ export type StaffNotificationView = StaffNotificationRow & {
 };
 
 type ApiItem = StaffNotificationRow;
+type ApiResponse = { items?: ApiItem[]; unread?: number; error?: string };
 
 type SiteSlug = "gpt-store" | "subs-store";
 
@@ -75,6 +76,7 @@ export function useStaffNotifications(params: {
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [serverUnread, setServerUnread] = useState(0);
   const [accessibleSites, setAccessibleSites] = useState<SiteSlug[]>(["gpt-store"]);
   const bootRef = useRef(true);
   const knownIdsRef = useRef<Set<string>>(new Set());
@@ -104,7 +106,7 @@ export function useStaffNotifications(params: {
       const responses = await Promise.all(
         notificationsApiForSites(sites).map(async ({ url, site }) => {
           const res = await fetch(url, { credentials: "include", cache: "no-store" });
-          const data = (await res.json().catch(() => ({}))) as { items?: ApiItem[]; error?: string };
+          const data = (await res.json().catch(() => ({}))) as ApiResponse;
           return { url, site, res, data };
         }),
       );
@@ -112,7 +114,13 @@ export function useStaffNotifications(params: {
       const hasErrors = responses.some(({ res }) => !res.ok);
       setLoadError(hasErrors ? "Не удалось загрузить часть уведомлений" : null);
       const merged: ApiItem[] = [];
+      let unreadTotal = 0;
+      let unreadProvided = false;
       for (const { site, data } of responses) {
+        if (typeof data.unread === "number" && Number.isFinite(data.unread)) {
+          unreadProvided = true;
+          unreadTotal += Math.max(0, Number(data.unread));
+        }
         for (const row of data.items ?? []) {
           merged.push({ ...row, site_id: site });
         }
@@ -142,6 +150,7 @@ export function useStaffNotifications(params: {
 
       rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setItems(rows);
+      setServerUnread(unreadProvided ? unreadTotal : rows.filter((x) => !x.is_read).length);
     } catch {
       setLoadError("Не удалось загрузить уведомления");
     } finally {
@@ -234,7 +243,7 @@ export function useStaffNotifications(params: {
     };
   }, [accessibleSitesKey, gptSupabase, subsSupabase, staffRoot, debouncedReload, channelSuffix]);
 
-  const unread = items.filter((i) => !i.is_read).length;
+  const unread = serverUnread;
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -245,11 +254,15 @@ export function useStaffNotifications(params: {
 
   const markRead = useCallback(async (id: string, site: SiteSlug = "gpt-store") => {
     const prev = items;
+    const wasUnread = prev.some(
+      (x) => x.id === id && (x.site_id ?? "gpt-store") === site && !x.is_read,
+    );
     setItems((current) =>
       current.map((x) =>
         x.id === id && (x.site_id ?? "gpt-store") === site ? { ...x, is_read: true } : x,
       ),
     );
+    if (wasUnread) setServerUnread((value) => Math.max(0, value - 1));
     const res = await fetch(
       site === "subs-store" ? "/api/admin/subs-store/notifications" : "/api/admin/notifications",
       {
@@ -264,6 +277,7 @@ export function useStaffNotifications(params: {
     );
     if (!res.ok) {
       setItems(prev);
+      if (wasUnread) setServerUnread((value) => value + 1);
       setLoadError("Не удалось отметить уведомление");
       return;
     }
@@ -277,11 +291,13 @@ export function useStaffNotifications(params: {
     if (!sites.length) return;
 
     const snapshot = items;
+    const previousServerUnread = serverUnread;
     const hadUnread = snapshot.some((x) => !x.is_read);
     markingAllRef.current = true;
     setMarkingAll(true);
     debouncedReload.cancel();
     setItems((prev) => prev.map((x) => ({ ...x, is_read: true })));
+    setServerUnread(0);
 
     try {
       const responses = await Promise.all(
@@ -319,6 +335,7 @@ export function useStaffNotifications(params: {
         const errMsg = failed[0]?.data.error ?? "Не удалось отметить уведомления";
         setLoadError(errMsg);
         setItems(snapshot);
+        setServerUnread(previousServerUnread);
         return;
       }
 
@@ -327,6 +344,7 @@ export function useStaffNotifications(params: {
       } else if (hadUnread && totalMarked === 0) {
         setLoadError("Не удалось сохранить прочитанное — обновите страницу и повторите");
         setItems(snapshot);
+        setServerUnread(previousServerUnread);
         return;
       } else {
         setLoadError(null);
@@ -340,13 +358,14 @@ export function useStaffNotifications(params: {
     } catch {
       setLoadError("Не удалось отметить уведомления");
       setItems(snapshot);
+      setServerUnread(previousServerUnread);
     } finally {
       markingAllRef.current = false;
       setMarkingAll(false);
       void reload();
       refreshStaffNavBadges();
     }
-  }, [items, reload, debouncedReload]);
+  }, [items, reload, debouncedReload, serverUnread]);
 
   return {
     items: sortedItems,

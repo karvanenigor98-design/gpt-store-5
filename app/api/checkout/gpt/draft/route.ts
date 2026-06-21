@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
     await ensureGptProfile(admin, user);
 
-    const { order, error: orderError, created } = await upsertGptPendingOrder(admin, {
+    const { order, error: orderError } = await upsertGptPendingOrder(admin, {
       userId: user.id,
       accountEmail: accountEmail?.trim() || user.email?.trim() || null,
       resolved: resolvedPlan.resolved,
@@ -57,21 +57,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (created) {
-      const { plan, finalPrice } = resolvedPlan.resolved;
-      const accountEmailValue = accountEmail?.trim() || user.email || null;
-      await notifyNewOrder(
-        {
-          id: order.id,
-          plan_name: plan.name,
-          price: finalPrice,
-          account_email: accountEmailValue,
-          product: plan.productId ?? "chatgpt-plus",
-        },
-        { email: user.email ?? null },
-        { siteSlug: "gpt-store" },
-      ).catch(() => {});
-    }
+    const { plan, finalPrice } = resolvedPlan.resolved;
+    const accountEmailValue = accountEmail?.trim() || user.email || null;
+    await notifyNewOrder(
+      {
+        id: order.id,
+        plan_name: plan.name,
+        price: finalPrice,
+        account_email: accountEmailValue,
+        product: plan.productId ?? "chatgpt-plus",
+      },
+      { email: user.email ?? null },
+      { siteSlug: "gpt-store" },
+    ).catch(() => {});
 
     return NextResponse.json({ orderId: order.id });
   } catch (err) {

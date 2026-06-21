@@ -8,7 +8,10 @@ import type { UserRole } from "@/types/database";
 
 
 
-const MARK_ALL_CANDIDATE_LIMIT = 500;
+const UNREAD_SCAN_PAGE_SIZE = 500;
+const UNREAD_SCAN_MAX_ROWS = 10_000;
+// Backward-compat for internal verification scripts.
+const MARK_ALL_CANDIDATE_LIMIT = UNREAD_SCAN_PAGE_SIZE;
 
 const CHUNK = 80;
 
@@ -286,11 +289,13 @@ export function isNotificationUnreadForStaff(
 
 
 
-async function loadUnreadCandidates(
+async function loadUnreadCandidatesPage(
 
   admin: SupabaseClient,
 
   siteSlug: "gpt-store" | "subs-store",
+  offset: number,
+  limit: number,
 
 ): Promise<(NotifRow & { type?: string })[] | { error: string }> {
 
@@ -307,8 +312,7 @@ async function loadUnreadCandidates(
     .or("is_read.eq.false,is_read.is.null")
 
     .order("created_at", { ascending: false })
-
-    .limit(MARK_ALL_CANDIDATE_LIMIT);
+    .range(offset, offset + limit - 1);
 
 
 
@@ -328,6 +332,31 @@ async function loadUnreadCandidates(
 
   return (data ?? []) as (NotifRow & { type?: string })[];
 
+}
+
+async function loadAllUnreadCandidates(
+  admin: SupabaseClient,
+  siteSlug: "gpt-store" | "subs-store",
+): Promise<(NotifRow & { type?: string })[] | { error: string }> {
+  const rows: (NotifRow & { type?: string })[] = [];
+
+  for (
+    let offset = 0;
+    offset < UNREAD_SCAN_MAX_ROWS;
+    offset += MARK_ALL_CANDIDATE_LIMIT
+  ) {
+    const page = await loadUnreadCandidatesPage(
+      admin,
+      siteSlug,
+      offset,
+      MARK_ALL_CANDIDATE_LIMIT,
+    );
+    if ("error" in page) return page;
+    rows.push(...page);
+    if (page.length < MARK_ALL_CANDIDATE_LIMIT) break;
+  }
+
+  return rows;
 }
 
 
@@ -432,7 +461,7 @@ export async function countStaffUnreadNotifications(
 
 
 
-  const loaded = await loadUnreadCandidates(admin, params.siteSlug);
+  const loaded = await loadAllUnreadCandidates(admin, params.siteSlug);
 
   if ("error" in loaded) return 0;
 
@@ -603,7 +632,7 @@ export async function markAllStaffNotificationsReadForUser(
 
 
 
-  const loaded = await loadUnreadCandidates(admin, params.siteSlug);
+  const loaded = await loadAllUnreadCandidates(admin, params.siteSlug);
 
   if ("error" in loaded) {
 
@@ -660,8 +689,9 @@ export async function markAllStaffNotificationsReadForUser(
 
 
   // is_read глобально — только staff/broadcast; client-строки не трогаем.
+  const loadedById = new Map(loaded.map((row) => [row.id, row]));
   const staffGlobalMarkIds = toMark.filter((id) => {
-    const row = loaded.find((r) => r.id === id);
+    const row = loadedById.get(id);
     return row ? !isClientNotification(row) : false;
   });
 

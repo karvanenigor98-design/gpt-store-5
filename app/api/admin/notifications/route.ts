@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { requireStaffApi } from "@/lib/admin/require-staff-api";
 import {
+  countStaffUnreadNotifications,
   isNotificationUnreadForStaff,
   loadStaffReadNotificationIds,
   markAllStaffNotificationsReadForUser,
@@ -66,7 +67,14 @@ export async function GET(req: NextRequest) {
       return { ...row, is_read: !unread };
     });
 
-  return NextResponse.json({ items: items.slice(0, 100) });
+  const unread = await countStaffUnreadNotifications(ctx.admin, {
+    userId: ctx.user.id,
+    role: ctx.role,
+    siteSlug,
+    email: ctx.user.email,
+  });
+
+  return NextResponse.json({ items: items.slice(0, 100), unread });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -81,7 +89,6 @@ export async function PATCH(req: NextRequest) {
   }
 
   const siteSlug = body.site === "subs-store" ? "subs-store" : "gpt-store";
-  const siteId = await getSiteUUID(siteSlug);
 
   if (body.mark_all) {
     const result = await markAllStaffNotificationsReadForUser(ctx.admin, {
