@@ -10,6 +10,8 @@ import type { UserRole } from "@/types/database";
 
 const UNREAD_SCAN_PAGE_SIZE = 500;
 const UNREAD_SCAN_MAX_ROWS = 10_000;
+const READ_IDS_PAGE_SIZE = 1_000;
+const READ_IDS_MAX_ROWS = 30_000;
 // Backward-compat for internal verification scripts.
 const MARK_ALL_CANDIDATE_LIMIT = UNREAD_SCAN_PAGE_SIZE;
 
@@ -222,30 +224,28 @@ export async function loadStaffReadNotificationIds(
 ): Promise<Set<string>> {
 
   try {
+    const out = new Set<string>();
 
-    const { data, error } = await admin
+    for (let offset = 0; offset < READ_IDS_MAX_ROWS; offset += READ_IDS_PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("notification_reads")
+        .select("notification_id")
+        .eq("user_id", readsUserId)
+        .order("read_at", { ascending: false })
+        .range(offset, offset + READ_IDS_PAGE_SIZE - 1);
 
-      .from("notification_reads")
+      if (error) {
+        if (error.message.toLowerCase().includes("notification_reads")) return new Set();
+        console.warn("[loadStaffReadNotificationIds]", error.message);
+        return new Set();
+      }
 
-      .select("notification_id")
-
-      .eq("user_id", readsUserId);
-
-
-
-    if (error) {
-
-      if (error.message.toLowerCase().includes("notification_reads")) return new Set();
-
-      console.warn("[loadStaffReadNotificationIds]", error.message);
-
-      return new Set();
-
+      const page = (data ?? []) as Array<{ notification_id: string }>;
+      for (const row of page) out.add(String(row.notification_id));
+      if (page.length < READ_IDS_PAGE_SIZE) break;
     }
 
-
-
-    return new Set((data ?? []).map((r) => String((r as { notification_id: string }).notification_id)));
+    return out;
 
   } catch {
 
