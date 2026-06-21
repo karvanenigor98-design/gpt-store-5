@@ -283,7 +283,7 @@ export function isNotificationUnreadForStaff(
 
 
 
-  return !readIds.has(row.id) && !row.is_read;
+  return !readIds.has(row.id);
 
 }
 
@@ -308,8 +308,6 @@ async function loadUnreadCandidatesPage(
     .from("notifications")
 
     .select("id, recipient_user_id, recipient_role, is_read, type")
-
-    .or("is_read.eq.false,is_read.is.null")
 
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -568,10 +566,6 @@ export async function markStaffNotificationRead(
 
   await upsertReadChunks(admin, [params.notificationId], readsUserId, readAt);
 
-  if (!isClientNotification(typed)) {
-    await admin.from("notifications").update({ is_read: true }).eq("id", params.notificationId);
-  }
-
 }
 
 
@@ -643,6 +637,7 @@ export async function markAllStaffNotificationsReadForUser(
 
 
   const toMark: string[] = [];
+  const personalIds: string[] = [];
 
   const forReadsTable: string[] = [];
 
@@ -671,6 +666,9 @@ export async function markAllStaffNotificationsReadForUser(
 
 
     toMark.push(row.id);
+    if (row.recipient_user_id === params.userId && !isStaffInboxNotification(row)) {
+      personalIds.push(row.id);
+    }
 
     if (row.recipient_user_id !== params.userId || isStaffInboxNotification(row)) {
       forReadsTable.push(row.id);
@@ -688,15 +686,9 @@ export async function markAllStaffNotificationsReadForUser(
 
 
 
-  // is_read глобально — только staff/broadcast; client-строки не трогаем.
-  const loadedById = new Map(loaded.map((row) => [row.id, row]));
-  const staffGlobalMarkIds = toMark.filter((id) => {
-    const row = loadedById.get(id);
-    return row ? !isClientNotification(row) : false;
-  });
-
-  if (staffGlobalMarkIds.length) {
-    const isReadErr = await updateIsReadChunks(admin, staffGlobalMarkIds);
+  // Глобальный is_read обновляем только для персональных записей текущего staff.
+  if (personalIds.length) {
+    const isReadErr = await updateIsReadChunks(admin, personalIds);
     if (isReadErr) {
       return { ok: false, marked: 0, error: isReadErr };
     }
