@@ -32,7 +32,10 @@ export function getYandexSiteVerificationForHost(
     if (site === "subs-store") {
       return getYandexSiteVerification("subs-store");
     }
-    return process.env.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION?.trim() || undefined;
+    if (site === "gpt-store") {
+      return getYandexSiteVerification("gpt-store");
+    }
+    return undefined;
   }
 
   return undefined;
