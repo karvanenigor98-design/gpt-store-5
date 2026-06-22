@@ -19,6 +19,7 @@ export function GptStoreYandexMetrikaHead() {
     <>
       <script
         type="text/javascript"
+        data-gpt-store-metrika="1"
         dangerouslySetInnerHTML={{
           __html: buildYandexMetrikaInlineScript(ymId),
         }}

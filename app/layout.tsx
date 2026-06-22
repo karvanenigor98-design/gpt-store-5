@@ -7,6 +7,8 @@ import { getPublicSiteOrigin, getPublicSpotifySiteOrigin } from "@/lib/app-url";
 import { buildSiteIconsMetadata } from "@/lib/brand/site-icons";
 import { getYandexSiteVerificationForHost } from "@/lib/brand/yandex-site-verification";
 import { CookieBanner } from "@/components/ui/CookieBanner";
+import { GptStoreYandexMetrikaHead } from "@/components/analytics/GptStoreYandexMetrikaHead";
+import { SubsStoreYandexMetrikaHead } from "@/components/analytics/SubsStoreYandexMetrikaHead";
 import { SubsStoreYandexMetrika } from "@/components/analytics/SubsStoreYandexMetrika";
 import { YandexMetrika } from "@/components/analytics/YandexMetrika";
 import { ReferralCapture } from "@/components/referrals/ReferralCapture";
@@ -102,6 +104,10 @@ export default function RootLayout({
       className={cn(unbounded.variable, golos.variable)}
       suppressHydrationWarning
     >
+      <head>
+        <GptStoreYandexMetrikaHead />
+        <SubsStoreYandexMetrikaHead />
+      </head>
       <body className="min-h-screen bg-white font-sans text-foreground antialiased">
         <div className="relative" style={{ zIndex: 1 }}>
           <Suspense fallback={null}>

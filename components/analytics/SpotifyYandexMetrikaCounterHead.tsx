@@ -23,13 +23,13 @@ export function SpotifyYandexMetrikaCounterHead() {
   const pathname = h.get("x-invoke-pathname") ?? "/";
   const siteQuery = parseSiteQueryFromSearch(h.get("x-invoke-search"));
 
-  if (host && isGptStoreHostname(host) && !isSpotifyStoreHostname(host) && !isSubsStoreMetrikaPath(pathname, siteQuery)) {
+  if (host && isGptStoreHostname(host) && !isSpotifyStoreHostname(host) && !isSubsStoreMetrikaPath(pathname, siteQuery, host)) {
     return null;
   }
-  if (host && !isSpotifyStoreHostname(host) && !isSubsStoreMetrikaPath(pathname, siteQuery)) {
+  if (host && !isSpotifyStoreHostname(host) && !isSubsStoreMetrikaPath(pathname, siteQuery, host)) {
     return null;
   }
-  if (!isSubsStoreMetrikaPath(pathname, siteQuery)) return null;
+  if (!isSubsStoreMetrikaPath(pathname, siteQuery, host)) return null;
 
   return (
     <>

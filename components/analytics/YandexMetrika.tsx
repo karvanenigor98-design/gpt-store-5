@@ -32,6 +32,10 @@ export function YandexMetrika() {
 
     if (!injected.current && !document.head.querySelector(`script[${SCRIPT_MARKER}]`)) {
       injected.current = true;
+      if (typeof window.ym === "function") {
+        sendHit();
+        return;
+      }
       const script = document.createElement("script");
       script.type = "text/javascript";
       script.setAttribute(SCRIPT_MARKER, "1");

@@ -22,7 +22,9 @@ export function SubsStoreYandexMetrika() {
   const pathname = useSafePathname();
   const searchParams = useSearchParams();
   const siteQuery = searchParams.get("site");
-  const active = isSubsStoreMetrikaPath(pathname, siteQuery);
+  const hostname =
+    typeof window !== "undefined" ? window.location.hostname : null;
+  const active = isSubsStoreMetrikaPath(pathname, siteQuery, hostname);
   const injected = useRef(false);
 
   useEffect(() => {
@@ -32,6 +34,10 @@ export function SubsStoreYandexMetrika() {
 
     if (!injected.current && !document.head.querySelector(`script[${SCRIPT_MARKER}]`)) {
       injected.current = true;
+      if (typeof window.ym === "function") {
+        sendHit();
+        return;
+      }
       const script = document.createElement("script");
       script.type = "text/javascript";
       script.setAttribute(SCRIPT_MARKER, "1");

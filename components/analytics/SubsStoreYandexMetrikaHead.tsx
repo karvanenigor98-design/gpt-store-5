@@ -6,6 +6,11 @@ import {
   parseSiteQueryFromSearch,
 } from "@/lib/analytics/subs-store-metrika";
 
+function resolveRequestHost(headerBag: Headers): string {
+  const raw = headerBag.get("x-forwarded-host") ?? headerBag.get("host") ?? "";
+  return raw.split(",")[0]?.split(":")[0]?.trim().toLowerCase() ?? "";
+}
+
 export function SubsStoreYandexMetrikaHead() {
   const ymId = getSubsStoreYmId();
   if (!ymId) return null;
@@ -13,12 +18,14 @@ export function SubsStoreYandexMetrikaHead() {
   const h = headers();
   const pathname = h.get("x-invoke-pathname") ?? "/";
   const siteQuery = parseSiteQueryFromSearch(h.get("x-invoke-search"));
-  if (!isSubsStoreMetrikaPath(pathname, siteQuery)) return null;
+  const hostname = resolveRequestHost(h);
+  if (!isSubsStoreMetrikaPath(pathname, siteQuery, hostname)) return null;
 
   return (
     <>
       <script
         type="text/javascript"
+        data-subs-store-metrika="1"
         dangerouslySetInnerHTML={{
           __html: buildYandexMetrikaInlineScript(ymId),
         }}
