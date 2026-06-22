@@ -9,6 +9,7 @@ import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 import { LandingOrderStatusChip } from "@/components/landing/LandingOrderStatusChip";
 import { LandingAuthNavLink } from "@/components/landing/LandingAuthNavLink";
+import { SpotifyStoreLogo } from "@/components/spotify/SpotifyStoreLogo";
 
 export function SpotifyNav({ initialLoggedIn = false }: { initialLoggedIn?: boolean }) {
   const { nav, hero } = useSpotifyLanding();
@@ -41,13 +42,8 @@ export function SpotifyNav({ initialLoggedIn = false }: { initialLoggedIn?: bool
       }}
     >
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
-        <Link
-          href="/spotify"
-          className="font-heading text-base font-bold"
-          style={{ color: "#ffffff" }}
-        >
-          {nav.brand}{" "}
-          <span style={{ color: SPOTIFY_ACCENT }}>{nav.brandAccent}</span>
+        <Link href="/spotify" className="flex shrink-0 items-center" aria-label={`${nav.brand} ${nav.brandAccent}`}>
+          <SpotifyStoreLogo height={38} priority />
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm md:flex" style={{ color: "rgba(255,255,255,0.6)" }}>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
+import { SpotifyStoreLogo } from "@/components/spotify/SpotifyStoreLogo";
 
 export function SpotifyFooter() {
   const { footer: f } = useSpotifyLanding();
@@ -17,9 +18,7 @@ export function SpotifyFooter() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-col gap-6 md:flex-row md:justify-between">
           <div className="max-w-xs">
-            <p className="font-heading text-lg font-bold text-white">
-              {f.brand} <span style={{ color: SPOTIFY_ACCENT }}>{f.brandAccent}</span>
-            </p>
+            <SpotifyStoreLogo height={44} />
             <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
               {f.tagline}
             </p>

@@ -30,9 +30,9 @@ export function buildSiteIconsMetadata(site: SiteIconSlug): SiteIconsBundle {
 
   return {
     icon: [
+      { url: `${origin}${base}/icon-120.png`, sizes: "120x120", type: "image/png" },
       { url: `${origin}/favicon.ico`, type: "image/x-icon" },
       { url: `${origin}${base}/icon.svg`, type: "image/svg+xml" },
-      { url: `${origin}${base}/icon-120.png`, sizes: "120x120", type: "image/png" },
       { url: `${origin}${base}/favicon-32x32.png`, sizes: "32x32", type: "image/png" },
       { url: `${origin}${base}/icon-192.png`, sizes: "192x192", type: "image/png" },
     ],
