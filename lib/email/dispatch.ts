@@ -17,6 +17,8 @@ import {
   isEmailNotificationsEnabled,
 } from "@/lib/email/config";
 import { normalizeCustomerEmail } from "@/lib/email/resolve-order-customer-email";
+import { isEmailRecipientSuppressed } from "@/lib/email/suppression";
+import { enqueueEmailNotification } from "@/lib/notifications/outbox";
 import {
   notifyAdminEmailFailure,
   sendTransactionalEmail,
@@ -159,6 +161,23 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
   if (!email) {
     return { sent: false, skipped: true, reason: "invalid_recipient" };
   }
+  if (isEmailRecipientSuppressed(email)) {
+    await insertLog({
+      siteSlug: params.siteSlug,
+      recipientEmail: email,
+      recipientRole: params.recipientRole,
+      recipientUserId: params.recipientUserId,
+      eventType: params.eventType,
+      subject: params.title,
+      preview: params.bodyLines[0] ?? "",
+      status: "skipped",
+      dedupeKey: params.dedupeKey,
+      relatedEntityType: params.relatedEntityType,
+      relatedEntityId: params.relatedEntityId,
+      errorMessage: "recipient_suppressed",
+    });
+    return { sent: false, skipped: true, reason: "recipient_suppressed" };
+  }
 
   if (!isEmailNotificationsEnabled()) {
     return { sent: false, skipped: true, reason: "globally_disabled" };
@@ -235,6 +254,24 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
     return { sent: false, skipped: true, reason: "email_provider_not_configured" };
   }
 
+  const queued = await enqueueEmailNotification({
+    siteSlug: params.siteSlug,
+    eventType: params.eventType,
+    recipient: email,
+    dedupeKey: params.dedupeKey ?? `${params.eventType}:${params.relatedEntityId ?? logId ?? email}`,
+    subject,
+    text: branded.text,
+    html: branded.html,
+    logId,
+  });
+
+  if (queued.queued) {
+    // Worker обновит email_notification_logs; pending остаётся до delivery.
+    return { sent: true, skipped: false, reason: queued.duplicate ? "outbox_duplicate" : "outbox_queued" };
+  }
+
+  // Fallback: прямой send, если outbox ещё не задеплоен / таблица отсутствует.
+  console.warn("[email/dispatch] outbox enqueue failed, direct send:", queued.error);
   const result = await sendTransactionalEmail(email, subject, branded.text, branded.html, {
     siteSlug: params.siteSlug,
   });

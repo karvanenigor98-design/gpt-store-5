@@ -10,6 +10,7 @@ import {
   resolveFromAddress,
 } from "@/lib/email/config";
 import { resolveSmtpFromAddress } from "@/lib/email/smtp-from";
+import { isEmailRecipientSuppressed } from "@/lib/email/suppression";
 
 export type SendEmailResult = {
   ok: boolean;
@@ -130,23 +131,36 @@ async function sendViaResend(
   }
 }
 
+export type SendEmailPurpose = "notification" | "auth";
+
 /** Отправка transactional email server-side. Не бросает исключения. */
 export async function sendTransactionalEmail(
   to: string,
   subject: string,
   text: string,
   html?: string,
-  options?: { siteSlug?: SiteSlug },
+  options?: { siteSlug?: SiteSlug; purpose?: SendEmailPurpose },
 ): Promise<SendEmailResult> {
   const siteSlug = options?.siteSlug;
+  const purpose = options?.purpose ?? "notification";
   const resendFrom = siteSlug ? resolveFromAddress(siteSlug) : resolveFromAddress();
   const smtpFrom = siteSlug ? resolveSmtpFromAddress(siteSlug) : resolveSmtpFromAddress();
 
   if (!to?.trim()) {
     return { ok: false, skipped: true, provider: "none", error: "Пустой получатель" };
   }
+  // Auth emails (reset/signup) must not be blocked by notification suppression.
+  if (purpose !== "auth" && isEmailRecipientSuppressed(to)) {
+    return {
+      ok: false,
+      skipped: true,
+      provider: "none",
+      error: "recipient_suppressed",
+    };
+  }
 
-  if (!isEmailNotificationsEnabled()) {
+  // Auth recovery/signup still deliver when site notification emails are globally off.
+  if (purpose !== "auth" && !isEmailNotificationsEnabled()) {
     console.warn("[Email] Пропущено: EMAIL_NOTIFICATIONS_ENABLED выключен");
     return { ok: false, skipped: true, provider: "none", error: "EMAIL_NOTIFICATIONS_ENABLED выключен" };
   }

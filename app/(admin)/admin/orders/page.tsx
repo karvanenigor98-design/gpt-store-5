@@ -18,6 +18,7 @@ import { UnpaidOrdersEmailCampaign } from "@/components/admin/UnpaidOrdersEmailC
 import { MarkOrdersSeenOnVisit } from "@/components/admin/MarkOrdersSeenOnVisit";
 import { AdminOrdersLiveRefresh } from "@/components/admin/AdminOrdersLiveRefresh";
 import { StaffOrderChatLink } from "@/components/admin/StaffOrderChatLink";
+import { OrderIdCell } from "@/components/admin/OrderIdCell";
 
 export const metadata: Metadata = { title: "Admin · Заказы" };
 export const dynamic = "force-dynamic";
@@ -62,10 +63,6 @@ const SUBS_PAY_LABELS: Record<string, string> = {
   refunded: "Возврат",
   manual_review: "Проверка",
 };
-
-function shortOrderId(id: string): string {
-  return `${id.slice(0, 8)}…`;
-}
 
 export default async function AdminOrdersPage({
   searchParams,
@@ -162,7 +159,7 @@ export default async function AdminOrdersPage({
             <tbody className="divide-y divide-gray-100">
               {orders.map((order) => {
                 const email = order.profileEmail ?? order.customer_email ?? "—";
-                const paymentLabel = SUBS_PAY_LABELS[order.payment_status] ?? order.payment_status;
+                const paymentLabel = SUBS_PAY_LABELS[order.payment_status] ?? "Неизвестно";
                 const tariffLabel = `${order.tariffTitle} — ${Number(order.final_price ?? 0).toLocaleString("ru")} ₽ — ${subsOrderStatusLabelRu(order.status)} — ${paymentLabel}`;
                 return (
                   <tr
@@ -171,7 +168,7 @@ export default async function AdminOrdersPage({
                     className="scroll-mt-4 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     <td className="px-4 py-3">
-                      <code className="text-[11px] text-gray-500" title={order.id}>{shortOrderId(order.id)}</code>
+                      <OrderIdCell orderId={order.id} />
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {email}
@@ -204,7 +201,7 @@ export default async function AdminOrdersPage({
                       />
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600">
-                      {SUBS_PAY_LABELS[order.payment_status] ?? order.payment_status}
+                      {SUBS_PAY_LABELS[order.payment_status] ?? "Неизвестно"}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {new Date(order.created_at).toLocaleDateString("ru")}
@@ -257,7 +254,7 @@ export default async function AdminOrdersPage({
           </span>
         </h1>
         <div className="flex gap-2">
-          {["", "awaiting_payment", "activating", "waiting_client", "active", "failed"].map((s) => (
+          {["", "awaiting_payment", "paid", "activating", "waiting_client", "active", "failed"].map((s) => (
             <a
               key={s || "all"}
               href={staffOrdersStatusHref(siteSlug, s || undefined)}
@@ -318,7 +315,7 @@ export default async function AdminOrdersPage({
               return (
                 <tr key={order.id} id={`row-${order.id}`} className="scroll-mt-4 text-sm text-gray-700 hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <code className="text-[11px] text-gray-500" title={order.id}>{shortOrderId(order.id)}</code>
+                    <OrderIdCell orderId={order.id} />
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {clientEmail}
