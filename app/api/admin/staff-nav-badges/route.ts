@@ -112,22 +112,26 @@ export async function GET(req: NextRequest) {
 
     let ordersQ = subs.from("orders").select("id", { count: "exact", head: true });
     if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
-    const [ordersRes, chatUnread, notifUnread, reviewsRes] = await Promise.all([
+    const reviewsPendingPromise = (async () => {
+      const { count } = await subs
+        .from("reviews")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      return count ?? 0;
+    })();
+
+    const [ordersRes, chatUnread, notifUnread, reviewsCount] = await Promise.all([
       ordersQ,
       withTimeout(countSubsStoreUnreadClientMessages(subs), 5000, 0),
       notifUnreadPromise,
-      withTimeout(
-        subs.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        5000,
-        { count: 0 },
-      ),
+      withTimeout(reviewsPendingPromise, 5000, 0),
     ]);
 
     return NextResponse.json({
       notifications: notifUnread,
       chat: chatUnread,
       orders: ordersRes.count ?? 0,
-      reviews: reviewsRes.count ?? 0,
+      reviews: reviewsCount,
     });
   }
 
@@ -136,23 +140,27 @@ export async function GET(req: NextRequest) {
   if (gptSiteId) ordersQ = ordersQ.eq("site_id", gptSiteId);
   if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
 
-  let reviewsQ = admin
-    .from("reviews")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
-  if (gptSiteId) reviewsQ = reviewsQ.eq("site_id", gptSiteId);
+  const reviewsPendingPromise = (async () => {
+    let q = admin
+      .from("reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+    if (gptSiteId) q = q.eq("site_id", gptSiteId);
+    const { count } = await q;
+    return count ?? 0;
+  })();
 
-  const [ordersRes, chatUnread, notifUnread, reviewsRes] = await Promise.all([
+  const [ordersRes, chatUnread, notifUnread, reviewsCount] = await Promise.all([
     ordersQ,
     withTimeout(countGptStoreUnreadClientMessages(admin, "gpt-store"), 5000, 0),
     notifUnreadPromise,
-    withTimeout(reviewsQ, 5000, { count: 0 }),
+    withTimeout(reviewsPendingPromise, 5000, 0),
   ]);
 
   return NextResponse.json({
     notifications: notifUnread,
     chat: chatUnread,
     orders: ordersRes.count ?? 0,
-    reviews: reviewsRes.count ?? 0,
+    reviews: reviewsCount,
   });
 }
