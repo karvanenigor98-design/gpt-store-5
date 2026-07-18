@@ -1,9 +1,10 @@
-/** Ссылки staff-панели с сохранением ?site= */
+/** Ссылки staff-панели с сохранением ?site= (и прочих query params). */
 export function staffNavHref(path: string, siteSlug: "gpt-store" | "subs-store"): string {
-  const base = path.split("?")[0] ?? path;
-  const sep = path.includes("?") ? "&" : "?";
-  if (path.includes("site=")) return path;
-  return `${base}${sep}site=${encodeURIComponent(siteSlug)}`;
+  const [base, existing = ""] = path.split("?");
+  const q = new URLSearchParams(existing);
+  if (!q.has("site")) q.set("site", siteSlug);
+  const qs = q.toString();
+  return qs ? `${base}?${qs}` : (base ?? path);
 }
 
 export function staffNotificationsHref(

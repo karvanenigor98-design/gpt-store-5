@@ -21,7 +21,7 @@ const NAV: Array<{
   { href: "/operator", label: "Главная", icon: LayoutDashboard, badge: null },
   { href: "/operator/orders", label: "Заказы", icon: ShoppingBag, badge: "orders" },
   { href: "/operator/clients", label: "Клиенты", icon: UserCircle, badge: null },
-  { href: "/operator/reviews", label: "Отзывы", icon: Star, badge: "reviews" },
+  { href: "/operator/reviews?status=pending", label: "Отзывы", icon: Star, badge: "reviews" },
   { href: "/operator/chat", label: "Чат", icon: MessageCircle, badge: "chat" },
   { href: "/operator/notifications", label: "Уведомления", icon: Bell, badge: "notifications" },
 ];
@@ -59,16 +59,17 @@ export function OperatorSidebar() {
       >
         {NAV.map((item) => {
           const Icon = item.icon;
+          const pathOnly = item.href.split("?")[0] ?? item.href;
           const href = staffNavHref(item.href, siteSlug);
           const isActive =
-            item.href === "/operator"
+            pathOnly === "/operator"
               ? pathname === "/operator"
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              : pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
           return (
             <Link
-              key={`m-${item.href}`}
+              key={`m-${pathOnly}`}
               href={href}
-              prefetch={item.href === "/operator/orders" ? false : undefined}
+              prefetch={pathOnly === "/operator/orders" || pathOnly === "/operator/reviews" ? false : undefined}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
                 isActive ? "font-medium" : "text-gray-600",
@@ -98,16 +99,17 @@ export function OperatorSidebar() {
         <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
           {NAV.map((item) => {
             const Icon = item.icon;
+            const pathOnly = item.href.split("?")[0] ?? item.href;
             const href = staffNavHref(item.href, siteSlug);
             const isActive =
-              item.href === "/operator"
+              pathOnly === "/operator"
                 ? pathname === "/operator"
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                : pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
             return (
               <Link
-                key={item.href}
+                key={pathOnly}
                 href={href}
-                prefetch={item.href === "/operator/orders" ? false : undefined}
+                prefetch={pathOnly === "/operator/orders" || pathOnly === "/operator/reviews" ? false : undefined}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
