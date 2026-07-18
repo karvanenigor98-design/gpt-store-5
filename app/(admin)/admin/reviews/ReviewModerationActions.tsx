@@ -11,11 +11,13 @@ export function ReviewModerationActions({
   siteSlug = "gpt-store",
   listStatus = "pending",
   initialRating = null,
+  canDelete = true,
 }: {
   reviewId: string;
   siteSlug?: string;
   listStatus?: ListStatus;
   initialRating?: number | null;
+  canDelete?: boolean;
 }) {
   const [loading, setLoading] = useState<"approve" | "reject" | "delete" | null>(null);
   const [rating, setRating] = useState<number | null>(initialRating);
@@ -79,6 +81,7 @@ export function ReviewModerationActions({
   }
 
   if (listStatus !== "pending") {
+    if (!canDelete) return null;
     return (
       <button
         type="button"
