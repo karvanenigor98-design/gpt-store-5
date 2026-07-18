@@ -33,9 +33,9 @@ async function countCombinedStaffNotifications(
   subsClient: SupabaseClient | null,
   subsSharedInboxUserId: string | null,
 ): Promise<number> {
-  let total = 0;
+  const counts: Promise<number>[] = [];
   if (accessible.includes("gpt-store")) {
-    total += await withTimeout(
+    counts.push(withTimeout(
       countGptStoreUnreadNotifications(gptAdmin, {
         userId,
         role,
@@ -44,10 +44,10 @@ async function countCombinedStaffNotifications(
       }),
       5000,
       0,
-    );
+    ));
   }
   if (accessible.includes("subs-store") && subsClient) {
-    total += await withTimeout(
+    counts.push(withTimeout(
       countSubsStoreUnreadNotifications(subsClient, {
         userId,
         role,
@@ -56,9 +56,9 @@ async function countCombinedStaffNotifications(
       }),
       5000,
       0,
-    );
+    ));
   }
-  return total;
+  return (await Promise.all(counts)).reduce((sum, count) => sum + count, 0);
 }
 
 export async function GET(req: NextRequest) {
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const notifUnread = await countCombinedStaffNotifications(
+  const notifUnreadPromise = countCombinedStaffNotifications(
     accessible,
     user.id,
     role,
@@ -101,21 +101,33 @@ export async function GET(req: NextRequest) {
 
   if (siteSlug === "subs-store") {
     if (!subsClient) {
-      return NextResponse.json({ notifications: notifUnread, chat: 0, orders: 0 });
+      return NextResponse.json({
+        notifications: await notifUnreadPromise,
+        chat: 0,
+        orders: 0,
+        reviews: 0,
+      });
     }
     const subs = subsClient;
 
     let ordersQ = subs.from("orders").select("id", { count: "exact", head: true });
     if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
-    const [ordersRes, chatUnread] = await Promise.all([
+    const [ordersRes, chatUnread, notifUnread, reviewsRes] = await Promise.all([
       ordersQ,
-      countSubsStoreUnreadClientMessages(subs),
+      withTimeout(countSubsStoreUnreadClientMessages(subs), 5000, 0),
+      notifUnreadPromise,
+      withTimeout(
+        subs.from("reviews").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        5000,
+        { count: 0 },
+      ),
     ]);
 
     return NextResponse.json({
       notifications: notifUnread,
       chat: chatUnread,
       orders: ordersRes.count ?? 0,
+      reviews: reviewsRes.count ?? 0,
     });
   }
 
@@ -124,14 +136,23 @@ export async function GET(req: NextRequest) {
   if (gptSiteId) ordersQ = ordersQ.eq("site_id", gptSiteId);
   if (ordersSince) ordersQ = ordersQ.gt("created_at", ordersSince);
 
-  const [ordersRes, chatUnread] = await Promise.all([
+  let reviewsQ = admin
+    .from("reviews")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+  if (gptSiteId) reviewsQ = reviewsQ.eq("site_id", gptSiteId);
+
+  const [ordersRes, chatUnread, notifUnread, reviewsRes] = await Promise.all([
     ordersQ,
-    countGptStoreUnreadClientMessages(admin, "gpt-store"),
+    withTimeout(countGptStoreUnreadClientMessages(admin, "gpt-store"), 5000, 0),
+    notifUnreadPromise,
+    withTimeout(reviewsQ, 5000, { count: 0 }),
   ]);
 
   return NextResponse.json({
     notifications: notifUnread,
     chat: chatUnread,
     orders: ordersRes.count ?? 0,
+    reviews: reviewsRes.count ?? 0,
   });
 }

@@ -92,6 +92,22 @@ export async function insertSubsStoreNotification(params: {
   const exists = await subsAuthUserExists(subs, params.recipientUserId);
   if (!exists) return { ok: false, reason: "recipient_not_in_subs_auth" };
 
+  const entityType = params.entity_type ?? null;
+  const entityId = params.entity_id ?? null;
+  if (entityId && entityType) {
+    const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+    const { data: existing } = await subs
+      .from("notifications")
+      .select("id")
+      .eq("recipient_user_id", params.recipientUserId)
+      .eq("type", params.type)
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId)
+      .gte("created_at", since)
+      .limit(1);
+    if (existing?.length) return { ok: true };
+  }
+
   const row: Record<string, unknown> = {
     recipient_user_id: params.recipientUserId,
     recipient_role: null,
@@ -99,8 +115,8 @@ export async function insertSubsStoreNotification(params: {
     title: params.title.trim().slice(0, 500),
     message: clipMessage(params.message),
     is_read: false,
-    entity_type: params.entity_type ?? null,
-    entity_id: params.entity_id ?? null,
+    entity_type: entityType,
+    entity_id: entityId,
     metadata: {} as Json,
     email_sent: false,
   };

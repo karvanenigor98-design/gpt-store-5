@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { resolveOrderSubscriptionExpiresAt } from "@/lib/admin/admin-subscription-label";
-import { formatSubsTariffDisplayLabel } from "@/lib/admin/subs-tariff-display-label";
+import { formatSubsTariffEmailLabel } from "@/lib/admin/subs-tariff-display-label";
 
 /** Поля subs.orders для PATCH статуса (без plan_id/plan_name — их нет в Subs DB). */
 export const SUBS_ORDER_PATCH_SELECT =
@@ -53,7 +53,7 @@ export async function fetchSubsOrderForStatusPatch(
       .eq("id", order.tariff_id)
       .maybeSingle();
     if (tariff) {
-      planTitle = formatSubsTariffDisplayLabel(tariff);
+      planTitle = formatSubsTariffEmailLabel(tariff);
       durationMonths =
         tariff.duration_months != null ? Number(tariff.duration_months) : null;
     }

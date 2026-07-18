@@ -44,10 +44,9 @@ export function buildAdminNotificationHref(
   }
 
   if (type === "new_review" || et === "review") {
+    q.set("status", "pending");
     if (eid) q.set("highlight", eid);
-    if (staffRoot === "/operator") {
-      return `${staffRoot}?${q.toString()}`;
-    }
+    // Admin и operator — один и тот же раздел модерации в своей панели.
     return `${staffRoot}/reviews?${q.toString()}`;
   }
 
@@ -59,8 +58,7 @@ export function buildAdminNotificationHref(
     return `${staffRoot}/chat?${q.toString()}`;
   }
 
-  const notifPath = staffRoot === "/operator" ? staffRoot : `${staffRoot}/notifications`;
-  return `${notifPath}?${q.toString()}`;
+  return `${staffRoot}/notifications?${q.toString()}`;
 }
 
 /** Сохранить выбранный магазин перед переходом по ссылке из уведомления. */

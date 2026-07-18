@@ -3,23 +3,23 @@ import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
 
 const STATUS_RU: Record<string, string> = {
   pending: "Ожидает оплаты",
-  paid: "Оплачен",
-  activating: "В активации",
-  active: "Активирован",
+  paid: "Оплата получена",
+  activating: "Активация подписки",
+  active: "Активировано",
   failed: "Ошибка",
-  refunded: "Возврат",
-  waiting_client: "Ждём данные от клиента",
+  refunded: "Возврат выполнен",
+  waiting_client: "Ожидаем данные",
   expired: "Истёк",
   processing: "В обработке",
   awaiting_payment: "Ожидает оплаты",
-  activated: "Активирован",
-  completed: "Завершён",
+  activated: "Активировано",
+  completed: "Активировано",
   problem: "Проблема",
 };
 
 export function orderStatusLabelRu(status: string | null | undefined): string {
   const s = coerceOrderStatus(status);
-  return STATUS_RU[s] ?? s;
+  return STATUS_RU[s] ?? "Неизвестный статус";
 }
 
 /** Текст «что делать дальше» для писем и страницы заказа. */

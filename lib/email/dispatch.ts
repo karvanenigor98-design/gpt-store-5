@@ -44,15 +44,38 @@ export type DispatchEmailParams = {
 
 const DEDUPE_WINDOW_MS = 5 * 60_000;
 
-/** Постоянная идемпотентность для order_paid (webhook retry, повторное сохранение). */
-async function hasPermanentDedupe(dedupeKey: string): Promise<boolean> {
+/**
+ * События, которые нельзя слать повторно даже через часы/дни
+ * (webhook retry, повторный PATCH того же статуса, reorder staff list).
+ */
+const PERMANENT_DEDUPE_PREFIXES = [
+  "order_paid:",
+  "staff_new_order:",
+  "staff:new_order:",
+  "staff:payment_success:",
+  "staff:payment_failed:",
+  "order_created:",
+  "order_status:",
+  "review:",
+  "promo:",
+  "subscription_activated:",
+  "payment_received:",
+  "payment_failed:",
+] as const;
+
+function isPermanentDedupeKey(dedupeKey: string): boolean {
+  return PERMANENT_DEDUPE_PREFIXES.some((p) => dedupeKey.startsWith(p));
+}
+
+/** pending|sent — блокируем гонку до завершения outbox-worker. */
+async function hasActiveDedupe(dedupeKey: string): Promise<boolean> {
   try {
     const admin = createAdminClient();
     const { data } = await admin
       .from("email_notification_logs")
       .select("id")
       .eq("dedupe_key", dedupeKey)
-      .eq("status", "sent")
+      .in("status", ["pending", "sent"])
       .limit(1);
     return Boolean(data?.length);
   } catch {
@@ -78,8 +101,8 @@ async function hasRecentDedupe(dedupeKey: string): Promise<boolean> {
 }
 
 async function isDedupeBlocked(dedupeKey: string): Promise<boolean> {
-  if (dedupeKey.startsWith("order_paid:")) {
-    return hasPermanentDedupe(dedupeKey);
+  if (isPermanentDedupeKey(dedupeKey)) {
+    return hasActiveDedupe(dedupeKey);
   }
   return hasRecentDedupe(dedupeKey);
 }
@@ -317,8 +340,9 @@ export async function dispatchStaffSiteEmails(params: {
   const baseKey = params.dedupeKey ?? `${params.eventType}:${params.siteSlug}:${params.relatedEntityId ?? "x"}`;
 
   // Не блокируем checkout/API: Resend rate limit не должен задерживать ответ клиенту.
+  // Важно: без :idx — порядок staff из БД/env нестабилен и ломал идемпотентность.
   void Promise.all(
-    staff.map((s, idx) =>
+    staff.map((s) =>
       dispatchSiteEmail({
         siteSlug: params.siteSlug,
         eventType: params.eventType,
@@ -329,7 +353,7 @@ export async function dispatchStaffSiteEmails(params: {
         bodyLines: params.bodyLines,
         ctaLabel: params.ctaLabel,
         ctaUrl: params.ctaUrl,
-        dedupeKey: `${baseKey}:staff:${s.email}:${idx}`,
+        dedupeKey: `${baseKey}:staff:${s.email}`,
         relatedEntityType: params.relatedEntityType,
         relatedEntityId: params.relatedEntityId,
       }),

@@ -145,11 +145,11 @@ async function broadcastTelegram(
     return;
   }
   await Promise.all(
-    chats.map((chatId, idx) =>
+    chats.map((chatId) =>
       sendTelegramMessage(chatId, text, {
         ...opts,
         dedupeKey: opts?.dedupeKey
-          ? `${opts.dedupeKey}:chat:${chatId}:${idx}`
+          ? `${opts.dedupeKey}:chat:${chatId}`
           : undefined,
       }),
     ),
@@ -356,9 +356,13 @@ export async function sendTelegramStaffChatAlert(params: {
 👤 Клиент: ${params.clientEmail ?? "неизвестен"}
 💬 "${params.messagePreview.slice(0, 100)}${params.messagePreview.length > 100 ? "..." : ""}"
 🔗 <a href="${params.chatHref}">Ответить</a>`;
+  const siteSlug = params.siteSlug === "subs-store" ? "subs-store" : "gpt-store";
+  const sessionHint =
+    params.chatHref.match(/(?:thread_id|session_id)=([^&]+)/)?.[1] ?? "x";
   void broadcastTelegram(text, {
-    siteSlug: params.siteSlug,
+    siteSlug,
     eventType: "client_chat_message",
+    dedupeKey: `client_chat:${siteSlug}:${sessionHint}:${params.messagePreview.slice(0, 80)}`,
   }).catch(() => undefined);
 }
 
@@ -467,15 +471,28 @@ export async function notifyNewReview(review: {
     eventType: "new_review",
     dedupeKey: review.reviewId ? `review:${review.reviewId}` : undefined,
   }).catch(() => undefined);
-  const { recordGptStaffNotification } = await import("@/lib/notifications/staff-events");
+  const { recordGptStaffNotification, recordSubsStaffNotification } = await import(
+    "@/lib/notifications/staff-events"
+  );
   await recordGptStaffNotification({
     type: "new_review",
-    title: site === "subs-store" ? "⭐ Новый отзыв — Subs Store" : "⭐ Новый отзыв",
+    title: site === "subs-store" ? "⭐ Новый отзыв — SPOTIFY STORE" : "⭐ Новый отзыв",
     message: `${review.author_name ?? "Клиент"}: ${review.content.slice(0, 180)}`,
     siteSlug: site,
     entity_type: "review",
     entity_id: review.reviewId ?? null,
   });
+  if (site === "subs-store") {
+    await recordSubsStaffNotification({
+      type: "new_review",
+      title: "SPOTIFY STORE: новый отзыв на модерации",
+      message: `${review.author_name ?? "Клиент"}: ${review.content.slice(0, 180)}`,
+      entity_type: "review",
+      entity_id: review.reviewId ?? null,
+      sendEmail: false,
+    });
+  }
+  // Email всем admin/operator с доступом к сайту (CTA → /operator/reviews).
   await emailStaffNewReview({
     siteSlug: site,
     authorName: review.author_name ?? null,

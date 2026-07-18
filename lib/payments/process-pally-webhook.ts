@@ -16,6 +16,58 @@ import type { OrderStatus } from "@/types/database";
 import type { SiteSlug } from "@/lib/sites";
 
 export type PallyWebhookPayload = Record<string, unknown>;
+type PaymentEventRecordResult = "inserted" | "duplicate" | "error";
+
+const GPT_FULFILLMENT_STATUSES = new Set(["activating", "waiting_client", "active"]);
+const SUBS_FULFILLMENT_STATUSES = new Set([
+  "processing",
+  "awaiting_data",
+  "activated",
+  "completed",
+  "problem",
+  "refund",
+  "awaiting_operator",
+]);
+
+const GPT_TERMINAL_STATUSES = new Set<OrderStatus>([
+  "failed",
+  "refunded",
+  "expired",
+]);
+
+function resolveGptOrderStatus(
+  previous: OrderStatus,
+  incoming: OrderStatus,
+): OrderStatus {
+  if (GPT_FULFILLMENT_STATUSES.has(previous) || previous === "refunded") return previous;
+  if (previous === "paid" && incoming !== "refunded") return previous;
+  // Terminal statuses cannot be resurrected to paid/pending by webhook alone.
+  if (GPT_TERMINAL_STATUSES.has(previous) && incoming !== "refunded") return previous;
+  return incoming;
+}
+
+function resolveSubsOrderStatus(previous: string, incomingPaymentStatus: string): string {
+  if (SUBS_FULFILLMENT_STATUSES.has(previous)) return previous;
+  if (previous === "paid" && incomingPaymentStatus !== "refunded") return previous;
+  // Cancelled/refund/completed stay terminal unless explicit reconciliation.
+  if (
+    (previous === "cancelled" || previous === "refund" || previous === "completed") &&
+    incomingPaymentStatus === "paid"
+  ) {
+    return previous;
+  }
+  if (previous === "cancelled" && incomingPaymentStatus !== "paid") return previous;
+  if (incomingPaymentStatus === "paid") return "paid";
+  if (incomingPaymentStatus === "failed") return "cancelled";
+  return previous;
+}
+
+function resolveSubsPaymentStatus(previous: string, incoming: string): string {
+  if (previous === "refunded") return previous;
+  if (previous === "paid" && incoming !== "refunded") return previous;
+  if (incoming === "paid" || incoming === "failed" || incoming === "refunded") return incoming;
+  return previous;
+}
 
 function paymentIdFromBody(body: PallyWebhookPayload): string | null {
   const raw = body.payment_id ?? body.id ?? body.transaction_id;
@@ -30,7 +82,7 @@ async function recordPaymentEvent(params: {
   paymentId: string | null;
   idempotencyKey: string;
   rawPayload: PallyWebhookPayload;
-}): Promise<boolean> {
+}): Promise<PaymentEventRecordResult> {
   try {
     const admin = createAdminClient() as unknown as {
       from: (table: string) => {
@@ -51,14 +103,47 @@ async function recordPaymentEvent(params: {
       raw_payload: params.rawPayload,
       processed_at: new Date().toISOString(),
     });
-    if (error?.code === "23505") return false;
+    if (error?.code === "23505") return "duplicate";
     if (error) {
       console.warn("[Pally webhook] payment_events:", error.message);
-      return true;
+      return "error";
     }
-    return true;
+    return "inserted";
   } catch {
-    return true;
+    return "error";
+  }
+}
+
+async function releasePaymentEvent(idempotencyKey: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    await admin.from("payment_events").delete().eq("idempotency_key", idempotencyKey);
+  } catch {
+    // The provider will retry after the non-2xx webhook response.
+  }
+}
+
+async function hasRecordedPaymentStatus(params: {
+  siteSlug: SiteSlug;
+  orderId: string;
+  paymentId: string | null;
+  status: string;
+}): Promise<boolean> {
+  try {
+    let query = createAdminClient()
+      .from("payment_events")
+      .select("id")
+      .eq("site_slug", params.siteSlug)
+      .eq("order_id", params.orderId)
+      .eq("provider", "pally")
+      .eq("status", params.status);
+    query = params.paymentId
+      ? query.eq("payment_id", params.paymentId)
+      : query.is("payment_id", null);
+    const { data, error } = await query.limit(1).maybeSingle();
+    return !error && Boolean((data as { id?: string } | null)?.id);
+  } catch {
+    return false;
   }
 }
 
@@ -80,12 +165,23 @@ async function processGptOrder(
   }
 
   const siteSlug: SiteSlug = "gpt-store";
-  const prevStatus = String(order.status);
-  const newStatus: OrderStatus =
+  const prevStatus = order.status;
+  const mappedStatus: OrderStatus =
     internalStatus === "paid" ? "paid" : (internalStatus as OrderStatus);
+  const newStatus = resolveGptOrderStatus(prevStatus, mappedStatus);
 
-  const idempotencyKey = `pally:${orderId}:${paymentId ?? pallyStatusKey(body)}`;
-  const isNewEvent = await recordPaymentEvent({
+  const idempotencyKey = `pally:${orderId}:${paymentId ?? "no-payment-id"}:${pallyStatusKey(body)}`;
+  if (
+    await hasRecordedPaymentStatus({
+      siteSlug,
+      orderId,
+      paymentId,
+      status: internalStatus,
+    })
+  ) {
+    return { ok: true };
+  }
+  const eventRecord = await recordPaymentEvent({
     siteSlug,
     orderId,
     eventType: "webhook",
@@ -94,26 +190,35 @@ async function processGptOrder(
     idempotencyKey,
     rawPayload: body,
   });
+  if (eventRecord === "duplicate") return { ok: true };
+  if (eventRecord === "error") {
+    return { ok: false, status: 500, error: "Payment event audit failed" };
+  }
 
-  const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
-  const paidAtIso = becamePaidLike ? new Date().toISOString() : undefined;
+  const paymentConfirmedNow = internalStatus === "paid" && !order.paid_at;
+  const becamePaidLike =
+    isTransitionToPaidLike(prevStatus, newStatus, siteSlug) || paymentConfirmedNow;
+  const paidAtIso = paymentConfirmedNow ? new Date().toISOString() : undefined;
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("orders")
     .update({
       status: newStatus,
       ...(paymentId ? { payment_id: paymentId, pally_order_id: paymentId } : {}),
       ...(paidAtIso ? { paid_at: paidAtIso } : {}),
     })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .eq("status", prevStatus)
+    .select("id");
 
-  if (updateError) {
-    console.error("[Pally webhook] GPT order update failed:", updateError.message, orderId);
+  if (updateError || !updated?.length) {
+    await releasePaymentEvent(idempotencyKey);
+    console.error(
+      "[Pally webhook] GPT order update failed:",
+      updateError?.message ?? "concurrent status change",
+      orderId,
+    );
     return { ok: false, status: 500, error: "Order update failed" };
-  }
-
-  if (!isNewEvent && becamePaidLike) {
-    return { ok: true };
   }
 
   if (becamePaidLike && order.user_id) {
@@ -147,54 +252,55 @@ async function processGptOrder(
     accountEmail: order.account_email,
   });
 
-  if (becamePaidLike && isNewEvent) {
+  if (becamePaidLike) {
     void handleOrderPaidNotification({
       orderId: order.id,
       siteSlug,
       planName: planTitle,
       price: order.price,
-      status: newStatus,
+      status: internalStatus === "paid" ? "paid" : newStatus,
       customerEmail,
       customerUserId: order.user_id,
       accountEmail: order.account_email ?? undefined,
       paidAt: new Date().toISOString(),
     }).catch(() => undefined);
 
-    await notifyPaymentStatus(
+    void notifyPaymentStatus(
       {
         id: order.id,
         plan_name: planTitle,
         price: order.price,
         account_email: order.account_email ?? undefined,
       },
-      newStatus,
+      internalStatus === "paid" ? "paid" : newStatus,
       { siteSlug, skipStaffInAppAndEmail: true },
-    );
+    ).catch(() => undefined);
 
     if (order.user_id) {
-      const { notifyGptCustomerOrderStatus } = await import(
-        "@/lib/notifications/gpt-customer-notifications"
-      );
-      await notifyGptCustomerOrderStatus({
-        orderId: order.id,
-        customerUserId: order.user_id,
-        status: newStatus,
-        planLabel: planTitle,
-      }).catch(() => undefined);
+      void import("@/lib/notifications/gpt-customer-notifications")
+        .then(({ notifyGptCustomerOrderStatus }) =>
+          notifyGptCustomerOrderStatus({
+            orderId: order.id,
+            customerUserId: order.user_id!,
+            status: newStatus,
+            planLabel: planTitle,
+          }),
+        )
+        .catch(() => undefined);
     }
   } else if (!becamePaidLike) {
-    await notifyPaymentStatus(
+    void notifyPaymentStatus(
       {
         id: order.id,
         plan_name: planTitle,
         price: order.price,
         account_email: order.account_email ?? undefined,
       },
-      newStatus,
+      internalStatus === "paid" ? "paid" : newStatus,
       { siteSlug },
-    );
+    ).catch(() => undefined);
     if (customerEmail) {
-      await notifyCustomerOrderStatus({
+      void notifyCustomerOrderStatus({
         customerEmail,
         customerUserId: order.user_id,
         orderId: order.id,
@@ -222,7 +328,7 @@ async function processSubsOrder(
 
   const { data: order, error: findError } = await subs
     .from("orders")
-    .select("id,status,payment_status,final_price,customer_email,user_id,tariff_id,promocode_code")
+    .select("id,status,payment_status,paid_at,final_price,customer_email,user_id,tariff_id,promocode_code")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -232,21 +338,24 @@ async function processSubsOrder(
 
   const siteSlug: SiteSlug = "subs-store";
   const prevStatus = String(order.status);
-  const newStatus =
-    internalStatus === "paid"
-      ? "paid"
-      : internalStatus === "failed"
-        ? "cancelled"
-        : prevStatus;
-  const newPaymentStatus =
-    internalStatus === "paid"
-      ? "paid"
-      : internalStatus === "failed"
-        ? "failed"
-        : order.payment_status;
+  const newStatus = resolveSubsOrderStatus(prevStatus, internalStatus);
+  const newPaymentStatus = resolveSubsPaymentStatus(
+    String(order.payment_status),
+    internalStatus,
+  );
 
-  const idempotencyKey = `pally:subs:${orderId}:${paymentId ?? pallyStatusKey(body)}`;
-  const isNewEvent = await recordPaymentEvent({
+  const idempotencyKey = `pally:subs:${orderId}:${paymentId ?? "no-payment-id"}:${pallyStatusKey(body)}`;
+  if (
+    await hasRecordedPaymentStatus({
+      siteSlug,
+      orderId,
+      paymentId,
+      status: internalStatus,
+    })
+  ) {
+    return { ok: true };
+  }
+  const eventRecord = await recordPaymentEvent({
     siteSlug,
     orderId,
     eventType: "webhook",
@@ -255,11 +364,17 @@ async function processSubsOrder(
     idempotencyKey,
     rawPayload: body,
   });
+  if (eventRecord === "duplicate") return { ok: true };
+  if (eventRecord === "error") {
+    return { ok: false, status: 500, error: "Payment event audit failed" };
+  }
 
-  const becamePaidLike = isTransitionToPaidLike(prevStatus, newStatus, siteSlug);
-  const paidAtIso = becamePaidLike ? new Date().toISOString() : undefined;
+  const paymentConfirmedNow = internalStatus === "paid" && !order.paid_at;
+  const becamePaidLike =
+    isTransitionToPaidLike(prevStatus, newStatus, siteSlug) || paymentConfirmedNow;
+  const paidAtIso = paymentConfirmedNow ? new Date().toISOString() : undefined;
 
-  const { error: updateError } = await subs
+  const { data: updated, error: updateError } = await subs
     .from("orders")
     .update({
       status: newStatus,
@@ -267,25 +382,38 @@ async function processSubsOrder(
       ...(paymentId ? { payment_external_id: paymentId } : {}),
       ...(paidAtIso ? { paid_at: paidAtIso } : {}),
     })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .eq("status", prevStatus)
+    .select("id");
 
-  if (updateError) {
-    console.error("[Pally webhook] Subs order update failed:", updateError.message, orderId);
+  if (updateError || !updated?.length) {
+    await releasePaymentEvent(idempotencyKey);
+    console.error(
+      "[Pally webhook] Subs order update failed:",
+      updateError?.message ?? "concurrent status change",
+      orderId,
+    );
     return { ok: false, status: 500, error: "Order update failed" };
-  }
-
-  if (!isNewEvent && becamePaidLike) {
-    return { ok: true };
   }
 
   let planTitle = "Spotify Premium";
   if (order.tariff_id) {
+    const { formatSubsTariffEmailLabel } = await import(
+      "@/lib/admin/subs-tariff-display-label"
+    );
     const { data: tariff } = await subs
       .from("tariffs")
-      .select("title")
+      .select("title,slug,category,duration_months")
       .eq("id", order.tariff_id)
       .maybeSingle();
-    if (tariff?.title) planTitle = tariff.title;
+    if (tariff) {
+      planTitle = formatSubsTariffEmailLabel(tariff);
+    } else {
+      console.warn(
+        "[Pally webhook] Subs tariff mapping missing for",
+        String(order.tariff_id).slice(0, 8),
+      );
+    }
   }
 
   const customerEmail = await resolveSubsOrderCustomerEmail({
@@ -307,52 +435,55 @@ async function processSubsOrder(
     }
   }
 
-  if (becamePaidLike && isNewEvent) {
+  if (becamePaidLike) {
     void handleOrderPaidNotification({
       orderId: order.id,
       siteSlug,
       planName: planTitle,
       price,
-      status: newStatus,
+      status: internalStatus === "paid" ? "paid" : newStatus,
       customerEmail,
       customerUserId: order.user_id,
       accountEmail: customerEmail ?? undefined,
       paidAt: new Date().toISOString(),
     }).catch(() => undefined);
 
-    await notifyPaymentStatus(
+    void notifyPaymentStatus(
       {
         id: order.id,
         plan_name: planTitle,
         price,
         account_email: customerEmail ?? undefined,
       },
-      newStatus,
+      internalStatus === "paid" ? "paid" : newStatus,
       { siteSlug, skipStaffInAppAndEmail: true },
-    );
+    ).catch(() => undefined);
 
     if (order.user_id) {
-      const { notifySubsStoreCustomerOrderStatus } = await import("@/lib/subs/subs-notifications");
-      await notifySubsStoreCustomerOrderStatus({
-        orderId: order.id,
-        customerUserId: order.user_id,
-        status: newStatus,
-        planLabel: planTitle,
-      }).catch(() => undefined);
+      void import("@/lib/subs/subs-notifications")
+        .then(({ notifySubsStoreCustomerOrderStatus }) =>
+          notifySubsStoreCustomerOrderStatus({
+            orderId: order.id,
+            customerUserId: order.user_id!,
+            status: newStatus,
+            planLabel: planTitle,
+          }),
+        )
+        .catch(() => undefined);
     }
   } else if (!becamePaidLike) {
-    await notifyPaymentStatus(
+    void notifyPaymentStatus(
       {
         id: order.id,
         plan_name: planTitle,
         price,
         account_email: customerEmail ?? undefined,
       },
-      newStatus,
+      internalStatus === "paid" ? "paid" : newStatus,
       { siteSlug },
-    );
+    ).catch(() => undefined);
     if (customerEmail) {
-      await notifyCustomerOrderStatus({
+      void notifyCustomerOrderStatus({
         customerEmail,
         customerUserId: order.user_id,
         orderId: order.id,
@@ -363,13 +494,16 @@ async function processSubsOrder(
       }).catch(() => {});
     }
     if (order.user_id) {
-      const { notifySubsStoreCustomerOrderStatus } = await import("@/lib/subs/subs-notifications");
-      await notifySubsStoreCustomerOrderStatus({
-        orderId: order.id,
-        customerUserId: order.user_id,
-        status: newStatus,
-        planLabel: planTitle,
-      }).catch(() => undefined);
+      void import("@/lib/subs/subs-notifications")
+        .then(({ notifySubsStoreCustomerOrderStatus }) =>
+          notifySubsStoreCustomerOrderStatus({
+            orderId: order.id,
+            customerUserId: order.user_id!,
+            status: newStatus,
+            planLabel: planTitle,
+          }),
+        )
+        .catch(() => undefined);
     }
   }
 

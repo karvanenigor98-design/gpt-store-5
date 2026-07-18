@@ -11,11 +11,12 @@ export type StaffNavBadges = {
   notifications: number;
   chat: number;
   orders: number;
+  reviews: number;
 };
 
-const EMPTY: StaffNavBadges = { notifications: 0, chat: 0, orders: 0 };
+const EMPTY: StaffNavBadges = { notifications: 0, chat: 0, orders: 0, reviews: 0 };
 
-const POLL_MS = 20_000;
+const POLL_MS = 60_000;
 const REALTIME_DEBOUNCE_MS = 800;
 
 export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNavBadges {
@@ -40,6 +41,7 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
         notifications: Number(j.notifications) || 0,
         chat: Number(j.chat) || 0,
         orders: Number(j.orders) || 0,
+        reviews: Number((j as StaffNavBadges).reviews) || 0,
       });
     } catch {
       /* noop */
@@ -58,10 +60,17 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
   useEffect(() => {
     void reload();
     const onRefresh = () => void reload();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
     window.addEventListener(STAFF_NAV_BADGES_REFRESH, onRefresh);
-    const t = window.setInterval(() => void reload(), POLL_MS);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const t = window.setInterval(() => {
+      if (document.visibilityState === "visible") void reload();
+    }, POLL_MS);
     return () => {
       window.removeEventListener(STAFF_NAV_BADGES_REFRESH, onRefresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(t);
     };
   }, [reload]);
@@ -71,13 +80,9 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
       const subs = tryCreateSubsBrowserClient();
       if (!subs) return;
 
+      // Notifications realtime lives in useStaffNotifications (calls refreshStaffNavBadges).
       const channel = subs
         .channel("staff-nav-badges-subs")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications" },
-          () => debouncedReload(),
-        )
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "orders" },
@@ -93,16 +98,12 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
 
     if (!supabase) return;
 
+    // Notifications channel owned by useStaffNotifications to avoid duplicate subscribers.
     const channel = supabase
       .channel(`staff-nav-badges-${siteSlug}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
-        () => debouncedReload(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications" },
         () => debouncedReload(),
       )
       .on(

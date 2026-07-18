@@ -66,6 +66,23 @@ export async function recordGptStaffNotification(params: {
     const admin = createAdminClient();
     const siteSlug = params.siteSlug ?? "gpt-store";
     const siteId = await getSiteUUID(siteSlug);
+    const entityId = params.entity_id ?? null;
+    const entityType = params.entity_type ?? null;
+
+    // Идемпотентность in-app: одно событие → одна строка на сайт (24ч окно).
+    if (entityId && entityType && siteId) {
+      const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+      const { data: existing } = await admin
+        .from("notifications")
+        .select("id")
+        .eq("site_id", siteId)
+        .eq("type", params.type)
+        .eq("entity_type", entityType)
+        .eq("entity_id", entityId)
+        .gte("created_at", since)
+        .limit(1);
+      if (existing?.length) return;
+    }
 
     const { error } = await admin.from("notifications").insert({
       site_id: siteId,
@@ -74,8 +91,8 @@ export async function recordGptStaffNotification(params: {
       type: params.type,
       title: params.title.trim().slice(0, 500),
       message: params.message.trim().slice(0, 2000),
-      entity_type: params.entity_type ?? null,
-      entity_id: params.entity_id ?? null,
+      entity_type: entityType,
+      entity_id: entityId,
       is_read: false,
     });
     if (error) {

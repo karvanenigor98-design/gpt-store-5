@@ -25,19 +25,9 @@ import {
   isPaidLikeStatus,
   isTransitionToPaidLike,
 } from "@/lib/orders/paid-like-status";
+import { orderStatusLabelRu } from "@/lib/orders/order-status-labels";
 
 export { isPaidLikeStatus, isTransitionToPaidLike };
-
-const STATUS_RU: Record<string, string> = {
-  pending: "Ожидает оплаты",
-  paid: "Оплачен",
-  activating: "В активации",
-  active: "Активирован",
-  processing: "В обработке",
-  awaiting_payment: "Ожидает оплаты",
-  activated: "Активирован",
-  completed: "Завершён",
-};
 
 /** Сайт заказа в GPT Supabase (orders). */
 export function resolveGptOrderSiteSlug(order: {
@@ -119,7 +109,7 @@ export async function handleOrderPaidNotification(
   try {
     const site = getSiteBySlug(params.siteSlug);
     const brand = site.brandName;
-    const statusLabel = STATUS_RU[params.status] ?? params.status;
+    const statusLabel = orderStatusLabelRu(params.siteSlug, params.status);
     const paidAtLabel = formatPaidAt(params.paidAt);
     const isRenewal =
       params.isRenewal ??
@@ -129,8 +119,6 @@ export async function handleOrderPaidNotification(
       profileEmail: params.customerEmail,
       accountEmail: params.accountEmail,
     });
-    const shortId = params.orderId.slice(0, 8);
-
     const staffTitle = isRenewal
       ? `Повторная оплата — ${brand}`
       : `Клиент оплатил заказ — ${brand}`;
@@ -162,13 +150,16 @@ export async function handleOrderPaidNotification(
       });
     }
 
+    const priceLabel = `${params.price.toLocaleString("ru-RU")} ₽`;
     const staffBodyLines = [
       `Сайт: ${brand}`,
+      `Заказ: ${params.orderId}`,
       `Клиент: ${clientEmail ?? "не указан"}`,
       `Тариф: ${params.planName}`,
-      `Сумма: ${params.price.toLocaleString("ru-RU")} ₽`,
+      `Сумма: ${priceLabel}`,
       `Дата оплаты: ${paidAtLabel}`,
       `Статус заказа: ${statusLabel}`,
+      `${params.planName} — ${priceLabel} — ${statusLabel}`,
       isRenewal
         ? "Повторная оплата — проверьте продление подписки."
         : "Клиент оплатил подписку — обработайте заказ.",
@@ -199,7 +190,7 @@ export async function handleOrderPaidNotification(
         "Оплата получена. Мы уже передали заказ в работу и скоро начнём активацию подписки.",
         `Тариф: ${params.planName}`,
         `Сумма: ${params.price.toLocaleString("ru-RU")} ₽`,
-        `Номер заказа: ${shortId}…`,
+        `Номер заказа: ${params.orderId}`,
         ...getOrderCustomerInstructionLines(params.siteSlug, params.status, "paid"),
       ];
 

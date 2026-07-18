@@ -1,9 +1,12 @@
+import Link from "next/link";
+import { headers } from "next/headers";
 import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { loadAdminOverviewStats, type AdminOverviewStats } from "@/lib/admin/revenue-stats";
 import { loadSubsStoreDashboardBlock } from "@/lib/admin/subs-store-dashboard";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
+import { staffPanelRootFromPathname } from "@/lib/admin/notificationNavigation";
 import { getSiteBySlug } from "@/lib/sites";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { countAuthUsersForAdminSite } from "@/lib/admin/gpt-auth-user-metrics";
@@ -18,6 +21,11 @@ export default async function AdminOverviewPage({
   const params = await searchParams;
   const siteSlug = resolveAdminSiteSlug(params);
   const site = getSiteBySlug(siteSlug);
+  const headersList = await headers();
+  const pathname = headersList.get("x-invoke-pathname") ?? headersList.get("x-pathname") ?? "";
+  const staffRoot = staffPanelRootFromPathname(pathname);
+  const isOperatorPanel = staffRoot === "/operator";
+  const reviewsHref = `${staffRoot}/reviews?status=pending&site=${siteSlug}`;
 
   let overview: AdminOverviewStats;
   let totalOrders: number;
@@ -195,19 +203,42 @@ export default async function AdminOverviewPage({
       "Выручка суммирует заказы со статусами оплата получена и далее по цепочке активации. Учёт по дате создания заказа в базе; точный учёт — у платёжного провайдера.";
   }
 
-  const stat = (label: string, value: string | number, color: string) => (
-    <div key={label} className="rounded-xl border border-gray-200 bg-white p-4">
-      <p className={`font-heading text-2xl font-bold md:text-3xl ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-gray-400">{label}</p>
-    </div>
-  );
+  const stat = (
+    label: string,
+    value: string | number,
+    color: string,
+    href?: string,
+  ) => {
+    const inner = (
+      <>
+        <p className={`font-heading text-2xl font-bold md:text-3xl ${color}`}>{value}</p>
+        <p className="mt-1 text-xs text-gray-400">{label}</p>
+      </>
+    );
+    if (!href) {
+      return (
+        <div key={label} className="rounded-xl border border-gray-200 bg-white p-4">
+          {inner}
+        </div>
+      );
+    }
+    return (
+      <Link
+        key={label}
+        href={href}
+        className="rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-purple-300 hover:bg-purple-50/40"
+      >
+        {inner}
+      </Link>
+    );
+  };
 
   const revenueAccent = siteSlug === "subs-store" ? "text-[#1DB954]" : "text-[#10a37f]";
 
   return (
     <div className="p-6">
       <h1 className="mb-6 font-heading text-2xl font-bold text-gray-900">
-        Панель администратора
+        {isOperatorPanel ? "Панель оператора" : "Панель администратора"}
         <span className="ml-3 text-base font-normal" style={{ color: site.primaryColor }}>
           {site.brandName}
         </span>
@@ -248,7 +279,7 @@ export default async function AdminOverviewPage({
         {stat("Активных подписок", activeOrders, revenueAccent)}
         {stat("Открытые чаты", openChats, "text-blue-500")}
         {stat("Непрочитано от клиентов", unreadClientMsgs, "text-orange-500")}
-        {stat("Отзывы на модерации", pendingReviews, "text-purple-500")}
+        {stat("Отзывы на модерации", pendingReviews, "text-purple-500", reviewsHref)}
       </div>
 
       <p className="mt-6 text-xs text-gray-500">{revenueFootnote}</p>

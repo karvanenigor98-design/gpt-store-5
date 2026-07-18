@@ -23,7 +23,7 @@ export default async function OperatorLayout({ children }: { children: React.Rea
     await requireStaffPanel("operator", returnPath);
 
     return (
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex min-h-screen flex-col bg-gray-50 md:flex-row">
         <Suspense
           fallback={
             <div
