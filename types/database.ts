@@ -121,6 +121,7 @@ export interface Database {
           staff_peer_id: string | null;
           first_message_at: string | null;
           last_operator_reply_at: string | null;
+          last_message_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -133,6 +134,7 @@ export interface Database {
           staff_peer_id?: string | null;
           first_message_at?: string | null;
           last_operator_reply_at?: string | null;
+          last_message_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
