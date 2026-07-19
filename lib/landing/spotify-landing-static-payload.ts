@@ -15,8 +15,6 @@ import {
 } from "@/lib/content/spotify";
 
 import { applyHeroPromoDisplayToSpotifyPlans } from "@/lib/landing/hero-promo-landing-discount";
-import { loadSpotifyTelegramCuratedReviews } from "@/lib/reviews/load-spotify-telegram-curated";
-import { reviewSortTimestamp } from "@/lib/reviews/review-sanitize";
 import type { SpotifyLandingPayload } from "./spotify-landing-types";
 
 const HOW_ICON_KEYS = ["music", "credit_card", "shield", "headphones"] as const;
@@ -95,14 +93,8 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
       title: "Что говорят пользователи после подключения Spotify Premium",
       subtitle: "Реальные отзывы из Telegram и профилей клиентов — сначала самые новые, рейтинг 4.9/5.",
     },
-    // Curated Telegram export (sync) so force-static landing always has a rotating pool.
-    reviews: loadSpotifyTelegramCuratedReviews()
-      .slice()
-      .sort(
-        (a, b) =>
-          reviewSortTimestamp(b.dateLabel, b.sortTs) - reviewSortTimestamp(a.dateLabel, a.sortTs),
-      )
-      .slice(0, 48),
+    // Filled on /spotify via getSpotifyPublicReviews (same source as /spotify/reviews).
+    reviews: [],
     pricingSection: {
       eyebrow: "Тарифы",
       title: "Выберите Premium под себя: индивидуальный, для двоих или Family",

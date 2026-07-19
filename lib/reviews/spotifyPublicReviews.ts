@@ -75,17 +75,13 @@ function filterSuitable(items: SpotifyLandingReview[]): SpotifyLandingReview[] {
 }
 
 /**
- * Публичные отзывы Spotify: Telegram-экспорт (отфильтровано) + Subs Supabase + одобренные из GPT DB.
+ * Единый source of truth для публичных отзывов SPOTIFY STORE:
+ * Telegram curated export + Subs Supabase (`is_published`). GPT reviews не подмешиваются.
  */
 export async function getSpotifyPublicReviews(limit = 200): Promise<SpotifyLandingReview[]> {
   const curated = loadSpotifyTelegramCuratedReviews();
-
   const subsReviews = await loadSubsReviews(limit);
-
   const fromDb = filterSuitable(subsReviews);
-
   const merged = sortSpotifyReviewsNewestFirst(dedupeReviews([...curated, ...fromDb]));
-
-  // Prefer Telegram curated + DB. Static landing also seeds curated via getStaticSpotifyLandingPayload.
   return merged.slice(0, limit);
 }

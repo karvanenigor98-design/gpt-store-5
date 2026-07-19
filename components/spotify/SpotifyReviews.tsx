@@ -45,23 +45,25 @@ export function SpotifyReviews() {
           </p>
         </motion.div>
 
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto w-full max-w-6xl">
           <SpotifyReviewsRotator reviews={published} />
         </div>
 
-        <div className="mx-auto mt-8 flex max-w-3xl justify-center">
-          <Link
-            href="/spotify/reviews"
-            className="inline-flex items-center rounded-xl px-6 py-2.5 text-sm font-semibold transition-all hover:opacity-90"
-            style={{
-              background: "rgba(29,185,84,0.12)",
-              border: "1px solid rgba(29,185,84,0.3)",
-              color: SPOTIFY_ACCENT,
-            }}
-          >
-            Больше отзывов
-          </Link>
-        </div>
+        {published.length > 0 ? (
+          <div className="mx-auto mt-8 flex max-w-6xl justify-center">
+            <Link
+              href="/spotify/reviews"
+              className="inline-flex items-center rounded-xl px-6 py-2.5 text-sm font-semibold transition-all hover:opacity-90"
+              style={{
+                background: "rgba(29,185,84,0.12)",
+                border: "1px solid rgba(29,185,84,0.3)",
+                color: SPOTIFY_ACCENT,
+              }}
+            >
+              Больше отзывов
+            </Link>
+          </div>
+        ) : null}
       </div>
     </section>
   );

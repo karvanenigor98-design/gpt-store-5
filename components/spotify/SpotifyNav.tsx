@@ -48,7 +48,7 @@ export function SpotifyNav({ initialLoggedIn = false }: { initialLoggedIn?: bool
             borderColor: "rgba(29,185,84,0.28)",
             background: "linear-gradient(180deg, rgba(18,28,20,0.95) 0%, rgba(10,14,11,0.95) 100%)",
           }}
-          aria-label={`${nav.brand} ${nav.brandAccent}`}
+          aria-label="SPOTIFY STORE"
         >
           <SpotifyStoreLogo height={28} compact />
         </Link>

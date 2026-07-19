@@ -13,6 +13,8 @@ type ConnectCheckoutButtonProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 
   planId: string;
   planName?: string | null;
   promoCode?: string | null;
+  /** Analytics source for select_plan goals (default: landing_pricing). */
+  trackSource?: string;
   children: ReactNode;
 };
 
@@ -21,6 +23,7 @@ export function ConnectCheckoutButton({
   planId,
   planName,
   promoCode,
+  trackSource = "landing_pricing",
   children,
   ...anchorProps
 }: ConnectCheckoutButtonProps) {
@@ -34,9 +37,9 @@ export function ConnectCheckoutButton({
     setBusy(true);
     try {
       if (siteSlug === "gpt-store") {
-        trackGptSelectPlan(planId, "landing_pricing");
+        trackGptSelectPlan(planId, trackSource);
       } else if (siteSlug === "subs-store") {
-        trackSpotifySelectPlan(planId, "landing_pricing");
+        trackSpotifySelectPlan(planId, trackSource);
       }
       await navigateToCheckoutOrAuth({
         siteSlug,

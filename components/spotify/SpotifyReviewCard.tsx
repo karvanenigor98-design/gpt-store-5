@@ -17,7 +17,7 @@ export function SpotifyReviewCard({ review, showFooter = true }: Props) {
 
   return (
     <article
-      className="rounded-2xl p-5"
+      className="flex h-full min-h-[12.5rem] flex-col rounded-2xl p-5"
       style={{
         background: "rgba(255,255,255,0.04)",
         border: "1px solid rgba(255,255,255,0.08)",
@@ -51,7 +51,7 @@ export function SpotifyReviewCard({ review, showFooter = true }: Props) {
       </header>
 
       <p
-        className="mt-3 rounded-xl p-3 text-sm leading-relaxed"
+        className="mt-3 line-clamp-5 flex-1 rounded-xl p-3 text-sm leading-relaxed"
         style={{
           background: "rgba(255,255,255,0.03)",
           border: "1px solid rgba(255,255,255,0.06)",

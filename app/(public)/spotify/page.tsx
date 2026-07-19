@@ -1,6 +1,7 @@
 import { getPublicSiteOrigin } from "@/lib/app-url";
 import { buildSpotifyJsonLd } from "@/lib/landing/get-spotify-landing-payload";
 import { getStaticSpotifyLandingPayload } from "@/lib/landing/spotify-landing-static-payload";
+import { getSpotifyPublicReviews } from "@/lib/reviews/spotifyPublicReviews";
 import { SpotifyNav } from "@/components/spotify/SpotifyNav";
 import { SpotifyHero } from "@/components/spotify/SpotifyHero";
 import { SpotifyTicker } from "@/components/spotify/SpotifyTicker";
@@ -25,11 +26,18 @@ import { LandingStickyMobileCta } from "@/components/landing/LandingStickyMobile
 const APP_URL = getPublicSiteOrigin();
 const SPOTIFY_URL = `${APP_URL}/spotify`;
 
-export const dynamic = "force-static";
+/** ISR: new published reviews appear without full redeploy. */
+export const revalidate = 120;
 
-/** Статический shell — тарифы/сессия подтягиваются на клиенте. */
-export default function SpotifyPage() {
+export default async function SpotifyPage() {
   const payload = getStaticSpotifyLandingPayload();
+  try {
+    const reviews = await getSpotifyPublicReviews(48);
+    if (reviews.length) payload.reviews = reviews;
+  } catch {
+    /* keep empty → honest empty state */
+  }
+
   const jsonLd = buildSpotifyJsonLd(payload, SPOTIFY_URL);
 
   return (

@@ -4,19 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 
 const DEFAULT_INTERVAL_MS = 10_000;
 
-/** Срез отзывов для лендинга: от startIndex по кругу (новые → старые → снова). */
+/**
+ * Non-wrapping chunk window: unique items only, no wrap-around duplicates in one batch.
+ * Tail chunk may be shorter than visibleCount; then cycle back to 0.
+ */
 export function sliceRotatingLandingReviews<T>(
   pool: readonly T[],
   startIndex: number,
   visibleCount: number,
 ): T[] {
   if (!pool.length) return [];
-  const count = Math.min(visibleCount, pool.length);
-  return Array.from({ length: count }, (_, i) => pool[(startIndex + i) % pool.length]!);
+  const start = ((startIndex % pool.length) + pool.length) % pool.length;
+  const count = Math.min(visibleCount, pool.length - start);
+  return pool.slice(start, start + count);
 }
 
 /**
- * Каждые intervalMs сдвигает окно на visibleCount отзывов по отсортированному пулу (новые → старые → цикл).
+ * Every intervalMs advances by visibleCount (chunked). Interval cleared on unmount.
+ * When pool.length <= visibleCount, shows all and does not rotate.
  */
 export function useLandingReviewsRotation<T>(
   pool: readonly T[],
@@ -33,7 +38,10 @@ export function useLandingReviewsRotation<T>(
     if (pool.length <= visibleCount) return;
 
     const id = window.setInterval(() => {
-      setStartIndex((prev) => (prev + visibleCount) % pool.length);
+      setStartIndex((prev) => {
+        const next = prev + visibleCount;
+        return next >= pool.length ? 0 : next;
+      });
     }, intervalMs);
 
     return () => window.clearInterval(id);
