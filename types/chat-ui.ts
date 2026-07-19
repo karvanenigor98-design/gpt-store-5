@@ -7,7 +7,12 @@ export type ChatRoomListItem = {
   last_message_at: string | null;
   last_message_preview: string | null;
   unread_operator: number;
-  client: { full_name: string | null; email: string | null };
+  client: {
+    full_name: string | null;
+    email: string | null;
+    telegram_username?: string | null;
+    telegram_id?: number | null;
+  };
 };
 
 /** Ответ API для виджета / клиента: одна сессия поддержки */
