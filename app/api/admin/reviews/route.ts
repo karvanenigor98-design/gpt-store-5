@@ -18,7 +18,7 @@ async function requireStaff() {
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return { user, admin: createAdminClient() };
+  return { user, role, admin: createAdminClient() };
 }
 
 /** Модерация отзывов GPT STORE (таблица reviews в GPT Supabase). */
@@ -47,6 +47,9 @@ export async function PATCH(req: NextRequest) {
   const siteId = await getSiteUUID(siteSlug);
 
   if (body.action === "delete") {
+    if (ctx.role !== "admin") {
+      return NextResponse.json({ error: "Удалять отзывы может только администратор" }, { status: 403 });
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query = applyGptStoreSiteFilter(
       (ctx.admin.from("reviews") as any).delete().eq("id", id),
@@ -114,7 +117,22 @@ export async function PATCH(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       query = (query as any).or(`site_id.eq.${siteId},site_id.is.null`);
     }
-    const { error } = (await query) as { error: { message?: string } | null };
+    let { error } = (await query) as { error: { message?: string } | null };
+    if (error?.message && /published_at|updated_at/i.test(error.message)) {
+      const fallbackPayload: Record<string, unknown> = {
+        status: "approved",
+        rating,
+      };
+      if (siteId && !existing.site_id) fallbackPayload.site_id = siteId;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let fb = (ctx.admin.from("reviews") as any).update(fallbackPayload).eq("id", id);
+      if (siteId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fb = (fb as any).or(`site_id.eq.${siteId},site_id.is.null`);
+      }
+      const retry = (await fb) as { error: { message?: string } | null };
+      error = retry.error;
+    }
     if (error) {
       return NextResponse.json({ error: error.message ?? "Не удалось обновить отзыв" }, { status: 500 });
     }

@@ -17,9 +17,18 @@ export async function alertStaffOnClientSupportMessage(params: {
   clientUserId: string | null;
   clientEmail: string | null;
   messagePreview: string;
+  clientName?: string | null;
+  telegramUsername?: string | null;
 }): Promise<void> {
   const preview = (params.messagePreview || "—").slice(0, 400);
-  const who = params.clientEmail?.trim() || params.clientUserId || "гость";
+  const email = params.clientEmail?.trim() || null;
+  const name = params.clientName?.trim() || null;
+  const tg = params.telegramUsername?.replace(/^@+/, "").trim() || null;
+  const who =
+    [name, email, tg ? `@${tg}` : null].filter(Boolean).join(" · ") ||
+    params.clientUserId ||
+    "гость";
+  const storeLabel = params.siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
   const app = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3056";
 
   const chatHref =
@@ -27,29 +36,34 @@ export async function alertStaffOnClientSupportMessage(params: {
       ? `${app}/operator/chat?site=subs-store&thread_id=${params.sessionId}`
       : `${app}/operator/chat?site=gpt-store&session_id=${params.sessionId}`;
 
+  const title = `${storeLabel}: новое сообщение`;
+  const message = `${who}: «${preview}»`;
+
   if (params.siteSlug === "subs-store") {
     await recordSubsStaffNotification({
       type: "new_chat_message",
-      title: "Subs Store: клиент написал",
-      message: `${who}: ${preview}`,
+      title,
+      message,
       entity_type: "chat_thread",
       entity_id: params.sessionId,
       sendEmail: false,
+      refreshExistingChat: true,
     });
   } else {
     await recordGptStaffNotification({
       type: "new_chat_message",
-      title: "💬 Клиент написал",
-      message: `${who}: ${preview}`,
+      title,
+      message,
       entity_type: "chat_session",
       entity_id: params.sessionId,
       siteSlug: "gpt-store",
+      refreshExistingChat: true,
     });
   }
 
   // Telegram is independent of email throttle — always notify staff chat.
   void sendTelegramStaffChatAlert({
-    clientEmail: params.clientEmail,
+    clientEmail: email,
     messagePreview: preview,
     chatHref,
     siteSlug: params.siteSlug,
@@ -62,8 +76,7 @@ export async function alertStaffOnClientSupportMessage(params: {
   await emailStaffClientChatMessage({
     siteSlug: params.siteSlug,
     sessionId: params.sessionId,
-    clientEmail: params.clientEmail,
+    clientEmail: email,
     messagePreview: preview,
   });
 }
-

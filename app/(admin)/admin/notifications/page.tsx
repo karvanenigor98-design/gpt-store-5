@@ -60,6 +60,7 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 type FilterType = "all" | "unread" | NotificationType;
+type SiteFilter = "all" | "gpt-store" | "subs-store";
 
 function resolveSiteSlug(sp: URLSearchParams): AdminNotificationSiteSlug {
   const raw = sp.get("site");
@@ -78,10 +79,14 @@ function NotificationsPageContent() {
   const siteSlug = resolveSiteSlug(searchParams);
 
   const [filter, setFilter] = useState<FilterType>("all");
+  // Selected store switcher must NOT hide the other store's notifications.
+  const [siteFilter, setSiteFilter] = useState<SiteFilter>("all");
   const { items, unread: unreadCount, loading, markingAll, loadError, markRead, markAllRead } =
     useStaffNotificationsContext();
 
   const filteredItems = items.filter((i) => {
+    const itemSite = (i.site_id === "subs-store" ? "subs-store" : "gpt-store") as SiteFilter;
+    if (siteFilter !== "all" && itemSite !== siteFilter) return false;
     if (filter === "unread") return !i.is_read;
     if (filter !== "all") return i.type === filter;
     return true;
@@ -110,6 +115,32 @@ function NotificationsPageContent() {
             {markingAll ? "Сохраняем…" : "Прочитать всё"}
           </button>
         )}
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        {(
+          [
+            { value: "all", label: "Все магазины" },
+            { value: "gpt-store", label: "GPT STORE" },
+            { value: "subs-store", label: "SPOTIFY STORE" },
+          ] as const
+        ).map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            onClick={() => setSiteFilter(f.value)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              siteFilter === f.value
+                ? f.value === "subs-store"
+                  ? "bg-[#1DB954] text-white"
+                  : "bg-[#10a37f] text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

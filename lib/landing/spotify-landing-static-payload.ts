@@ -1,12 +1,11 @@
 import type { SpotifyPlan } from "@/lib/content/spotify";
-import { getGptStoreLandingPath } from "@/lib/store-urls";
+import { getCrossStoreLandingHref } from "@/lib/store-urls";
 import {
   SPOTIFY_FAQ,
   SPOTIFY_GUARANTEE_POINTS,
   SPOTIFY_HERO,
   SPOTIFY_HOW_IT_WORKS,
   SPOTIFY_PLANS,
-  SPOTIFY_REVIEWS,
   SPOTIFY_RUSSIA_DISCLAIMER,
   SPOTIFY_RUSSIA_POINTS,
   SPOTIFY_SAFETY_MYTHS,
@@ -94,7 +93,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
       title: "Что говорят пользователи после подключения Spotify Premium",
       subtitle: "Реальные отзывы из Telegram и профилей клиентов — сначала самые новые, рейтинг 4.9/5.",
     },
-    reviews: SPOTIFY_REVIEWS.map((r) => ({ ...r })),
+    reviews: [],
     pricingSection: {
       eyebrow: "Тарифы",
       title: "Выберите Premium под себя: индивидуальный, для двоих или Family",
@@ -108,7 +107,7 @@ export function getStaticSpotifyLandingPayload(): SpotifyLandingPayload {
       title: "ChatGPT Plus / Pro",
       description:
         "ChatGPT Plus без иностранной карты: подключение в России, оплата в рублях и поддержка.",
-      ctaHref: getGptStoreLandingPath(),
+      ctaHref: getCrossStoreLandingHref("gpt-store"),
       ctaLabel: "Перейти в GPT STORE",
       showOnLanding: true,
     },

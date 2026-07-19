@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { appendCheckoutReturnCookie } from "@/lib/payments/checkout-return-cookie";
 import { buildPallyRedirectUrls, createPallyPayment } from "@/lib/payments/pally";
-import { applyPromo, findPromo } from "@/lib/store-config";
+import { applyPromo } from "@/lib/store-config";
 import { getSubsStoreConfig } from "@/lib/subs-store-config";
 import { createSubsAwaitingPaymentOrder } from "@/lib/subs/create-subs-order";
 import { scheduleUnpaidOrderReminder } from "@/lib/email/schedule-unpaid-reminder";
@@ -111,10 +111,23 @@ export async function POST(request: NextRequest) {
       }
 
       const promoAllowed = plan.allowPromocodes !== false;
-      const promo = promoAllowed ? findPromo(config.promoCodes, promoCode, plan.id) : null;
-      if (promoCode?.trim() && promoAllowed && !promo) {
+      let promo: import("@/lib/store-config").PromoCode | null = null;
+      if (promoCode?.trim() && promoAllowed) {
+        const { resolvePromoForPlan, promoUserMessage } = await import(
+          "@/lib/promocodes/promo-resolve"
+        );
+        const resolved = resolvePromoForPlan(config.promoCodes, promoCode, plan.id);
+        if (!resolved.ok) {
+          console.warn("[subs-checkout] promo rejected:", resolved.technical, {
+            planId: plan.id,
+            reason: resolved.reason,
+          });
+          return NextResponse.json({ error: promoUserMessage(resolved.reason) }, { status: 400 });
+        }
+        promo = resolved.promo;
+      } else if (promoCode?.trim() && !promoAllowed) {
         return NextResponse.json(
-          { error: "Промокод недействителен или не подходит к этому тарифу" },
+          { error: "Промокод не подходит к выбранному тарифу" },
           { status: 400 },
         );
       }

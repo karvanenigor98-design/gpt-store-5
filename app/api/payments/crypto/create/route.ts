@@ -4,7 +4,7 @@ import { createCryptoPayment } from "@/lib/payments/crypto";
 import { notifyCustomerOrderCreated, notifyNewOrder } from "@/lib/telegram/notifications";
 import { PLUS_PLANS, PRO_PLANS } from "@/lib/chatgpt-data";
 import { z } from "zod";
-import { applyPromo, findPromo, getStoreConfig, splitPlans } from "@/lib/store-config";
+import { applyPromo, getStoreConfig, splitPlans } from "@/lib/store-config";
 
 const schema = z.object({
   planId: z.string(),
@@ -41,7 +41,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Plan is out of stock" }, { status: 400 });
   }
 
-  const promo = findPromo(config.promoCodes, parsed.data.promoCode, plan.id);
+  let promo: import("@/lib/store-config").PromoCode | null = null;
+  if (parsed.data.promoCode?.trim()) {
+    const { resolvePromoForPlan, promoUserMessage } = await import("@/lib/promocodes/promo-resolve");
+    const resolved = resolvePromoForPlan(config.promoCodes, parsed.data.promoCode, plan.id);
+    if (!resolved.ok) {
+      console.warn("[crypto-checkout] promo rejected:", resolved.technical, {
+        planId: plan.id,
+        reason: resolved.reason,
+      });
+      return NextResponse.json({ error: promoUserMessage(resolved.reason) }, { status: 400 });
+    }
+    promo = resolved.promo;
+  }
   const { finalPrice, discountValue } = applyPromo(plan.price, promo);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://subrf.ru";

@@ -85,6 +85,7 @@ export async function insertSubsStoreNotification(params: {
   message: string;
   entity_type?: string | null;
   entity_id?: string | null;
+  refreshExistingChat?: boolean;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const subs = createSubsStoreAdminClient();
   if (!subs) return { ok: false, reason: "subs_not_configured" };
@@ -94,6 +95,10 @@ export async function insertSubsStoreNotification(params: {
 
   const entityType = params.entity_type ?? null;
   const entityId = params.entity_id ?? null;
+  const title = params.title.trim().slice(0, 500);
+  const message = clipMessage(params.message);
+  const nowIso = new Date().toISOString();
+
   if (entityId && entityType) {
     const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
     const { data: existing } = await subs
@@ -105,15 +110,33 @@ export async function insertSubsStoreNotification(params: {
       .eq("entity_id", entityId)
       .gte("created_at", since)
       .limit(1);
-    if (existing?.length) return { ok: true };
+    if (existing?.length) {
+      if (params.refreshExistingChat && params.type === "new_chat_message") {
+        const id = (existing[0] as { id: string }).id;
+        const { error: updErr } = await subs
+          .from("notifications")
+          .update({
+            title,
+            message,
+            is_read: false,
+            created_at: nowIso,
+          })
+          .eq("id", id);
+        if (updErr) {
+          console.error("[subs-notifications] refresh failed:", updErr.message);
+          return { ok: false, reason: updErr.message };
+        }
+      }
+      return { ok: true };
+    }
   }
 
   const row: Record<string, unknown> = {
     recipient_user_id: params.recipientUserId,
     recipient_role: null,
     type: params.type,
-    title: params.title.trim().slice(0, 500),
-    message: clipMessage(params.message),
+    title,
+    message,
     is_read: false,
     entity_type: entityType,
     entity_id: entityId,
@@ -142,12 +165,13 @@ export async function notifySubsStoreStaffInboxNewChatMessage(params: {
   const { recordSubsStaffNotification } = await import("@/lib/notifications/staff-events");
   await recordSubsStaffNotification({
     type: "new_chat_message",
-    title: "Subs Store: новое сообщение в чате",
-    message: `Клиент (${who}): ${preview}`,
+    title: "SPOTIFY STORE: новое сообщение",
+    message: `${who}: «${preview}»`,
     entity_type: "chat_thread",
     entity_id: params.sessionId,
-    emailSubject: "💬 Клиент написал в чат — Subs Store",
-    emailBody: `Новое сообщение в Subs Store\nКлиент: ${who}\nТекст: ${preview}\n\nОператор: ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3056"}/operator/chat?site=subs-store&thread_id=${params.sessionId}\nАдмин: ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3056"}/admin/chat?site=subs-store&thread_id=${params.sessionId}`,
+    emailSubject: `SPOTIFY STORE — новое сообщение от ${who}`,
+    emailBody: `SPOTIFY STORE — новое сообщение\nКлиент: ${who}\nТекст: ${preview}\n\nОператор: ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3056"}/operator/chat?site=subs-store&thread_id=${params.sessionId}\nАдмин: ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3056"}/admin/chat?site=subs-store&thread_id=${params.sessionId}`,
+    refreshExistingChat: true,
   });
 }
 

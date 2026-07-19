@@ -36,7 +36,7 @@ const NAV: { href: string; label: string; icon: typeof LayoutDashboard; badge: B
   { href: "/admin/tariffs", label: "Тарифы", icon: Layers, badge: null },
   { href: "/admin/promocodes", label: "Промокоды", icon: Tag, badge: null },
   { href: "/admin/discounts", label: "Скидки", icon: Percent, badge: null },
-  { href: "/admin/reviews", label: "Отзывы", icon: Star, badge: "reviews" },
+  { href: "/admin/reviews?status=pending", label: "Отзывы", icon: Star, badge: "reviews" },
   { href: "/admin/settings", label: "Настройки", icon: Settings, badge: null },
 ];
 

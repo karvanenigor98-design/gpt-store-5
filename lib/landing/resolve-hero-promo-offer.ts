@@ -1,5 +1,11 @@
 import { applyLandingDiscount, pickLandingDiscount, type LandingDiscount } from "@/lib/pricing-helpers";
 import { heroPromoFixedDisplay, type HeroPromoSiteConfig } from "@/lib/landing/hero-promo-config";
+import { isPromoDeadlineActive } from "@/lib/landing/promo-deadline";
+
+function activeFixedPromo(config: HeroPromoSiteConfig) {
+  if (!isPromoDeadlineActive(config.deadline)) return null;
+  return heroPromoFixedDisplay(config);
+}
 
 export type HeroPromoOffer = {
   planId: string;
@@ -72,7 +78,7 @@ function resolvePrices(
     };
   }
 
-  const fixed = heroPromoFixedDisplay(config);
+  const fixed = activeFixedPromo(config);
   if (fixed) {
     return fixed;
   }
@@ -108,9 +114,12 @@ export function resolveGptHeroPromoOffer(
           plan.landing_discount_name,
           config,
         )
-      : (heroPromoFixedDisplay(config) ?? { original: plan.price, sale: plan.price, label: null });
+      : (activeFixedPromo(config) ?? { original: plan.price, sale: plan.price, label: null });
 
-  if (sale >= original || sale <= 0) return null;
+  if (sale <= 0) return null;
+  const hasDiscount = sale < original;
+  const displayOriginal = hasDiscount ? original : sale;
+  const displayLabel = hasDiscount ? label : null;
 
   const currency = plan.currency ?? "₽";
   const period = plan.period ?? "мес";
@@ -119,9 +128,9 @@ export function resolveGptHeroPromoOffer(
     planId: plan.id,
     planName: plan.name,
     periodLabel: period,
-    originalPrice: original,
+    originalPrice: displayOriginal,
     salePrice: sale,
-    discountLabel: label,
+    discountLabel: displayLabel,
     discountPercent: config.fallbackDiscountPercent,
     checkoutHref: `/checkout?plan=${encodeURIComponent(plan.id)}`,
     ctaLabel: `Подключить за ${sale.toLocaleString("ru")} ${currency}`,
@@ -156,9 +165,12 @@ export function resolveSpotifyHeroPromoOffer(
           plan.landingDiscountName,
           config,
         )
-      : (heroPromoFixedDisplay(config) ?? { original: plan.price, sale: plan.price, label: null });
+      : (activeFixedPromo(config) ?? { original: plan.price, sale: plan.price, label: null });
 
-  if (sale >= original || sale <= 0) return null;
+  if (sale <= 0) return null;
+  const hasDiscount = sale < original;
+  const displayOriginal = hasDiscount ? original : sale;
+  const displayLabel = hasDiscount ? label : null;
 
   const periodLabel =
     plan.durationMonths && plan.durationMonths > 1 ? `${plan.durationMonths} мес` : "мес";
@@ -167,9 +179,9 @@ export function resolveSpotifyHeroPromoOffer(
     planId: plan.id,
     planName: plan.name,
     periodLabel,
-    originalPrice: original,
+    originalPrice: displayOriginal,
     salePrice: sale,
-    discountLabel: label,
+    discountLabel: displayLabel,
     discountPercent: config.fallbackDiscountPercent,
     checkoutHref: `/checkout/spotify?plan=${encodeURIComponent(plan.id)}`,
     ctaLabel: plan.ctaText?.trim() || `Подключить за ${sale.toLocaleString("ru")} ₽`,

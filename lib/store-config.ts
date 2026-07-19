@@ -3,6 +3,7 @@ import { applyHeroPromoDisplayToGptPlans } from "@/lib/landing/hero-promo-landin
 import type { LandingDiscount } from "@/lib/pricing-helpers";
 import { applyLandingDiscount, pickLandingDiscount } from "@/lib/pricing-helpers";
 import { fetchPromoCodesFromDb } from "@/lib/promocodes/db-promo";
+import { resolvePromoForPlan } from "@/lib/promocodes/promo-resolve";
 import { tryCreateAdminClient } from "@/lib/supabase/server";
 
 export type PromoCode = {
@@ -256,14 +257,8 @@ export function splitPlans(plans: ExtendedPlan[]) {
 }
 
 export function findPromo(codes: PromoCode[], code: string | null | undefined, planId: string): PromoCode | null {
-  const normalized = (code ?? "").trim().toUpperCase();
-  if (!normalized) return null;
-  const found = codes.find((c) => {
-    if (!c.active || c.code !== normalized) return false;
-    if (!c.planIds?.length) return true;
-    return c.planIds.includes(planId);
-  });
-  return found ?? null;
+  const result = resolvePromoForPlan(codes, code, planId);
+  return result.ok ? result.promo : null;
 }
 
 export function applyPromo(price: number, promo: PromoCode | null) {

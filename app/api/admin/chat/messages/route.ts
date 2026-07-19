@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     .select("*")
     .in("session_id", sessionIds)
     .order("created_at", { ascending: true })
-    .limit(50000);
+    .limit(1000);
 
   if (messagesError) {
     return NextResponse.json({ error: "Не удалось загрузить сообщения" }, { status: 500 });

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import type { ChatRoomListItem } from "@/types/chat-ui";
 import { formatTime } from "@/lib/chat/constants";
-import { refreshStaffNavBadges } from "@/lib/admin/staff-nav-badges-client";
 import { cn } from "@/lib/utils";
 import { getSiteBySlug } from "@/lib/sites";
 import { Search } from "lucide-react";
@@ -33,7 +33,8 @@ export function RoomList({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  const subsSupabase = useMemo(() => tryCreateSubsBrowserClient(), []);
   const accent = getSiteBySlug(siteSlug === "subs-store" ? "subs-store" : "gpt-store").primaryColor;
 
   useEffect(() => {
@@ -52,7 +53,6 @@ export function RoomList({
     if (res.ok) {
       const data = (await res.json()) as ChatRoomListItem[];
       setRooms(Array.isArray(data) ? data : []);
-      refreshStaffNavBadges();
     } else {
       setRooms([]);
       try {
@@ -73,28 +73,55 @@ export function RoomList({
   useEffect(() => {
     if (siteSlug === "subs-store") return;
 
+    let timer: number | null = null;
+    const scheduleReload = () => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void loadRooms();
+      }, 600);
+    };
+
     const channel = supabase
       .channel("rooms-list-refresh")
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_sessions" }, () => {
-        void loadRooms();
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => {
-        void loadRooms();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, () => {
-        void loadRooms();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_sessions" }, scheduleReload)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, scheduleReload)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, scheduleReload)
       .subscribe();
     return () => {
+      if (timer != null) window.clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
   }, [supabase, loadRooms, siteSlug]);
 
   useEffect(() => {
     if (siteSlug !== "subs-store") return;
+    if (!subsSupabase) return;
+
+    let timer: number | null = null;
+    const scheduleReload = () => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void loadRooms();
+      }, 600);
+    };
+
+    const channel = subsSupabase
+      .channel("subs-rooms-list-refresh")
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_threads" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, scheduleReload)
+      .subscribe();
+
+    return () => {
+      if (timer != null) window.clearTimeout(timer);
+      void subsSupabase.removeChannel(channel);
+    };
+  }, [siteSlug, loadRooms, subsSupabase]);
+
+  useEffect(() => {
+    if (siteSlug !== "subs-store") return;
     const t = window.setInterval(() => {
-      void loadRooms();
-    }, 5000);
+      if (document.visibilityState === "visible") void loadRooms();
+    }, 30_000);
     return () => window.clearInterval(t);
   }, [siteSlug, loadRooms]);
 
@@ -132,7 +159,7 @@ export function RoomList({
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск email или имени…"
+          placeholder="Email, имя, Telegram, ID заказа…"
           className="w-full rounded-lg border border-gray-100 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:ring-2"
           style={{ ["--tw-ring-color" as string]: `${accent}33` }}
           onFocus={(e) => {
@@ -165,7 +192,7 @@ export function RoomList({
 
         return (
           <button
-            key={room.client_id}
+            key={room.id ?? room.client_id}
             type="button"
             onClick={() => onSelect(room)}
             className={cn(

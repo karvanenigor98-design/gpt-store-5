@@ -23,7 +23,8 @@ export async function requireAdminPage(): Promise<{
   }
   const role: UserRole = await resolveServerRole(user);
   if (role === "operator") {
-    redirect("/operator");
+    // Always keep ?site= — bare /operator looks like "home" and breaks StaffSiteUrlSync deep links.
+    redirect("/operator?site=gpt-store");
   }
   if (role !== "admin") {
     redirect("/dashboard?site=gpt-store");

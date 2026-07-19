@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { updateProfileFlexible } from "@/lib/admin/updateProfileFlexible";
 import {
+  clearStaffSiteMembershipOnDb,
+  clearStaffSiteMembershipsInGpt,
   syncStaffSiteMembershipsInGpt,
   upsertStaffSiteMembershipOnDb,
 } from "@/lib/auth/syncStaffSiteMemberships";
@@ -102,11 +104,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: profileUpdate.error }, { status: 400 });
     }
 
-    await upsertStaffSiteMembershipOnDb(db, userId, site, role);
-
     const gptAdmin = createAdminClient();
-    if (gptAdmin) {
-      await syncStaffSiteMembershipsInGpt(gptAdmin, userId, role);
+    if (role === "client") {
+      await clearStaffSiteMembershipOnDb(db, userId, site);
+      if (gptAdmin) {
+        await clearStaffSiteMembershipsInGpt(gptAdmin, userId);
+      }
+    } else {
+      await upsertStaffSiteMembershipOnDb(db, userId, site, role);
+      if (gptAdmin) {
+        await syncStaffSiteMembershipsInGpt(gptAdmin, userId, role);
+      }
     }
 
     try {

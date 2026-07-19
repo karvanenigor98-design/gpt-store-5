@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 type Props = {
   orderId: string;
-  /** Show full UUID always (order detail). Default: compact truncated. */
+  /** Show full UUID always (order detail). Default: full on md+, compact on mobile. */
   full?: boolean;
 };
 
@@ -17,7 +17,6 @@ function truncateOrderId(id: string): string {
 
 export function OrderIdCell({ orderId, full = false }: Props) {
   const [copied, setCopied] = useState(false);
-  const display = full ? orderId : truncateOrderId(orderId);
 
   const handleCopy = async () => {
     try {
@@ -31,14 +30,27 @@ export function OrderIdCell({ orderId, full = false }: Props) {
   };
 
   return (
-    <div className="flex max-w-[11rem] items-center gap-1.5 sm:max-w-[13rem]">
+    <div className="flex min-w-0 items-center gap-1.5">
       <code
-        className="truncate text-[11px] text-gray-500"
+        className={
+          full
+            ? "break-all text-[11px] text-gray-500"
+            : "hidden text-[11px] text-gray-500 md:inline md:whitespace-nowrap"
+        }
         title={orderId}
         aria-label={`ID заказа ${orderId}`}
       >
-        {display}
+        {orderId}
       </code>
+      {!full ? (
+        <code
+          className="truncate text-[11px] text-gray-500 md:hidden"
+          title={orderId}
+          aria-label={`ID заказа ${orderId}`}
+        >
+          {truncateOrderId(orderId)}
+        </code>
+      ) : null}
       <button
         type="button"
         onClick={handleCopy}

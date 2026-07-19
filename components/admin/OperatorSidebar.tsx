@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { LayoutDashboard, ShoppingBag, MessageCircle, UserCircle, Bell, Star } from "lucide-react";
 import { getAdminSelectedSiteSlug } from "@/components/admin/SiteSwitcher";
 import { resolveStaffSiteSlug } from "@/lib/admin/resolveStaffSiteSlug";
@@ -33,22 +32,11 @@ function resolveSite(sp: URLSearchParams): "gpt-store" | "subs-store" {
 export function OperatorSidebar() {
   const sp = useSearchParams();
   const pathname = usePathname();
-  const router = useRouter();
   const siteSlug = resolveSite(sp);
   const site = getSiteBySlug(siteSlug);
   const accent = site.primaryColor;
   const badges = useStaffNavBadges(siteSlug);
-
-  useEffect(() => {
-    const urlSite = sp.get("site");
-    if (urlSite === "gpt-store" || urlSite === "subs-store") return;
-    const saved = getAdminSelectedSiteSlug();
-    if (saved !== "gpt-store" && saved !== "subs-store") return;
-    const q = new URLSearchParams(sp.toString());
-    q.set("site", saved);
-    const qs = q.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  }, [sp, pathname, router]);
+  // Site query sync is owned solely by StaffSiteUrlSync in layout (avoid double replace).
 
   return (
     <>

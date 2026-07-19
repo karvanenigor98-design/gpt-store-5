@@ -12,7 +12,7 @@ import {
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
 import { reachLandingGoal } from "@/lib/analytics/reach-landing-goal";
 import { useLandingHeroAb } from "@/lib/analytics/landing-hero-ab";
-import { HeroPromoOfferCard } from "@/components/landing/HeroPromoOfferCard";
+import { SpotifyPromoPlayerCard } from "@/components/spotify/SpotifyPromoPlayerCard";
 import { useSpotifyLanding } from "@/components/spotify/SpotifyLandingProvider";
 
 function scrollToSpotifyPricingFromHero(source: string): void {
@@ -22,11 +22,12 @@ function scrollToSpotifyPricingFromHero(source: string): void {
 }
 
 export function SpotifyHero() {
-  const { hero } = useSpotifyLanding();
+  const { hero, heroPlayerPreview } = useSpotifyLanding();
   const heroAb = useLandingHeroAb("subs-store");
   const badge = heroAb === "h1" ? SPOTIFY_HERO_BADGE_NO_TIMING : SPOTIFY_HERO_BADGE_WITH_TIMING;
   const accentTitle =
     heroAb === "h1" ? SPOTIFY_HERO_ACCENT_WITH_TIMING : SPOTIFY_HERO_ACCENT_BASE;
+  const player = heroPlayerPreview;
 
   return (
     <section
@@ -135,7 +136,19 @@ export function SpotifyHero() {
               transition={{ delay: 0.45, duration: 0.6 }}
               className="mt-5 md:hidden"
             >
-              <HeroPromoOfferCard site="spotify" />
+              <SpotifyPromoPlayerCard
+                badge={player.cardBadge}
+                title={player.cardTitle}
+                subtitle={player.cardSubtitle}
+                fromLabel={player.fromLabel}
+                priceRub={player.priceRub}
+                featureChips={player.featureChips}
+                href="#pricing"
+                scrollToId="pricing"
+                ctaLabel={hero.primaryCta}
+                variant="glass"
+                size="default"
+              />
             </motion.div>
 
             <motion.div
@@ -220,7 +233,19 @@ export function SpotifyHero() {
             transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="hidden md:block"
           >
-            <HeroPromoOfferCard site="spotify" layout="wide" />
+            <SpotifyPromoPlayerCard
+              badge={player.cardBadge}
+              title={player.cardTitle}
+              subtitle={player.cardSubtitle}
+              fromLabel={player.fromLabel}
+              priceRub={player.priceRub}
+              featureChips={player.featureChips}
+              href="#pricing"
+              scrollToId="pricing"
+              ctaLabel={hero.primaryCta}
+              variant="glass"
+              size="wide"
+            />
           </motion.div>
         </div>
       </div>

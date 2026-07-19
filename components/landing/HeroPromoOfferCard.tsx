@@ -23,13 +23,30 @@ type HeroPromoOfferCardProps = {
 export function HeroPromoOfferCard({ site, className, layout = "compact" }: HeroPromoOfferCardProps) {
   const { offer, daysLeft, deadlineLabel, promoTitle, loading } = useHeroPromoOffer(site);
 
-  if (!offer && !loading) return null;
+  if (loading && !offer) {
+    const isGpt = site === "gpt";
+    const wide = layout === "wide";
+    return (
+      <div
+        className={cn(
+          "relative w-full animate-pulse overflow-hidden rounded-2xl border",
+          wide ? "min-h-[280px] rounded-3xl" : "mx-auto min-h-[220px] max-w-md",
+          isGpt ? "border-[#10a37f]/20 bg-white/80" : "border-white/10 bg-white/[0.05]",
+          className,
+        )}
+        aria-hidden
+      />
+    );
+  }
+
   if (!offer) return null;
 
   const isGpt = site === "gpt";
   const accent = isGpt ? "#10a37f" : SPOTIFY_ACCENT;
   const planId = parsePlanIdFromCheckoutPath(offer.checkoutHref);
   const siteSlug = isGpt ? "gpt-store" : "subs-store";
+  const hasDiscount = offer.salePrice < offer.originalPrice;
+  const showCountdown = hasDiscount && daysLeft >= 0;
   const countdownText = promoDaysLeftLabel(daysLeft, deadlineLabel);
   const wide = layout === "wide";
 
@@ -63,7 +80,8 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
 
       <div className="relative">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
             style={{
               background: isGpt ? "rgba(16,163,127,0.1)" : "rgba(29,185,84,0.15)",
               color: accent,
@@ -71,7 +89,7 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
             }}
           >
             <Flame className="h-3.5 w-3.5" aria-hidden />
-            {promoTitle}
+            {hasDiscount ? promoTitle : isGpt ? "ChatGPT Plus" : "Spotify Premium"}
           </div>
           {offer.discountLabel ? (
             <span
@@ -87,7 +105,13 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
           ) : null}
         </div>
 
-        <p className={cn("mt-4 font-heading font-bold", isGpt ? "text-gray-900" : "text-white", wide ? "text-xl sm:text-2xl" : "text-lg")}>
+        <p
+          className={cn(
+            "mt-4 font-heading font-bold",
+            isGpt ? "text-gray-900" : "text-white",
+            wide ? "text-xl sm:text-2xl" : "text-lg",
+          )}
+        >
           {offer.planName}
           <span className={cn("ml-2 text-base font-semibold", isGpt ? "text-gray-400" : "text-white/45")}>
             / {offer.periodLabel}
@@ -95,26 +119,39 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
         </p>
 
         <div className="mt-3 flex flex-wrap items-end gap-2">
+          {hasDiscount ? (
+            <span
+              className={cn(
+                "font-heading text-lg font-semibold line-through",
+                isGpt ? "text-gray-400" : "text-white/35",
+              )}
+            >
+              {offer.originalPrice.toLocaleString("ru")} ₽
+            </span>
+          ) : null}
           <span
-            className={cn("font-heading text-lg font-semibold line-through", isGpt ? "text-gray-400" : "text-white/35")}
+            className={cn(
+              "font-heading font-bold",
+              isGpt ? "text-gray-900" : "text-white",
+              wide ? "text-4xl" : "text-3xl",
+            )}
           >
-            {offer.originalPrice.toLocaleString("ru")} ₽
-          </span>
-          <span className={cn("font-heading font-bold", isGpt ? "text-gray-900" : "text-white", wide ? "text-4xl" : "text-3xl")}>
             {offer.salePrice.toLocaleString("ru")}{" "}
             <span style={{ color: accent }}>₽</span>
           </span>
         </div>
 
-        <div
-          className={cn(
-            "mt-4 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
-            isGpt ? "bg-gray-50 text-gray-700" : "bg-black/30 text-white/80",
-          )}
-        >
-          <Clock3 className="h-4 w-4 shrink-0" style={{ color: accent }} aria-hidden />
-          <span>{countdownText}</span>
-        </div>
+        {showCountdown ? (
+          <div
+            className={cn(
+              "mt-4 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
+              isGpt ? "bg-gray-50 text-gray-700" : "bg-black/30 text-white/80",
+            )}
+          >
+            <Clock3 className="h-4 w-4 shrink-0" style={{ color: accent }} aria-hidden />
+            <span>{countdownText}</span>
+          </div>
+        ) : null}
 
         {planId ? (
           <ConnectCheckoutButton

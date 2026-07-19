@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { CHATGPT_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
 import { createGptStoreOrder } from "@/lib/orders/create-gpt-order";
-import { applyPromo, findPromo, getStoreConfig, splitPlans } from "@/lib/store-config";
+import { promoUserMessage, resolvePromoForPlan } from "@/lib/promocodes/promo-resolve";
+import { applyPromo, getStoreConfig, splitPlans, type PromoCode } from "@/lib/store-config";
 import type { Database, Json } from "@/types/database";
 
 export type GptCheckoutResolved = {
@@ -31,13 +32,21 @@ export async function resolveGptCheckoutPlan(
     return { ok: false, error: "Этот тариф временно отсутствует в наличии", status: 400 };
   }
 
-  const promo = findPromo(config.promoCodes, promoCode, plan.id);
-  if (promoCode?.trim() && !promo) {
-    return {
-      ok: false,
-      error: "Промокод недействителен или не подходит к этому тарифу",
-      status: 400,
-    };
+  let promo: PromoCode | null = null;
+  if (promoCode?.trim()) {
+    const resolved = resolvePromoForPlan(config.promoCodes, promoCode, plan.id);
+    if (!resolved.ok) {
+      console.warn("[gpt-checkout] promo rejected:", resolved.technical, {
+        planId: plan.id,
+        reason: resolved.reason,
+      });
+      return {
+        ok: false,
+        error: promoUserMessage(resolved.reason),
+        status: 400,
+      };
+    }
+    promo = resolved.promo;
   }
 
   const { finalPrice, discountValue } = applyPromo(plan.price, promo);

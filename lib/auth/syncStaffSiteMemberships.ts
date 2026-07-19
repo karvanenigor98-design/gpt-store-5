@@ -53,3 +53,56 @@ export async function upsertStaffSiteMembershipOnDb(
     /* optional */
   }
 }
+
+/**
+ * Demotion to client: clear staff memberships so resolveServerRole
+ * cannot resurrect operator/admin from stale site_memberships rows.
+ */
+export async function clearStaffSiteMembershipsInGpt(
+  gptAdmin: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  for (const site_slug of STAFF_SITES) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (gptAdmin.from("site_memberships") as any).upsert(
+        { user_id: userId, site_slug, role: "customer" },
+        { onConflict: "user_id,site_slug" },
+      );
+    } catch {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gptAdmin.from("site_memberships") as any)
+          .delete()
+          .eq("user_id", userId)
+          .eq("site_slug", site_slug);
+      } catch {
+        /* optional */
+      }
+    }
+  }
+}
+
+export async function clearStaffSiteMembershipOnDb(
+  db: SupabaseClient,
+  userId: string,
+  siteSlug: "gpt-store" | "subs-store",
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db.from("site_memberships") as any).upsert(
+      { user_id: userId, site_slug: siteSlug, role: "customer" },
+      { onConflict: "user_id,site_slug" },
+    );
+  } catch {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (db.from("site_memberships") as any)
+        .delete()
+        .eq("user_id", userId)
+        .eq("site_slug", siteSlug);
+    } catch {
+      /* optional */
+    }
+  }
+}

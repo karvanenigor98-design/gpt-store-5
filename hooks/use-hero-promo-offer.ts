@@ -3,11 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { HERO_PROMO_CONFIG, type HeroPromoSiteKey } from "@/lib/landing/hero-promo-config";
-import {
-  getDaysUntilPromoDeadline,
-  isPromoDeadlineActive,
-  type PromoDeadline,
-} from "@/lib/landing/promo-deadline";
+import { getDaysUntilPromoDeadline, type PromoDeadline } from "@/lib/landing/promo-deadline";
 import {
   resolveGptHeroPromoOffer,
   resolveSpotifyHeroPromoOffer,
@@ -136,7 +132,9 @@ export function useHeroPromoOffer(site: HeroPromoSiteKey): HeroPromoState {
   }, [site]);
 
   const offer = useMemo(() => {
-    if (!config.enabled || !isPromoDeadlineActive(config.deadline)) return null;
+    // Layout must never collapse when the seasonal promo window ends:
+    // still resolve the featured plan card (with or without discount).
+    if (!config.enabled) return null;
 
     if (site === "gpt") {
       const plans = gptPlans.filter((p): p is Required<Pick<GptPlanRow, "id" | "name" | "price">> & GptPlanRow =>

@@ -395,15 +395,17 @@ export async function notifyStaffAboutChatMessage(payload: {
       : payload.messagePreview;
 
   const site = payload.siteSlug ?? "gpt-store";
-  const brand = site === "subs-store" ? "Subs Store" : "GPT STORE";
-  const subject = `💬 Сообщение от клиента — ${brand}`;
+  const brand = site === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
+  const who = payload.fromEmail?.trim() || "клиент";
+  const subject = `${brand} — новое сообщение от ${who}`;
   const text = `Поступило новое сообщение от клиента.
 
-Отправитель: ${payload.fromEmail ?? "неизвестен"}
+Магазин: ${brand}
+Отправитель: ${who}
 Сессия: ${payload.sessionId}
 Сообщение: ${preview}
 
-Открыть чат: ${APP_URL}/admin/chat?site=${site}`;
+Открыть чат: ${APP_URL}/operator/chat?site=${site}${site === "subs-store" ? `&thread_id=${payload.sessionId}` : `&session_id=${payload.sessionId}`}`;
 
   const { recordGptStaffEvent, recordSubsStaffNotification } = await import(
     "@/lib/notifications/staff-events"
@@ -412,23 +414,25 @@ export async function notifyStaffAboutChatMessage(payload: {
   if (site === "subs-store") {
     await recordSubsStaffNotification({
       type: "new_chat_message",
-      title: `Subs Store: сообщение клиента`,
-      message: `${payload.fromEmail ?? "клиент"}: ${preview}`,
-      entity_type: "chat_session",
+      title: `${brand}: новое сообщение`,
+      message: `${who}: «${preview}»`,
+      entity_type: "chat_thread",
       entity_id: payload.sessionId,
       emailSubject: subject,
       emailBody: text,
+      refreshExistingChat: true,
     });
   } else {
     await recordGptStaffEvent({
       type: "new_chat_message",
-      title: "💬 Клиент написал",
-      message: `${payload.fromEmail ?? "клиент"}: ${preview}`,
+      title: `${brand}: новое сообщение`,
+      message: `${who}: «${preview}»`,
       entity_type: "chat_session",
       entity_id: payload.sessionId,
       siteSlug: "gpt-store",
       emailSubject: subject,
       emailBody: text,
+      refreshExistingChat: true,
     });
   }
 }

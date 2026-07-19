@@ -61,6 +61,11 @@ export async function recordGptStaffNotification(params: {
   siteSlug?: "gpt-store" | "subs-store";
   entity_type?: string | null;
   entity_id?: string | null;
+  /**
+   * For chat messages: refresh preview + mark unread instead of silently
+   * dropping a second message in the same session (24h window).
+   */
+  refreshExistingChat?: boolean;
 }): Promise<void> {
   try {
     const admin = createAdminClient();
@@ -68,8 +73,12 @@ export async function recordGptStaffNotification(params: {
     const siteId = await getSiteUUID(siteSlug);
     const entityId = params.entity_id ?? null;
     const entityType = params.entity_type ?? null;
+    const title = params.title.trim().slice(0, 500);
+    const message = params.message.trim().slice(0, 2000);
+    const nowIso = new Date().toISOString();
 
     // Идемпотентность in-app: одно событие → одна строка на сайт (24ч окно).
+    // Chat: обновляем preview и возвращаем в unread.
     if (entityId && entityType && siteId) {
       const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
       const { data: existing } = await admin
@@ -81,7 +90,24 @@ export async function recordGptStaffNotification(params: {
         .eq("entity_id", entityId)
         .gte("created_at", since)
         .limit(1);
-      if (existing?.length) return;
+      if (existing?.length) {
+        if (params.refreshExistingChat && params.type === "new_chat_message") {
+          const id = existing[0]!.id;
+          const { error: updErr } = await admin
+            .from("notifications")
+            .update({
+              title,
+              message,
+              is_read: false,
+              created_at: nowIso,
+            })
+            .eq("id", id);
+          if (updErr) {
+            console.error("[staff-events] GPT notification refresh:", updErr.message);
+          }
+        }
+        return;
+      }
     }
 
     const { error } = await admin.from("notifications").insert({
@@ -89,8 +115,8 @@ export async function recordGptStaffNotification(params: {
       recipient_user_id: null,
       recipient_role: null,
       type: params.type,
-      title: params.title.trim().slice(0, 500),
-      message: params.message.trim().slice(0, 2000),
+      title,
+      message,
       entity_type: entityType,
       entity_id: entityId,
       is_read: false,
@@ -114,6 +140,7 @@ export async function recordSubsStaffNotification(params: {
   emailBody?: string;
   /** false — только строка в Subs notifications (email уже отправлен). */
   sendEmail?: boolean;
+  refreshExistingChat?: boolean;
 }): Promise<void> {
   const subs = createSubsStoreAdminClient();
   if (!subs) return;
@@ -127,6 +154,7 @@ export async function recordSubsStaffNotification(params: {
       message: params.message,
       entity_type: params.entity_type,
       entity_id: params.entity_id,
+      refreshExistingChat: params.refreshExistingChat,
     });
   } else {
     console.warn(
@@ -156,6 +184,7 @@ export async function recordGptStaffEvent(params: {
   entity_id?: string | null;
   emailSubject: string;
   emailBody: string;
+  refreshExistingChat?: boolean;
 }): Promise<void> {
   await recordGptStaffNotification({
     type: params.type,
@@ -164,6 +193,7 @@ export async function recordGptStaffEvent(params: {
     siteSlug: params.siteSlug,
     entity_type: params.entity_type,
     entity_id: params.entity_id,
+    refreshExistingChat: params.refreshExistingChat,
   });
 
   const site = params.siteSlug ?? "gpt-store";

@@ -53,13 +53,13 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
   }, [pendingRoomId, pendingClientId, pendingClientEmail, pendingOrderId, router, searchParams]);
 
   useEffect(() => {
-    if ((!pendingClientId && !pendingClientEmail) || pendingRoomId) return;
+    if ((!pendingClientId && !pendingClientEmail && !pendingOrderId) || pendingRoomId) return;
     if (pendingClientId && selectedRoom?.client_id === pendingClientId) return;
 
     let cancelled = false;
 
     void (async () => {
-      if (pendingOrderId && siteSlug === "subs-store" && !pendingClientId) {
+      if (pendingOrderId && !pendingClientId && (siteSlug === "subs-store" || !pendingClientEmail)) {
         if (!cancelled) {
           setSelectedRoom({
             id: null,
@@ -70,7 +70,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
             unread_operator: 0,
             client: {
               email: pendingClientEmail ?? null,
-              full_name: pendingClientEmail ? `Заказ ${pendingOrderId.slice(0, 8)}` : null,
+              full_name: `Заказ ${pendingOrderId}`,
             },
           });
         }
@@ -273,10 +273,26 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
                 </div>
               )}
               {pendingOrderId && selectedRoom && sessionId && !resolving && (
-                <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
-                  Чат по заказу{" "}
-                  <span className="font-mono font-semibold">{pendingOrderId.slice(0, 8)}…</span>
-                  — карточка заказа справа
+                <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+                  <span>Чат по заказу</span>
+                  <code className="break-all font-mono font-semibold" title={pendingOrderId}>
+                    {pendingOrderId}
+                  </code>
+                  <button
+                    type="button"
+                    className="rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-amber-900"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(pendingOrderId).then(
+                        () => {
+                          /* toast optional — keep light */
+                        },
+                        () => undefined,
+                      );
+                    }}
+                  >
+                    Скопировать ID
+                  </button>
+                  <span>— карточка заказа справа</span>
                 </div>
               )}
               {selectedRoom && sessionId && !resolving && !resolveError && (

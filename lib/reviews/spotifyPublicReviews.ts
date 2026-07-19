@@ -1,4 +1,3 @@
-import { SPOTIFY_REVIEWS } from "@/lib/content/spotify";
 import type { SpotifyLandingReview } from "@/lib/landing/spotify-landing-types";
 
 import { isSpotifySuitableReview } from "./is-spotify-suitable-review";
@@ -12,18 +11,6 @@ function normalizeAuthorKey(value: string): string {
 
 function profileUrl(authorKey: string): string {
   return `/spotify/reviews?author=${encodeURIComponent(authorKey)}`;
-}
-
-function fallbackReviews(): SpotifyLandingReview[] {
-  return SPOTIFY_REVIEWS.map((r) => {
-    const authorKey = normalizeAuthorKey(r.authorName);
-    return {
-      ...r,
-      authorUsername: null,
-      sourceUrl: null,
-      inSiteProfileUrl: profileUrl(authorKey),
-    };
-  });
 }
 
 function sortSpotifyReviewsNewestFirst(items: SpotifyLandingReview[]): SpotifyLandingReview[] {
@@ -99,8 +86,7 @@ export async function getSpotifyPublicReviews(limit = 200): Promise<SpotifyLandi
 
   const merged = sortSpotifyReviewsNewestFirst(dedupeReviews([...curated, ...fromDb]));
 
-  if (!merged.length) {
-    return sortSpotifyReviewsNewestFirst(filterSuitable(fallbackReviews())).slice(0, limit);
-  }
+  // Never fall back to hardcoded mock testimonials (e.g. «Анна») on the live storefront.
+  // Empty list → landing shows “Отзывы скоро появятся”.
   return merged.slice(0, limit);
 }

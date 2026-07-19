@@ -14,15 +14,11 @@ export function StaffOrderChatLink({ siteSlug, orderId, userId, email }: Props) 
   const pathname = usePathname();
   const staffRoot = pathname?.startsWith("/operator") ? "/operator" : "/admin";
   const clientEmail = email?.trim();
-  const hasClient = Boolean(userId?.trim()) || Boolean(clientEmail && clientEmail !== "—");
-
-  if (!hasClient) {
-    return <span className="text-gray-400">—</span>;
-  }
+  const safeEmail = clientEmail && clientEmail !== "—" ? clientEmail : null;
 
   const params = new URLSearchParams({ site: siteSlug, order_id: orderId });
   if (userId?.trim()) params.set("client_id", userId.trim());
-  if (clientEmail && clientEmail !== "—") params.set("client_email", clientEmail);
+  if (safeEmail) params.set("client_email", safeEmail);
 
   const href = `${staffRoot}/chat?${params.toString()}`;
   const isSubs = siteSlug === "subs-store";
