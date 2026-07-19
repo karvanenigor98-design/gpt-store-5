@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { SPOTIFY_ACCENT } from "@/lib/content/spotify";
 import { scrollToSpotifyPricing } from "@/lib/spotify/scroll-to-pricing";
@@ -36,14 +35,22 @@ export function SpotifyNav({ initialLoggedIn = false }: { initialLoggedIn?: bool
       className="fixed left-0 right-0 top-0 z-50 border-b transition-colors duration-150"
       style={{
         background: "rgba(10,10,10,0.92)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
         borderColor: "rgba(255,255,255,0.08)",
       }}
     >
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
-        <Link href="/spotify" className="flex shrink-0 items-center" aria-label={`${nav.brand} ${nav.brandAccent}`}>
-          <SpotifyStoreLogo height={38} priority />
+        <Link
+          href="/spotify"
+          className="inline-flex shrink-0 items-center rounded-xl border px-3 py-1.5 transition-colors duration-150 hover:bg-white/[0.04] sm:px-3.5 sm:py-2"
+          style={{
+            borderColor: "rgba(29,185,84,0.28)",
+            background: "linear-gradient(180deg, rgba(18,28,20,0.95) 0%, rgba(10,14,11,0.95) 100%)",
+          }}
+          aria-label={`${nav.brand} ${nav.brandAccent}`}
+        >
+          <SpotifyStoreLogo height={28} compact />
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm md:flex" style={{ color: "rgba(255,255,255,0.6)" }}>
@@ -107,64 +114,58 @@ export function SpotifyNav({ initialLoggedIn = false }: { initialLoggedIn?: bool
         </div>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden border-t md:hidden"
-            style={{ borderColor: "rgba(255,255,255,0.08)", background: "#0a0a0a" }}
-          >
-            <nav className="flex flex-col gap-1 px-4 pb-4 pt-2">
-              {nav.links.map((link) =>
-                link.href.startsWith("#") ? (
-                  <button
-                    key={link.href}
-                    type="button"
-                    onClick={() => handleAnchorClick(link.href)}
-                    className="rounded-lg px-3 py-2.5 text-left text-sm transition-colors duration-100"
-                    style={{ color: "rgba(255,255,255,0.6)" }}
-                  >
-                    {link.label}
-                  </button>
-                ) : (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setOpen(false)}
-                    className="rounded-lg px-3 py-2.5 text-sm transition-colors duration-100"
-                    style={{ color: "rgba(255,255,255,0.6)" }}
-                  >
-                    {link.label}
-                  </Link>
-                )
-              )}
-              <LandingAuthNavLink
-                siteSlug="subs-store"
-                initialLoggedIn={initialLoggedIn}
-                className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
-                style={{
-                  borderColor: "rgba(255,255,255,0.15)",
-                  color: "rgba(255,255,255,0.7)",
-                }}
-              />
-              <div className="mt-1">
-                <LandingOrderStatusChip siteSlug="subs-store" />
-              </div>
-              <button
-                type="button"
-                onClick={handlePremiumCta}
-                className="mt-1 w-full rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-white"
-                style={{ background: SPOTIFY_ACCENT }}
-              >
-                {hero.primaryCta}
-              </button>
-            </nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {open && (
+        <div
+          className="overflow-hidden border-t md:hidden"
+          style={{ borderColor: "rgba(255,255,255,0.08)", background: "#0a0a0a" }}
+        >
+          <nav className="flex flex-col gap-1 px-4 pb-4 pt-2">
+            {nav.links.map((link) =>
+              link.href.startsWith("#") ? (
+                <button
+                  key={link.href}
+                  type="button"
+                  onClick={() => handleAnchorClick(link.href)}
+                  className="rounded-lg px-3 py-2.5 text-left text-sm transition-colors duration-100"
+                  style={{ color: "rgba(255,255,255,0.6)" }}
+                >
+                  {link.label}
+                </button>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg px-3 py-2.5 text-sm transition-colors duration-100"
+                  style={{ color: "rgba(255,255,255,0.6)" }}
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
+            <LandingAuthNavLink
+              siteSlug="subs-store"
+              initialLoggedIn={initialLoggedIn}
+              className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-center text-sm"
+              style={{
+                borderColor: "rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.7)",
+              }}
+            />
+            <div className="mt-1">
+              <LandingOrderStatusChip siteSlug="subs-store" />
+            </div>
+            <button
+              type="button"
+              onClick={handlePremiumCta}
+              className="mt-1 w-full rounded-lg px-3 py-2.5 text-center text-sm font-semibold text-white"
+              style={{ background: SPOTIFY_ACCENT }}
+            >
+              {hero.primaryCta}
+            </button>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

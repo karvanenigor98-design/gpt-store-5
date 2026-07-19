@@ -86,7 +86,6 @@ export async function getSpotifyPublicReviews(limit = 200): Promise<SpotifyLandi
 
   const merged = sortSpotifyReviewsNewestFirst(dedupeReviews([...curated, ...fromDb]));
 
-  // Never fall back to hardcoded mock testimonials (e.g. «Анна») on the live storefront.
-  // Empty list → landing shows “Отзывы скоро появятся”.
+  // Prefer Telegram curated + DB. Static landing also seeds curated via getStaticSpotifyLandingPayload.
   return merged.slice(0, limit);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { SpotifyReviewCard } from "@/components/spotify/SpotifyReviewCard";
 import { useLandingReviewsRotation } from "@/hooks/useLandingReviewsRotation";
@@ -28,6 +28,7 @@ export function SpotifyReviewsRotator({ reviews, onFeaturedReview }: Props) {
   );
 
   const visible = useLandingReviewsRotation(pool, VISIBLE_COUNT, ROTATION_MS);
+  const batchKey = visible.map((r) => r.id).join("|");
 
   useEffect(() => {
     onFeaturedReview?.(visible[0] ?? null);
@@ -42,18 +43,21 @@ export function SpotifyReviewsRotator({ reviews, onFeaturedReview }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      {visible.map((review) => (
+    <div className="relative min-h-[28rem]">
+      <AnimatePresence mode="wait">
         <motion.div
-          key={review.id}
-          layout
-          initial={{ opacity: 0, y: 12 }}
+          key={batchKey}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="space-y-4"
         >
-          <SpotifyReviewCard review={review} />
+          {visible.map((review) => (
+            <SpotifyReviewCard key={review.id} review={review} />
+          ))}
         </motion.div>
-      ))}
+      </AnimatePresence>
     </div>
   );
 }
