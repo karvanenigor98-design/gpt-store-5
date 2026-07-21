@@ -52,9 +52,12 @@ function normalizeAdminPlans(rawPlans: unknown, fallbackPlans: EditablePlan[]): 
         .filter((p): p is NonNullable<typeof p> => p !== null) as EditablePlan[]
     : [];
 
-  const plusPlans = parsedRaw.filter((p) => p.productId === "chatgpt-plus");
   const plusFallback = fallbackPlans.filter((p) => p.productId === "chatgpt-plus");
-  const normalizedPlus = plusPlans.length ? plusPlans : plusFallback;
+  const plusById = new Map(
+    parsedRaw.filter((p) => p.productId === "chatgpt-plus").map((p) => [p.id, p]),
+  );
+  const normalizedPlus = plusFallback.map((p) => plusById.get(p.id) ?? p);
+
   const proFallback = fallbackPlans.filter((p) => p.productId === "chatgpt-pro");
   const proById = new Map(parsedRaw.filter((p) => p.productId === "chatgpt-pro").map((p) => [p.id, p]));
   return [...normalizedPlus, ...proFallback.map((p) => proById.get(p.id) ?? p)];

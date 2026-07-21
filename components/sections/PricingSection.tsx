@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { PLUS_PLANS, PRO_PLANS, PRODUCTS, type ProductId } from "@/lib/chatgpt-data";
+import { PLUS_PLANS, PRO_PLANS, PRODUCTS, PLUS_READY_CHECKOUT_WARNING, type ProductId } from "@/lib/chatgpt-data";
 import { fadeUp } from "@/lib/motion-config";
 import {
   GPT_TARIFF_GUIDE_ITEMS,
@@ -16,10 +16,10 @@ type RuntimePlan = (typeof PLUS_PLANS)[number] & {
 };
 
 const PLUS_MOBILE_COMPARE: Record<string, { text: string; shell: string }> = {
-  "plus-new": {
-    text: "Новый аккаунт: минимальная цена, стандартная очередь.",
+  "plus-ready": {
+    text: "Готовый аккаунт: Plus уже активирован, данные для входа после оплаты.",
     shell:
-      "border-slate-300/90 bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-800 shadow-slate-500/10",
+      "border-sky-400/75 bg-gradient-to-br from-sky-50 via-white to-white text-sky-950 shadow-sky-500/12 ring-sky-200/50",
   },
   "plus-std": {
     text: "Популярный: лучший баланс цены и скорости.",
@@ -60,10 +60,10 @@ function MobileTariffCompareHint({ text, shell }: { text: string; shell: string 
 }
 
 const PLAN_HOVER_DETAILS: Record<string, string[]> = {
-  "plus-new": [
-    "Только для новых аккаунтов ChatGPT без прошлой Plus-подписки.",
-    "Самая низкая цена среди Plus-тарифов при тех же функциях.",
-    "Подключение в стандартной очереди, без ускоренного приоритета.",
+  "plus-ready": [
+    "Готовый аккаунт ChatGPT Plus с уже активированной подпиской.",
+    "После оплаты оператор передаст данные для входа.",
+    "Не подходит для подключения Plus на ваш текущий аккаунт.",
   ],
   "plus-std": [
     "Универсальный тариф для ежедневной работы без переплаты.",
@@ -154,7 +154,10 @@ export function PricingSection({
   }, [hasInitialPlans]);
 
   const plans = useMemo(
-    () => runtimePlans.filter((p) => p.productId === activeProduct),
+    () =>
+      runtimePlans.filter(
+        (p) => p.productId === activeProduct && p.inStock !== false,
+      ),
     [runtimePlans, activeProduct]
   );
   const product = PRODUCTS.find((p) => p.id === activeProduct)!;
@@ -273,21 +276,21 @@ export function PricingSection({
             className="mb-10"
           >
             <p className="mb-4 hidden text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 md:block">
-              Три тарифа — отличаются цена и скорость подключения
+              Три тарифа — готовый аккаунт, подключение на ваш или ускорение
             </p>
             <div className="mx-auto hidden max-w-6xl gap-4 md:grid md:grid-cols-3 md:gap-4">
-              <div className="relative overflow-hidden rounded-2xl border border-slate-200/95 bg-gradient-to-br from-slate-50/50 via-white to-white p-4 shadow-sm shadow-slate-500/5 md:p-5">
-                <p className="relative text-xs font-bold uppercase tracking-wider text-slate-500">Новые аккаунты</p>
-                <p className="relative mt-1 font-heading text-base font-bold text-slate-900 md:text-lg">
-                  Не было Plus — ниже цена
+              <div className="relative overflow-hidden rounded-2xl border-2 border-sky-400/70 bg-gradient-to-br from-sky-50 via-white to-white p-4 shadow-md shadow-sky-500/10 md:p-5">
+                <p className="relative text-xs font-bold uppercase tracking-wider text-sky-700">Готовый аккаунт</p>
+                <p className="relative mt-1 font-heading text-base font-bold text-sky-950 md:text-lg">
+                  Plus уже активирован
                 </p>
-                <p className="relative mt-2 text-xs leading-relaxed text-slate-700/90 md:text-sm">
-                  Подходит только для аккаунта без истории Plus. Активация в общей очереди.
+                <p className="relative mt-2 text-xs leading-relaxed text-sky-900/90 md:text-sm">
+                  Получаете готовый аккаунт с данными для входа. Не для подключения на ваш текущий ChatGPT.
                 </p>
-                <div className="relative mt-3 flex h-2 overflow-hidden rounded-full bg-slate-200/80">
-                  <div className="h-full w-[32%] rounded-full bg-slate-500" />
+                <div className="relative mt-3 flex h-2 overflow-hidden rounded-full bg-sky-200/70">
+                  <div className="h-full w-[55%] rounded-full bg-sky-500" />
                 </div>
-                <p className="relative mt-1.5 text-[10px] font-medium text-slate-500 md:text-[11px]">Очередь: стандартная</p>
+                <p className="relative mt-1.5 text-[10px] font-medium text-sky-700 md:text-[11px]">Выдача: через оператора</p>
               </div>
               <div className="relative overflow-hidden rounded-2xl border-2 border-[#10a37f]/85 bg-gradient-to-br from-emerald-50/95 via-white to-white p-4 shadow-lg shadow-emerald-600/15 ring-2 ring-[#10a37f]/20 md:p-5">
                 <span className="relative inline-flex rounded-full bg-[#10a37f] px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm">
@@ -295,10 +298,10 @@ export function PricingSection({
                 </span>
                 <p className="relative mt-2 text-xs font-bold uppercase tracking-wider text-emerald-800">Популярный</p>
                 <p className="relative mt-1 font-heading text-base font-bold text-gray-900 md:text-lg">
-                  Цена и очередь
+                  На ваш аккаунт
                 </p>
                 <p className="relative mt-2 text-xs leading-relaxed text-gray-700 md:text-sm">
-                  Универсальный вариант для ежедневного использования — тот же Plus, что и в других тарифах.
+                  Универсальный вариант для ежедневного использования — подключение Plus на ваш ChatGPT.
                 </p>
                 <div className="relative mt-3 flex h-2 overflow-hidden rounded-full bg-emerald-100">
                   <div className="h-full w-[72%] rounded-full bg-[#10a37f]" />
@@ -412,13 +415,15 @@ export function PricingSection({
               const proTier = plan.id === "pro-5x" ? "5x" : plan.id === "pro-20x" ? "20x" : null;
               const plusTier =
                 plan.productId === "chatgpt-plus"
-                  ? plan.id === "plus-new"
-                    ? "new"
+                  ? plan.id === "plus-ready"
+                    ? "ready"
                     : plan.id === "plus-fast"
                       ? "fast"
                       : plan.id === "plus-std"
                         ? "std"
-                        : null
+                        : plan.id === "plus-new"
+                          ? "new"
+                          : null
                   : null;
 
               const proCardShell =
@@ -428,13 +433,15 @@ export function PricingSection({
                     ? "border-2 border-emerald-600/85 shadow-md shadow-emerald-600/10"
                     : "";
               const plusCardShell =
-                plusTier === "new"
-                  ? "border border-slate-200/95 bg-slate-50/30 ring-1 ring-slate-100/90"
+                plusTier === "ready"
+                  ? "border-2 border-sky-400/75 shadow-md shadow-sky-500/10"
                   : plusTier === "fast"
                     ? "border-2 border-amber-500/75 ring-1 ring-amber-300/45 shadow-md shadow-amber-500/10"
                     : plusTier === "std"
                       ? "border-2 border-[#10a37f]/85 ring-2 ring-emerald-200/50 shadow-lg shadow-emerald-600/12"
-                      : "";
+                      : plusTier === "new"
+                        ? "border border-slate-200/95 bg-slate-50/30 ring-1 ring-slate-100/90"
+                        : "";
               const tierShell = proCardShell || plusCardShell;
 
               const proGlow =
@@ -444,17 +451,27 @@ export function PricingSection({
                     ? "rgba(5, 150, 105, 0.14)"
                     : product.glowColor;
               const plusGlow =
-                plusTier === "new"
-                  ? "rgba(71, 85, 105, 0.14)"
+                plusTier === "ready"
+                  ? "rgba(14, 165, 233, 0.14)"
                   : plusTier === "fast"
                     ? "rgba(234, 88, 12, 0.14)"
                     : plusTier === "std"
                       ? "rgba(16, 163, 127, 0.18)"
-                      : product.glowColor;
+                      : plusTier === "new"
+                        ? "rgba(71, 85, 105, 0.14)"
+                        : product.glowColor;
 
               const proAccent = proTier === "5x" ? "#0284c7" : proTier === "20x" ? "#059669" : product.accentColor;
               const plusAccent =
-                plusTier === "new" ? "#475569" : plusTier === "fast" ? "#c2410c" : plusTier === "std" ? "#10a37f" : product.accentColor;
+                plusTier === "ready"
+                  ? "#0284c7"
+                  : plusTier === "fast"
+                    ? "#c2410c"
+                    : plusTier === "std"
+                      ? "#10a37f"
+                      : plusTier === "new"
+                        ? "#475569"
+                        : product.accentColor;
 
               const cardAccent = proTier ? proAccent : plusTier ? plusAccent : product.accentColor;
               const cardGlow = proTier ? proGlow : plusTier ? plusGlow : product.glowColor;
@@ -493,6 +510,10 @@ export function PricingSection({
                     };
                   if (plusTier === "std")
                     return { boxShadow: `0 8px 24px -14px rgba(15, 23, 42, 0.06)` };
+                  if (plusTier === "ready")
+                    return {
+                      boxShadow: `0 8px 30px -10px rgba(14, 165, 233, 0.14)`,
+                    };
                   if (plusTier === "new") return { boxShadow: `0 6px 20px -12px rgba(71, 85, 105, 0.08)` };
                 }
                 if (plan.isPopular)
@@ -558,6 +579,11 @@ export function PricingSection({
                         ×20 к Plus
                       </span>
                     )}
+                    {plusTier === "ready" && (
+                      <span className="rounded-md bg-sky-100 px-2 py-0.5 font-heading text-xs font-bold text-sky-900 ring-1 ring-sky-300/70">
+                        Готовый вход
+                      </span>
+                    )}
                     {plusTier === "new" && (
                       <span className="rounded-md bg-slate-100 px-2 py-0.5 font-heading text-xs font-bold text-slate-800 ring-1 ring-slate-300/70">
                         Новый аккаунт
@@ -607,6 +633,11 @@ export function PricingSection({
                     )}
                   </div>
                   <p className="mt-2 text-sm text-gray-500">{plan.description}</p>
+                  {plan.id === "plus-ready" ? (
+                    <p className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                      {PLUS_READY_CHECKOUT_WARNING}
+                    </p>
+                  ) : null}
                 </div>
 
                 <ul className={`flex-1 space-y-2.5 ${isProDualCompare ? "mb-0" : "mb-8"}`}>

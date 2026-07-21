@@ -1,4 +1,4 @@
-import { CHATGPT_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
+import { CHATGPT_PLANS, GPT_PUBLIC_HIDDEN_PLAN_IDS, type ExtendedPlan } from "@/lib/chatgpt-data";
 import { applyHeroPromoDisplayToGptPlans } from "@/lib/landing/hero-promo-landing-discount";
 import type { LandingDiscount } from "@/lib/pricing-helpers";
 import { applyLandingDiscount, pickLandingDiscount } from "@/lib/pricing-helpers";
@@ -80,23 +80,68 @@ function normalizePlanAvailability(input: unknown): PlanAvailabilityConfig {
   return out;
 }
 
-function normalizePlans(input: unknown, availability: PlanAvailabilityConfig): ExtendedPlan[] {
-  if (!Array.isArray(input)) return DEFAULT_PLANS;
-  const byId = new Map(DEFAULT_PLANS.map((p) => [p.id, p]));
-  const normalized = input
-    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
-    .map((raw) => {
-      const id = typeof raw.id === "string" ? raw.id : "";
-      const fallback = byId.get(id) ?? DEFAULT_PLANS[0];
-      const plan = normalizePlan(raw, fallback);
-      return { ...plan, inStock: availability[plan.id] !== false };
-    })
-    .filter((p) => !!p.id);
-
-  if (!normalized.length) {
-    return DEFAULT_PLANS.map((plan) => ({ ...plan, inStock: availability[plan.id] !== false }));
+/** Public stock: retired storefront plans stay hidden; otherwise explicit plan_availability wins. */
+export function resolveGptPlanInStock(
+  planId: string,
+  availability: PlanAvailabilityConfig,
+  canonicalInStock?: boolean,
+): boolean {
+  // Product decision: keep row for admin/history, never offer on public GPT storefront.
+  if (GPT_PUBLIC_HIDDEN_PLAN_IDS.has(planId)) return false;
+  if (Object.prototype.hasOwnProperty.call(availability, planId)) {
+    return availability[planId] !== false;
   }
-  return normalized;
+  if (typeof canonicalInStock === "boolean") return canonicalInStock;
+  return true;
+}
+
+function normalizePlans(input: unknown, availability: PlanAvailabilityConfig): ExtendedPlan[] {
+  const byIdFromDb = new Map<string, Record<string, unknown>>();
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      if (!item || typeof item !== "object") continue;
+      const raw = item as Record<string, unknown>;
+      const id = typeof raw.id === "string" ? raw.id : "";
+      if (!id) continue;
+      byIdFromDb.set(id, raw);
+    }
+  }
+
+  // Canonical order + overlay DB fields so new catalog plans appear even with stale pricing_plans JSON.
+  const merged = DEFAULT_PLANS.map((fallback) => {
+    const raw = byIdFromDb.get(fallback.id);
+    const plan = raw ? normalizePlan(raw, fallback) : { ...fallback };
+    return {
+      ...plan,
+      inStock: resolveGptPlanInStock(plan.id, availability, fallback.inStock),
+    };
+  });
+
+  // Legacy / unknown DB-only rows keep appearing after canonical list (admin may still manage them).
+  for (const [id, raw] of byIdFromDb) {
+    if (DEFAULT_PLANS.some((p) => p.id === id)) continue;
+    const fallback: ExtendedPlan = {
+      id,
+      productId: raw.productId === "chatgpt-pro" ? "chatgpt-pro" : "chatgpt-plus",
+      name: typeof raw.name === "string" ? raw.name : id,
+      price: toNumber(raw.price, 0),
+      currency: typeof raw.currency === "string" ? raw.currency : "₽",
+      period: typeof raw.period === "string" ? raw.period : "мес",
+      description: typeof raw.description === "string" ? raw.description : "",
+      features: Array.isArray(raw.features)
+        ? raw.features.filter((x): x is string => typeof x === "string")
+        : [],
+      isPopular: Boolean(raw.isPopular),
+      cta: typeof raw.cta === "string" ? raw.cta : "Подключить",
+    };
+    const plan = normalizePlan(raw, fallback);
+    merged.push({
+      ...plan,
+      inStock: resolveGptPlanInStock(plan.id, availability, true),
+    });
+  }
+
+  return merged;
 }
 
 function normalizePromoCodes(input: unknown): PromoCode[] {

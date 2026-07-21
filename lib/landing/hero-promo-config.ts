@@ -21,7 +21,7 @@ export type HeroPromoSiteConfig = {
 export const HERO_PROMO_CONFIG: Record<HeroPromoSiteKey, HeroPromoSiteConfig> = {
   gpt: {
     enabled: true,
-    featuredPlanId: "plus-new",
+    featuredPlanId: "plus-ready",
     promoSalePrice: 1590,
     promoOriginalPrice: 1990,
     discountLabel: "−20%",

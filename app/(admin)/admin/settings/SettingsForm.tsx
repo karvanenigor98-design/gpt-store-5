@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Loader2, Check } from "lucide-react";
-import { CHATGPT_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
+import { CHATGPT_PLANS, GPT_PUBLIC_HIDDEN_PLAN_IDS, type ExtendedPlan } from "@/lib/chatgpt-data";
 
 interface Props {
   initialSettings: Record<string, unknown>;
@@ -58,12 +58,11 @@ function normalizeAdminPlans(rawPlans: unknown, fallbackPlans: EditablePlan[]): 
         .filter((p): p is NonNullable<typeof p> => p !== null) as EditablePlan[]
     : [];
 
-  const plusPlans = parsedRaw.filter((p) => p.productId === "chatgpt-plus");
   const plusFallback = fallbackPlans.filter((p) => p.productId === "chatgpt-plus");
-
-  const normalizedPlus = plusPlans.length
-    ? plusPlans
-    : plusFallback;
+  const plusById = new Map(
+    parsedRaw.filter((p) => p.productId === "chatgpt-plus").map((p) => [p.id, p]),
+  );
+  const normalizedPlus = plusFallback.map((p) => plusById.get(p.id) ?? p);
 
   // Для Pro в админке всегда показываем canonical 5x/20x.
   // Если в БД legacy pro-1, он не подменяет canonical набор.
@@ -100,7 +99,9 @@ export function SettingsForm({ initialSettings }: Props) {
       }
     }
     for (const plan of initialPlans) {
-      if (!(plan.id in fromDb)) fromDb[plan.id] = true;
+      if (!(plan.id in fromDb)) {
+        fromDb[plan.id] = !GPT_PUBLIC_HIDDEN_PLAN_IDS.has(plan.id);
+      }
     }
     return fromDb;
   }, [initialPlans, initialSettings.plan_availability]);

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Loader2 } from "lucide-react";
-import { PLUS_PLANS, PRO_PLANS, type ExtendedPlan } from "@/lib/chatgpt-data";
+import { PLUS_PLANS, PRO_PLANS, PLUS_READY_CHECKOUT_WARNING, type ExtendedPlan } from "@/lib/chatgpt-data";
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { cn } from "@/lib/utils";
 import { formatPallyCheckoutError } from "@/lib/payments/pally-env-hint";
@@ -30,11 +30,14 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runtimePlans, setRuntimePlans] = useState<ExtendedPlan[]>(
-    initialPlans && initialPlans.length ? initialPlans : ALL_PLANS
+    (initialPlans && initialPlans.length ? initialPlans : ALL_PLANS).filter(
+      (p) => p.inStock !== false,
+    )
   );
   const plansHashRef = useRef(JSON.stringify(runtimePlans));
   const selectedPlanIdRef = useRef<string | null>(null);
   const urlPlanInitDoneRef = useRef(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!authGate.ready || !authGate.intent) return;
@@ -81,7 +84,9 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
         });
         if (!res.ok) return;
         const json = (await res.json()) as { plans?: ExtendedPlan[] };
-        const next = (json.plans ?? []).filter((p) => p?.id && p.price > 0);
+        const next = (json.plans ?? []).filter(
+          (p) => p?.id && p.price > 0 && p.inStock !== false,
+        );
         if (!next.length) return;
         const nextHash = JSON.stringify(next);
         if (!cancelled && nextHash !== plansHashRef.current) {
@@ -136,6 +141,8 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
   async function onPaymentSubmit() {
     if (!selectedPlan || selectedPlan.inStock === false || !agreeTerms) return;
+    if (submittingRef.current || isSubmitting) return;
+    submittingRef.current = true;
     trackGPTPayClick(selectedPlan.id, "checkout_step2");
     setIsSubmitting(true);
     setError(null);
@@ -192,6 +199,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
     } catch {
       setError("Произошла ошибка. Попробуйте ещё раз.");
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -248,7 +256,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
           >
             <h2 className="font-heading text-xl font-bold text-gray-900 mb-6">Выберите тариф</h2>
             <div className="space-y-3">
-              {runtimePlans.filter((p) => p.price > 0).map((plan) => (
+              {runtimePlans.filter((p) => p.price > 0 && p.inStock !== false).map((plan) => (
                 <button
                   key={plan.id}
                   type="button"
@@ -274,11 +282,6 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
                             {plan.badge}
                           </span>
                         )}
-                        {plan.inStock === false && (
-                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                            Нет в наличии
-                          </span>
-                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-400">{plan.description}</p>
                     </div>
@@ -292,6 +295,11 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
                 </button>
               ))}
             </div>
+            {selectedPlan?.id === "plus-ready" ? (
+              <p className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50 px-3.5 py-3 text-xs leading-relaxed text-amber-900">
+                {PLUS_READY_CHECKOUT_WARNING}
+              </p>
+            ) : null}
             <button
               type="button"
               disabled={!selectedPlan || selectedPlan.inStock === false}
@@ -324,11 +332,18 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
 
             {/* Summary */}
             {selectedPlan && (
-              <div className="mb-5 flex items-center justify-between rounded-xl border border-black/[0.07] bg-gray-50 px-4 py-3">
-                <span className="text-sm text-gray-600">{selectedPlan.name}</span>
-                <span className="font-semibold text-gray-900 whitespace-nowrap">
-                  {selectedPlan.price.toLocaleString("ru")} ₽
-                </span>
+              <div className="mb-5 space-y-3">
+                <div className="flex items-center justify-between rounded-xl border border-black/[0.07] bg-gray-50 px-4 py-3">
+                  <span className="text-sm text-gray-600">{selectedPlan.name}</span>
+                  <span className="font-semibold text-gray-900 whitespace-nowrap">
+                    {selectedPlan.price.toLocaleString("ru")} ₽
+                  </span>
+                </div>
+                {selectedPlan.id === "plus-ready" ? (
+                  <p className="rounded-xl border border-amber-200/80 bg-amber-50 px-3.5 py-3 text-xs leading-relaxed text-amber-900">
+                    {PLUS_READY_CHECKOUT_WARNING}
+                  </p>
+                ) : null}
               </div>
             )}
 
