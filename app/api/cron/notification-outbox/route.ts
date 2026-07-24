@@ -22,7 +22,7 @@ async function handle(req: NextRequest) {
 
   try {
     // Process in waves within one invocation — backlog + slow SMTP must not stall forever.
-    const total = { claimed: 0, sent: 0, failed: 0, dead: 0, skipped: 0 };
+    const total = { claimed: 0, sent: 0, failed: 0, dead: 0, skipped: 0, telegramDeferred: 0 };
     for (let wave = 0; wave < 4; wave++) {
       const stats = await processNotificationOutbox(25);
       total.claimed += stats.claimed;
@@ -30,6 +30,7 @@ async function handle(req: NextRequest) {
       total.failed += stats.failed;
       total.dead += stats.dead;
       total.skipped += stats.skipped;
+      total.telegramDeferred += stats.telegramDeferred;
       if (stats.claimed === 0) break;
     }
     console.info("[notification-outbox] cron", total);

@@ -2,8 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isEmailRecipientSuppressed } from "@/lib/email/suppression";
 import { sendTransactionalEmail } from "@/lib/email/send-email";
+import { canDeliverTelegramHere } from "@/lib/notifications/telegram-egress";
 import type { SiteSlug } from "@/lib/sites";
 import { createAdminClient } from "@/lib/supabase/server";
+import { resolveTelegramBotToken } from "@/lib/telegram/bot-config";
 
 type OutboxRow = {
   id: string;
@@ -36,8 +38,24 @@ function retryAt(attempt: number): string {
   return new Date(Date.now() + delayMinutes * 60_000).toISOString();
 }
 
+/** Release telegram row back to pending without burning attempt (VPS has no TG egress). */
+async function deferTelegramRow(admin: SupabaseClient, row: OutboxRow): Promise<void> {
+  const now = new Date().toISOString();
+  await admin
+    .from("notification_outbox")
+    .update({
+      status: "pending",
+      attempts: Math.max(0, row.attempts - 1),
+      locked_at: null,
+      last_error: "deferred_to_vercel_telegram_egress",
+      next_attempt_at: now,
+      updated_at: now,
+    })
+    .eq("id", row.id);
+}
+
 async function sendTelegram(row: OutboxRow): Promise<DeliveryResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const token = resolveTelegramBotToken(row.site_slug);
   const text = typeof row.payload.text === "string" ? row.payload.text : "";
   if (!token || !row.recipient || !text) {
     return { ok: false, error: "telegram_not_configured" };
@@ -159,6 +177,7 @@ export async function processNotificationOutbox(limit = 25): Promise<{
   failed: number;
   dead: number;
   skipped: number;
+  telegramDeferred: number;
 }> {
   const admin = untypedAdmin();
   const { data, error } = await admin.rpc("claim_notification_outbox", {
@@ -171,9 +190,28 @@ export async function processNotificationOutbox(limit = 25): Promise<{
     if (a.channel === b.channel) return 0;
     return a.channel === "email" ? -1 : 1;
   });
-  const stats = { claimed: rows.length, sent: 0, failed: 0, dead: 0, skipped: 0 };
+  const stats = {
+    claimed: rows.length,
+    sent: 0,
+    failed: 0,
+    dead: 0,
+    skipped: 0,
+    telegramDeferred: 0,
+  };
+
+  const allowTelegram = canDeliverTelegramHere();
 
   for (const row of rows) {
+    if (row.channel === "telegram" && !allowTelegram) {
+      await deferTelegramRow(admin, row);
+      stats.telegramDeferred += 1;
+      console.info("[notification-outbox] defer telegram to vercel", {
+        id: row.id,
+        event_type: row.event_type,
+      });
+      continue;
+    }
+
     const result = row.channel === "telegram" ? await sendTelegram(row) : await sendEmail(row);
     const status = await completeRow(admin, row, result);
     stats[status] += 1;

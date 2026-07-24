@@ -14,23 +14,12 @@ import { enqueueTelegramNotification } from "@/lib/notifications/outbox";
 import { orderStatusLabelRu as unifiedOrderStatusLabelRu } from "@/lib/orders/order-status-labels";
 import type { SiteSlug } from "@/lib/sites";
 import { createAdminClient } from "@/lib/supabase/server";
+import {
+  resolveTelegramBotToken,
+  resolveTelegramChatIds,
+} from "@/lib/telegram/bot-config";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-/** Primary + optional comma-separated extra chats (admin / operators / group). */
-function resolveTelegramChatIds(): string[] {
-  const raw = [
-    process.env.TELEGRAM_ADMIN_CHAT_ID,
-    process.env.TELEGRAM_ADMIN_CHAT_IDS,
-    process.env.TELEGRAM_OPERATOR_CHAT_ID,
-    process.env.TELEGRAM_OPERATOR_CHAT_IDS,
-  ]
-    .flatMap((value) => (value ?? "").split(","))
-    .map((x) => x.trim())
-    .filter(Boolean);
-  return Array.from(new Set(raw));
-}
 
 /** Один адрес для операционных писем: ADMIN_EMAIL → SUPPORT_NOTIFICATION_EMAIL → первый из ADMIN_EMAILS. */
 export function resolveAdminNotificationEmail(): string | null {
@@ -69,7 +58,7 @@ async function sendEmailMany(to: string[], subject: string, text: string, html?:
   }
 }
 
-/** Письма всем admin/operator (+ extra). */
+/** Письма всем admin/operator (+ extra) + зеркало в Telegram. */
 export async function notifyStaffEmails(
   subject: string,
   text: string,
@@ -83,6 +72,16 @@ export async function notifyStaffEmails(
         .filter(Boolean),
     ),
   );
+
+  const { mirrorStaffEmailToTelegram } = await import("@/lib/telegram/staff-mirror");
+  void mirrorStaffEmailToTelegram({
+    siteSlug: "gpt-store",
+    eventType: "staff_broadcast",
+    title: subject,
+    bodyLines: text.split(/\r?\n/).filter(Boolean).slice(0, 12),
+    dedupeKey: `notify_staff:${subject.slice(0, 80)}:${text.slice(0, 80)}`,
+  }).catch(() => undefined);
+
   if (!recipients.length) {
     console.warn("[Email] notifyStaffEmails: нет получателей (ADMIN_EMAIL / profiles admin|operator)");
     return;
@@ -113,8 +112,9 @@ async function sendTelegramMessage(
   if (queued.queued) return;
 
   // Fallback until outbox table exists in production.
-  if (!BOT_TOKEN) return;
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+  const botToken = resolveTelegramBotToken(siteSlug);
+  if (!botToken) return;
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -135,25 +135,41 @@ async function sendTelegramMessage(
   }
 }
 
-async function broadcastTelegram(
+/** Fan-out to site admin chat(s). Queues via outbox. */
+export async function broadcastTelegramToStaff(
   text: string,
   opts?: { siteSlug?: SiteSlug; eventType?: string; dedupeKey?: string },
 ): Promise<void> {
-  const chats = resolveTelegramChatIds();
+  const siteSlug = opts?.siteSlug ?? "gpt-store";
+  const chats = resolveTelegramChatIds(siteSlug);
   if (!chats.length) {
-    console.warn("[Telegram] нет TELEGRAM_ADMIN_CHAT_ID / TELEGRAM_*_CHAT_IDS");
+    console.warn(
+      "[Telegram] нет chat id:",
+      siteSlug === "subs-store"
+        ? "TELEGRAM_SUBS_ADMIN_CHAT_ID"
+        : "TELEGRAM_ADMIN_CHAT_ID",
+    );
     return;
   }
   await Promise.all(
     chats.map((chatId) =>
       sendTelegramMessage(chatId, text, {
         ...opts,
+        siteSlug,
         dedupeKey: opts?.dedupeKey
           ? `${opts.dedupeKey}:chat:${chatId}`
           : undefined,
       }),
     ),
   );
+}
+
+/** @deprecated use broadcastTelegramToStaff */
+async function broadcastTelegram(
+  text: string,
+  opts?: { siteSlug?: SiteSlug; eventType?: string; dedupeKey?: string },
+): Promise<void> {
+  return broadcastTelegramToStaff(text, opts);
 }
 
 async function hasRecentNewOrderNotification(
@@ -183,11 +199,6 @@ export async function notifyNewUser(user: {
   email?: string | null;
   telegram_username?: string | null;
 }) {
-  const text = `🆕 <b>Новый пользователь</b>
-📧 Email: ${user.email ?? "не указан"}
-📱 Telegram: ${user.telegram_username ? "@" + user.telegram_username : "нет"}
-🔗 <a href="${APP_URL}/admin/users">Открыть в админке</a>`;
-  await broadcastTelegram(text, { eventType: "new_user", dedupeKey: `new_user:${user.id ?? user.email ?? "x"}` });
   await notifyStaffEmails(
     "Новый пользователь — GPT STORE",
     `Новый пользователь\nEmail: ${user.email ?? "не указан"}\nTelegram: ${user.telegram_username ? "@" + user.telegram_username : "нет"}\nОткрыть: ${APP_URL}/admin/users`,
@@ -212,22 +223,7 @@ export async function notifyNewOrder(
     return;
   }
   const brand = siteSlug === "subs-store" ? "SPOTIFY STORE" : "GPT STORE";
-  const accountLabel = siteSlug === "subs-store" ? "Spotify" : "ChatGPT";
   const orderUrl = `${APP_URL}/admin/orders?site=${siteSlug}&highlight=${order.id}`;
-  const text = `🔔 <b>Новый заказ</b>
-🏪 Магазин: ${brand}
-📋 Заказ: <code>${order.id}</code>
-🛒 Тариф: ${order.plan_name ?? "не указан"}
-💰 Сумма: ${order.price} ₽
-📊 Статус: <b>Ожидает оплаты</b>
-📧 Клиент: ${user.email ?? "неизвестен"}
-📧 ${accountLabel}: ${order.account_email ?? "не указан"}
-🔗 <a href="${orderUrl}">Открыть заказ</a>`;
-  await broadcastTelegram(text, {
-    siteSlug,
-    eventType: "new_order",
-    dedupeKey: `new_order:${order.id}`,
-  });
   const { recordGptStaffEvent } = await import("@/lib/notifications/staff-events");
   await recordGptStaffEvent({
     type: "new_order",
@@ -237,7 +233,7 @@ export async function notifyNewOrder(
     entity_type: "order",
     entity_id: order.id,
     emailSubject: `🔔 Новый заказ — ${brand}`,
-    emailBody: `Новый заказ (${brand})\nЗаказ: ${order.id}\nТариф: ${order.plan_name ?? order.id}\nСумма: ${order.price} ₽\nКлиент: ${user.email ?? "неизвестен"}\nАккаунт: ${order.account_email ?? "не указан"}\nОткрыть: ${orderUrl}`,
+    emailBody: `Новый заказ (${brand})\nЗаказ: ${order.id}\nТариф: ${order.plan_name ?? order.id}\nСумма: ${order.price} ₽\nСтатус: Ожидает оплаты\nКлиент: ${user.email ?? "неизвестен"}\nАккаунт: ${order.account_email ?? "не указан"}\nОткрыть: ${orderUrl}`,
   });
 }
 
@@ -273,37 +269,14 @@ export async function notifyPaymentStatus(
   status: string,
   options?: { siteSlug?: SiteSlug; skipStaffInAppAndEmail?: boolean },
 ) {
-  const emoji =
-    {
-      paid: "✅",
-      activating: "✅",
-      active: "🟢",
-      failed: "❌",
-      refunded: "↩️",
-      waiting_client: "⏳",
-    }[status] ?? "📋";
-
   const siteSlug: "gpt-store" | "subs-store" =
     options?.siteSlug === "subs-store" ? "subs-store" : "gpt-store";
   const label = unifiedOrderStatusLabelRu(siteSlug, status);
   const title = telegramTitleForStatus(status);
 
-  const text = `${emoji} <b>${title}</b>
-🏪 Магазин: ${siteSlug === "subs-store" ? "Spotify STORE" : "GPT STORE"}
-📋 Заказ: <code>${order.id}</code>
-🛒 Тариф: ${order.plan_name ?? "неизвестен"}
-💰 Сумма: ${order.price} ₽
-📊 Статус: <b>${label}</b>
-📧 Email: ${order.account_email ?? "не указан"}
-🔗 <a href="${APP_URL}/admin/orders?site=${siteSlug}&highlight=${order.id}">Открыть заказ</a>`;
-  void broadcastTelegram(text, {
-    siteSlug,
-    eventType: `payment_${status}`,
-    dedupeKey: `payment:${order.id}:${status}`,
-  }).catch(() => undefined);
-
   const paidLike = status === "paid" || status === "activating";
   if (options?.skipStaffInAppAndEmail && paidLike) {
+    // Staff email+TG already from handleOrderPaidNotification → dispatchStaffSiteEmails.
     return;
   }
 
@@ -464,17 +437,6 @@ export async function notifyNewReview(review: {
   reviewId?: string;
 }) {
   const site = review.siteSlug ?? "gpt-store";
-  // Operators use /operator/reviews; admins can open either.
-  const adminHref = `${APP_URL}/operator/reviews?status=pending&site=${site}`;
-  const text = `⭐ <b>Новый отзыв на модерации</b>
-👤 Автор: ${review.author_name ?? "Аноним"}
-💬 "${review.content.slice(0, 150)}..."
-🔗 <a href="${adminHref}">Модерировать</a>`;
-  void broadcastTelegram(text, {
-    siteSlug: site,
-    eventType: "new_review",
-    dedupeKey: review.reviewId ? `review:${review.reviewId}` : undefined,
-  }).catch(() => undefined);
   const { recordGptStaffNotification, recordSubsStaffNotification } = await import(
     "@/lib/notifications/staff-events"
   );
@@ -496,7 +458,7 @@ export async function notifyNewReview(review: {
       sendEmail: false,
     });
   }
-  // Email всем admin/operator с доступом к сайту (CTA → /operator/reviews).
+  // Email (+ Telegram mirror) всем admin/operator с доступом к сайту.
   await emailStaffNewReview({
     siteSlug: site,
     authorName: review.author_name ?? null,
@@ -506,14 +468,6 @@ export async function notifyNewReview(review: {
 }
 
 export async function notifyDelayedSession(sessionId: string, delayMinutes: number) {
-  const text = `🚨 <b>Нет ответа оператора</b>
-📋 Сессия: ${sessionId}
-⏱ Ожидание: ${delayMinutes} мин
-🔗 <a href="${APP_URL}/admin/chat">Открыть чат</a>`;
-  await broadcastTelegram(text, {
-    eventType: "delayed_session",
-    dedupeKey: `delayed:${sessionId}:${delayMinutes}`,
-  });
   const { recordGptStaffEvent } = await import("@/lib/notifications/staff-events");
   await recordGptStaffEvent({
     type: "order_problem",
@@ -534,15 +488,6 @@ export async function notifyOperationalFailure(payload: {
 }) {
   const siteSlug: "gpt-store" | "subs-store" = payload.siteSlug ?? "gpt-store";
   const safeDetail = payload.detail ? payload.detail.slice(0, 500) : "";
-  const text = `⚠️ <b>Ошибка в работе сервиса</b>
-📌 ${payload.context}
-${safeDetail ? `\n<i>${safeDetail.replace(/</g, "")}</i>` : ""}
-🔗 <a href="${APP_URL}/admin/orders">Админка</a>`;
-  void broadcastTelegram(text, {
-    siteSlug,
-    eventType: "operational_failure",
-    dedupeKey: `ops:${siteSlug}:${payload.context.slice(0, 80)}`,
-  }).catch(() => undefined);
   void import("@/lib/notifications/staff-events").then(({ recordGptStaffNotification }) =>
     recordGptStaffNotification({
       type: "order_problem",
@@ -571,17 +516,6 @@ export async function notifyManualOrderStatusChange(order: {
   const labelPrev = unifiedOrderStatusLabelRu("gpt-store", order.prev);
   const labelNext = unifiedOrderStatusLabelRu("gpt-store", order.next);
   const plan = order.plan_name ?? order.plan_id ?? "—";
-  const text = `🔔 <b>Статус заказа изменён вручную</b>
-📋 Заказ: <code>${order.id}</code>
-🛒 Тариф: ${plan}
-💰 Сумма: ${order.price} ₽
-↔️ ${labelPrev} → <b>${labelNext}</b>
-📧 ChatGPT: ${order.account_email ?? "не указан"}
-🔗 <a href="${APP_URL}/admin/orders?highlight=${order.id}">Открыть</a>`;
-  await broadcastTelegram(text, {
-    eventType: "manual_order_status",
-    dedupeKey: `manual_status:${order.id}:${order.prev}:${order.next}`,
-  });
   const { recordGptStaffEvent } = await import("@/lib/notifications/staff-events");
   await recordGptStaffEvent({
     type: "order_problem",
@@ -590,7 +524,7 @@ export async function notifyManualOrderStatusChange(order: {
     entity_type: "order",
     entity_id: order.id,
     emailSubject: `Статус заказа вручную: ${labelNext}`,
-    emailBody: `Заказ: ${order.id}\nТариф: ${plan}\nБыло: ${labelPrev}\nСтало: ${labelNext}\n${APP_URL}/admin/orders`,
+    emailBody: `Заказ: ${order.id}\nТариф: ${plan}\nСумма: ${order.price} ₽\nБыло: ${labelPrev}\nСтало: ${labelNext}\nChatGPT: ${order.account_email ?? "не указан"}\n${APP_URL}/admin/orders?highlight=${order.id}`,
   });
 }
 
@@ -602,17 +536,6 @@ export async function notifyDailyAdminDigest(stats: {
   revenue7d: number;
   revenueMonth: number;
 }) {
-  const text = `📊 <b>Итоги дня (${stats.dateLabel})</b>
-🛒 Заказов сегодня: ${stats.ordersToday}
-💰 Выручка сегодня: ${stats.revenueToday.toLocaleString("ru")} ₽
-👤 Новых клиентов: ${stats.newClientsToday}
-📈 Выручка 7 дней: ${stats.revenue7d.toLocaleString("ru")} ₽
-📆 Выручка месяца: ${stats.revenueMonth.toLocaleString("ru")} ₽
-🔗 <a href="${APP_URL}/admin">Панель</a>`;
-  await broadcastTelegram(text, {
-    eventType: "daily_digest",
-    dedupeKey: `daily_digest:${stats.dateLabel}`,
-  });
   await notifyStaffEmails(
     `Сводка GPT STORE за ${stats.dateLabel}`,
     `Заказов сегодня: ${stats.ordersToday}\nВыручка сегодня: ${stats.revenueToday} ₽\nНовых клиентов: ${stats.newClientsToday}\nВыручка 7 дней: ${stats.revenue7d} ₽\nВыручка месяца: ${stats.revenueMonth} ₽\n${APP_URL}/admin`,

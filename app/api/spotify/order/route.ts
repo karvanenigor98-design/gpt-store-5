@@ -33,8 +33,11 @@ export async function POST(request: Request) {
       ? `${APP_URL}/admin/orders?site=subs-store&status=awaiting_payment&highlight=${orderId}`
       : `${APP_URL}/admin/orders?site=subs-store&status=awaiting_payment`;
 
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    const { resolveTelegramBotToken, resolveTelegramChatIds } = await import(
+      "@/lib/telegram/bot-config"
+    );
+    const token = resolveTelegramBotToken("subs-store");
+    const chatId = resolveTelegramChatIds("subs-store")[0];
 
     if (token && chatId && chatId !== "0") {
       const text =

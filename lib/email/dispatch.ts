@@ -318,7 +318,7 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
   return { sent: false, skipped: result.skipped, reason: safeError };
 }
 
-/** Рассылка staff по сайту (исключая автора). */
+/** Рассылка staff по сайту (исключая автора) + зеркало в Telegram admin chat. */
 export async function dispatchStaffSiteEmails(params: {
   siteSlug: SiteSlug;
   eventType: EmailEventType;
@@ -338,6 +338,23 @@ export async function dispatchStaffSiteEmails(params: {
   });
 
   const baseKey = params.dedupeKey ?? `${params.eventType}:${params.siteSlug}:${params.relatedEntityId ?? "x"}`;
+
+  // Telegram mirror is independent of staff recipient list / email provider.
+  void import("@/lib/telegram/staff-mirror")
+    .then(({ mirrorStaffEmailToTelegram }) =>
+      mirrorStaffEmailToTelegram({
+        siteSlug: params.siteSlug,
+        eventType: params.eventType,
+        title: params.title,
+        bodyLines: params.bodyLines,
+        ctaLabel: params.ctaLabel,
+        ctaUrl: params.ctaUrl,
+        dedupeKey: baseKey,
+      }),
+    )
+    .catch((err) => {
+      console.error("[email/dispatch] telegram mirror failed:", err);
+    });
 
   // Не блокируем checkout/API: Resend rate limit не должен задерживать ответ клиенту.
   // Важно: без :idx — порядок staff из БД/env нестабилен и ломал идемпотентность.
