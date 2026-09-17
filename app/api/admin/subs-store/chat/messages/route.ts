@@ -2,13 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { markStaffChatNotificationsRead } from "@/lib/admin/mark-staff-notifications-read";
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
-import { mapSubsChatMessageToChatMessage } from "@/lib/admin/subs-chat-map";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import {
+  mapSubsChatMessageToChatMessage,
+  resolveSubsStaffAuthorId,
+} from "@/lib/admin/subs-chat-map";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
 import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
 import { notifySubsStoreCustomerChatReply } from "@/lib/subs/subs-notifications";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
-import { createClient } from "@/lib/supabase/server";
+
+function applyDeletedVisibility(
+  message: { is_deleted?: boolean; content: string; attachments?: unknown | null },
+  options: { canViewDeletedContent: boolean },
+) {
+  if (!message.is_deleted || options.canViewDeletedContent) return message;
+  return {
+    ...message,
+    content: "Сообщение удалено",
+    attachments: null,
+  };
+}
 
 export async function GET(req: NextRequest) {
   const threadId = req.nextUrl.searchParams.get("thread_id")?.trim();
@@ -51,20 +64,27 @@ export async function GET(req: NextRequest) {
 
   const list = (messages ?? []).map((row) => mapSubsChatMessageToChatMessage(row as Parameters<typeof mapSubsChatMessageToChatMessage>[0]));
   const byId = new Map(list.map((m) => [m.id, m]));
+  const canViewDeletedContent = ctx.role === "admin";
   const withReply = list.map((m) => {
     const replyToId = (m as { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
-    if (!replyToId) return m;
+    const visibleMessage = applyDeletedVisibility(m, { canViewDeletedContent });
+    if (!replyToId) return visibleMessage;
     const target = byId.get(replyToId);
     return {
-      ...m,
+      ...visibleMessage,
       reply_to_message: target
         ? {
             id: target.id,
             sender_type: target.sender_type,
-            content: target.content,
+            content: applyDeletedVisibility(target, { canViewDeletedContent }).content,
             is_deleted: (target as { is_deleted?: boolean }).is_deleted ?? false,
           }
-        : { id: replyToId, sender_type: "auto", content: "", is_deleted: true },
+        : {
+            id: replyToId,
+            sender_type: "auto",
+            content: "Исходное сообщение недоступно",
+            is_deleted: false,
+          },
     };
   });
 
@@ -96,17 +116,7 @@ export async function POST(req: NextRequest) {
   const ctx = await requireSubsStaffContext();
   if (ctx instanceof NextResponse) return ctx;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const role = await resolveServerRole(user);
-  const authorRole = role === "admin" ? "admin" : "operator";
-
+  const authorRole = ctx.role === "admin" ? "admin" : "operator";
   const { subs } = ctx;
 
   const { data: thread, error: thErr } = await subs.from("chat_threads").select("id,user_id").eq("id", threadId).maybeSingle();
@@ -114,19 +124,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Тред не найден" }, { status: 404 });
   }
 
-  const { data: inserted, error: insErr } = await subs
+  const authorId = await resolveSubsStaffAuthorId(subs, ctx.user.email);
+  const insertPayload = {
+    thread_id: threadId,
+    author_id: authorId,
+    author_role: authorRole,
+    content,
+    ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
+  };
+
+  let { data: inserted, error: insErr } = await subs
     .from("chat_messages")
-    .insert({
-      thread_id: threadId,
-      author_id: null,
-      author_role: authorRole,
-      content,
-      ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
-    })
+    .insert(insertPayload)
     .select("*")
     .single();
 
+  // GPT UUID must never be written here. If mapped id still isn't in auth.users, fall back
+  // to historical staff rows: author_id = null (FK allows it).
+  if (insErr && authorId) {
+    console.error("[admin/subs-store/chat/messages POST] author_id rejected, retry null:", insErr.message);
+    const retry = await subs
+      .from("chat_messages")
+      .insert({ ...insertPayload, author_id: null })
+      .select("*")
+      .single();
+    inserted = retry.data;
+    insErr = retry.error;
+  }
+
   if (insErr || !inserted) {
+    console.error("[admin/subs-store/chat/messages POST]", insErr?.code, insErr?.message);
     return NextResponse.json({ error: "Не удалось отправить сообщение" }, { status: 500 });
   }
 
@@ -182,13 +209,13 @@ export async function PATCH(req: NextRequest) {
   const ctx = await requireSubsStaffContext();
   if (ctx instanceof NextResponse) return ctx;
 
+  const deletedBy = await resolveSubsStaffAuthorId(ctx.subs, ctx.user.email);
   const { error } = await ctx.subs
     .from("chat_messages")
     .update({
       is_deleted: true,
       deleted_at: new Date().toISOString(),
-      deleted_by: ctx.user.id,
-      content: "Сообщение удалено",
+      deleted_by: deletedBy,
       attachment_url: null,
       attachment_type: null,
     })

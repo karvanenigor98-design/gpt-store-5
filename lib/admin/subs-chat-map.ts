@@ -1,5 +1,31 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type { ChatMessage } from "@/types";
 import type { ChatSenderType } from "@/types/database";
+
+/**
+ * GPT auth UUID ≠ Spotify auth UUID. chat_messages.author_id → auth.users(id).
+ * Historical staff rows used null; map by email when the same person exists in Subs.
+ */
+export async function resolveSubsStaffAuthorId(
+  subs: SupabaseClient,
+  email: string | null | undefined,
+): Promise<string | null> {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const { data, error } = await subs
+    .from("profiles")
+    .select("id")
+    .ilike("email", normalized)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.id) return null;
+
+  const { data: authUser, error: authErr } = await subs.auth.admin.getUserById(data.id);
+  if (authErr || !authUser?.user?.id) return null;
+  return authUser.user.id;
+}
 
 /** Map Subs Store author_role to GPT ChatMessage sender_type for shared UI */
 export function subsAuthorRoleToSenderType(role: string): ChatSenderType {

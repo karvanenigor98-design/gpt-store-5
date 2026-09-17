@@ -55,8 +55,8 @@ export function ChatInput({
       setText("");
       setPreview(null);
       textRef.current?.focus();
-    } catch {
-      setError("Ошибка отправки. Попробуйте ещё раз.");
+    } catch (e: unknown) {
+      setError(e instanceof Error && e.message.trim() ? e.message : "Ошибка отправки. Попробуйте ещё раз.");
     } finally {
       setSending(false);
     }
