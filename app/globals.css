@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Sentinel: if this file 404s after deploy, CssLoadGuard reloads HTML. Do not copy into inline critical CSS. */
+.css-asset-ok {
+  display: none !important;
+}
+
 /* ============================================================
    Светлая тема — GBT STORE
    Акцент зелёный: #10a37f (ChatGPT)

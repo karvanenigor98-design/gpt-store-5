@@ -1,4 +1,4 @@
-﻿import crypto from "crypto";
+import crypto from "crypto";
 
 import { getServerSiteOriginBySlug } from "@/lib/app-url";
 import { detectEgressIp, pallyHttpPost } from "@/lib/payments/pally-http";
@@ -78,28 +78,36 @@ export function buildPallyRedirectUrls(
   };
 }
 
+export type PallyBillUrlSet = {
+  successUrl?: string;
+  failUrl?: string;
+  webhookUrl?: string;
+};
+
 export function buildPallyBillUrlCandidates(
   appUrl: string,
   site: PallyStoreSlug = "gpt-store",
-): Array<{ successUrl: string; failUrl: string; webhookUrl: string }> {
+): PallyBillUrlSet[] {
   const base = appUrl.replace(/\/$/, "");
   const webhookUrl = `${base}/api/payments/pally/webhook`;
   const primary = buildPallyRedirectUrls(base, site);
 
-  const candidates = [{ ...primary, webhookUrl }];
+  const candidates: PallyBillUrlSet[] = [{ ...primary, webhookUrl }];
 
   if (site === "subs-store") {
-    const plain = {
+    candidates.push({
       successUrl: `${base}/checkout/success`,
       failUrl: `${base}/checkout/fail`,
       webhookUrl,
-    };
-    candidates.push(plain);
+    });
   }
+
+  // Кабинет уже содержит Success/Fail/Result — без URL в bill/create Pally их подставит.
+  candidates.push({});
 
   const seen = new Set<string>();
   return candidates.filter((c) => {
-    const key = `${c.successUrl}|${c.failUrl}|${c.webhookUrl}`;
+    const key = `${c.successUrl ?? ""}|${c.failUrl ?? ""}|${c.webhookUrl ?? ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -229,12 +237,13 @@ async function formatPallyError(
   const message = String(data.message ?? data.error ?? "").trim();
   if (message.includes("ip_access_denied")) {
     const deniedIp = extractDeniedIp(data) ?? (await detectEgressIp());
-    const relayUrl = process.env.PALLY_RELAY_URL?.trim();
-    const relayHint = relayUrl
-      ? ` Relay (${relayUrl}) недоступен или не задеплоен — см. tools/pally-relay/setup-vps-cloudflared.sh`
-      : " Настройте PALLY_RELAY_URL (tools/pally-relay/setup-vps-cloudflared.sh) или добавьте IP в Pally whitelist.";
-    const ipHint = deniedIp ? ` IP для whitelist: ${deniedIp}.` : "";
-    return "Pally отклонил запрос: IP сервера не в белом списке." + ipHint + relayHint;
+    const ipHint = deniedIp ? ` IP: ${deniedIp}.` : "";
+    return (
+      "Pally: IP сервера не в белом списке." +
+      ipHint +
+      " В кабинете Pally → магазин Spotify → IP Whitelist: отключите фильтр по IP " +
+      "или добавьте этот IP (у Vercel IP меняются — проще отключить фильтр)."
+    );
   }
   if (message.includes("url_not_allowed")) {
     return (
@@ -247,8 +256,8 @@ async function formatPallyError(
   if (fieldErrors) {
     if (/неактивн/i.test(fieldErrors)) {
       return (
-        "Pally: магазин Spotify неактивен (PALLY_SHOP_ID_SUBS). " +
-        "В кабинете Pally → Магазины → включите магазин Spotify (модерация, договор, верификация)."
+        "Pally: магазин неактивен или указан неверный shop_id. " +
+        "Проверьте PALLY_SHOP_ID / PALLY_SHOP_ID_SUBS в Vercel (актуальные ID в кабинете Pally → Магазины)."
       );
     }
     return `Pally: ${fieldErrors}`;
@@ -299,11 +308,17 @@ export async function createPallyPayment(
   }
 
   const sign = buildSign(config.shopId, config.secretKey, params.orderId, params.amount);
-  const urlCandidates = buildPallyBillUrlCandidates(
-    params.successUrl.replace(/\/checkout\/success.*$/, ""),
-    site,
-  );
-  const billUrlSets =
+  const extractedBase = params.successUrl.replace(/\/checkout\/success.*$/, "");
+  const canonicalBase =
+    site === "subs-store" ? "https://spotify-store.ru" : "https://gptplus-store.ru";
+  const pallyBase =
+    /vercel\.app|localhost|127\.0\.0\.1/i.test(extractedBase) ||
+    (site === "gpt-store" && /www\.gptplus-store\.ru/i.test(extractedBase)) ||
+    (site === "subs-store" && /www\.spotify-store\.ru/i.test(extractedBase))
+      ? canonicalBase
+      : extractedBase || canonicalBase;
+  const urlCandidates = buildPallyBillUrlCandidates(pallyBase, site);
+  const billUrlSets: PallyBillUrlSet[] =
     urlCandidates.length > 0
       ? urlCandidates
       : [
@@ -312,6 +327,7 @@ export async function createPallyPayment(
             failUrl: params.failUrl,
             webhookUrl: params.webhookUrl,
           },
+          {},
         ];
 
   const networkErrors: string[] = [];
@@ -324,16 +340,18 @@ export async function createPallyPayment(
       amount: params.amount,
       currency: "RUB",
       desc: params.description,
-      success_url: urls.successUrl,
-      fail_url: urls.failUrl,
-      webhook_url: urls.webhookUrl,
-      result_url: urls.webhookUrl,
       email: params.customerEmail,
       sign,
       test: config.testMode ? 1 : 0,
       site_slug: site,
       site: site,
     };
+    if (urls.successUrl) body.success_url = urls.successUrl;
+    if (urls.failUrl) body.fail_url = urls.failUrl;
+    if (urls.webhookUrl) {
+      body.webhook_url = urls.webhookUrl;
+      body.result_url = urls.webhookUrl;
+    }
 
     for (const apiUrl of config.apiUrls) {
       try {

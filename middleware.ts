@@ -191,7 +191,40 @@ function applyCurrentSiteCookie(
   }
 }
 
+async function redirectPallyCheckoutForm(request: NextRequest): Promise<NextResponse | null> {
+  const path = request.nextUrl.pathname;
+  if (request.method !== "POST") return null;
+  if (path !== "/checkout/success" && path !== "/checkout/fail") return null;
+
+  try {
+    const params = new URLSearchParams(request.nextUrl.search);
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const json = (await request.json()) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(json)) {
+        if (value == null || params.has(key)) continue;
+        const text = Array.isArray(value) ? String(value[0] ?? "") : String(value);
+        if (text) params.set(key, text);
+      }
+    } else {
+      const form = await request.formData();
+      for (const [key, value] of form.entries()) {
+        if (typeof value !== "string" || !value || params.has(key)) continue;
+        params.set(key, value);
+      }
+    }
+    const url = request.nextUrl.clone();
+    url.search = params.toString();
+    return NextResponse.redirect(url, 303);
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
+  const pallyForm = await redirectPallyCheckoutForm(request);
+  if (pallyForm) return pallyForm;
+
   const path = request.nextUrl.pathname;
   const host = resolveRequestHost(request);
   const protocol = request.nextUrl.protocol;
@@ -199,17 +232,6 @@ export async function middleware(request: NextRequest) {
 
   const brandIconResponse = maybeRewriteBrandIcon(request);
   if (brandIconResponse) return brandIconResponse;
-
-  if (process.env.NODE_ENV === "production") {
-    if (host === "www.gptplus-store.ru") {
-      const url = new URL(request.nextUrl.pathname + request.nextUrl.search, `${protocol}//gptplus-store.ru`);
-      return NextResponse.redirect(url, 308);
-    }
-    if (host === "www.spotify-store.ru") {
-      const url = new URL(request.nextUrl.pathname + request.nextUrl.search, `${protocol}//spotify-store.ru`);
-      return NextResponse.redirect(url, 308);
-    }
-  }
 
   const needsSubsSiteQuery =
     isSpotifyStoreHostname(host) &&

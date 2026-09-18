@@ -266,10 +266,7 @@ export function verifyPallyWebhook(
   body: Record<string, unknown>,
   receivedSign: string,
 ): boolean {
-  if (!receivedSign?.trim()) {
-    if (process.env.PALLY_WEBHOOK_REQUIRE_SIGN === "true") return false;
-    return true;
-  }
+  if (!receivedSign?.trim()) return false;
 
   // Pally JSON webhook: OutSum + InvId + SignatureValue (без shop_id в теле).
   if (verifyRobokassaStyle(body, receivedSign)) return true;

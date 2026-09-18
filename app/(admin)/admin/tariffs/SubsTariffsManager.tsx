@@ -53,8 +53,12 @@ function periodToMonths(period: string): number {
 }
 
 function normalizeTariffRow(row: TariffRow): TariffRow {
-  const durationMonths = row.duration_months ?? 1;
-  const title = row.title?.trim() || buildSubsTariffDefaultTitle(row.category, durationMonths);
+  // Do not coerce null → 1: that poisons admin display/save as "1 мес".
+  const durationMonths = row.duration_months != null && row.duration_months > 0
+    ? row.duration_months
+    : null;
+  const title =
+    row.title?.trim() || buildSubsTariffDefaultTitle(row.category, durationMonths);
   return { ...row, duration_months: durationMonths, title };
 }
 

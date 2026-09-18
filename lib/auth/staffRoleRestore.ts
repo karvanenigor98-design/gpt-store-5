@@ -52,7 +52,7 @@ export async function loadStaffRoleFromSiteMemberships(
   }
 }
 
-/** Последняя роль из role_audit (action set_role) — только свежая запись. */
+/** Последняя роль из role_audit (set_role / grant_operator_by_email). */
 export async function loadStaffRoleFromAudit(
   admin: SupabaseClient,
   userId: string,
@@ -60,18 +60,23 @@ export async function loadStaffRoleFromAudit(
   try {
     const { data, error } = await admin
       .from("role_audit")
-      .select("payload")
+      .select("action, payload")
       .eq("target_id", userId)
-      .eq("action", "set_role")
+      .in("action", ["set_role", "grant_operator_by_email"])
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(5);
 
-    if (error || !data) return null;
+    if (error || !data?.length) return null;
 
-    const to = (data.payload as { to?: string } | null)?.to;
-    if (to === "admin" || to === "operator" || to === "client") {
-      return to;
+    for (const row of data) {
+      const action = (row as { action?: string }).action;
+      if (action === "grant_operator_by_email") {
+        return "operator";
+      }
+      const to = (row as { payload?: { to?: string } | null }).payload?.to;
+      if (to === "admin" || to === "operator" || to === "client") {
+        return to;
+      }
     }
     return null;
   } catch {

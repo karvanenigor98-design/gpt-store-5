@@ -1,12 +1,13 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
-  confirmPallyWebhookByOrderMatch,
   confirmPallyWebhookViaApi,
   verifyPallyWebhook,
 } from "@/lib/payments/pally-webhook-verify";
 import { parsePallyWebhookRequestBody } from "@/lib/payments/pally-webhook-body";
 import { processPallyWebhook } from "@/lib/payments/process-pally-webhook";
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       String(body.sign ?? body.SignatureValue ?? "");
 
     let signatureOk = verifyPallyWebhook(body, sign);
-    if (!signatureOk) {
+    if (!signatureOk && process.env.PALLY_WEBHOOK_ALLOW_API_CONFIRM === "true") {
       signatureOk = await confirmPallyWebhookViaApi(body);
       if (signatureOk) {
         console.warn(
@@ -28,18 +29,7 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!signatureOk) {
-      signatureOk = await confirmPallyWebhookByOrderMatch(body);
-      if (signatureOk) {
-        console.warn(
-          "[Pally webhook] signature mismatch, accepted SUCCESS + order amount match",
-          String(body.order_id ?? body.InvId ?? ""),
-        );
-      }
-    }
-
-    if (!signatureOk) {
-      const missing =
-        process.env.PALLY_WEBHOOK_REQUIRE_SIGN === "true" && !sign?.trim();
+      const missing = !sign?.trim();
       return NextResponse.json(
         { error: missing ? "Missing signature" : "Invalid signature" },
         { status: 400 },

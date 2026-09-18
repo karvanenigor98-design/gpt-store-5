@@ -44,15 +44,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let membershipRole: "customer" | "operator" | "admin" = "customer";
   try {
     const profileRole = await syncProfileRoleForUser(user.id, user.email ?? null);
-    membershipRole = profileRoleToSiteMembershipRole(profileRole);
+    const membershipRole = profileRoleToSiteMembershipRole(profileRole);
+    await upsertSiteMembership(user.id, siteSlug, membershipRole);
   } catch {
-    /* не блокируем вход */
+    /* не блокируем вход и не пишем customer поверх staff при сбое sync */
   }
-
-  await upsertSiteMembership(user.id, siteSlug, membershipRole);
 
   const res = NextResponse.json({ ok: true, site: siteSlug });
   clearSiteUiLogout(res, siteSlug as SiteSlug);

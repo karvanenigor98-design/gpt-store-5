@@ -97,6 +97,8 @@ export type OrderPaidNotificationParams = {
   accountEmail?: string | null;
   paidAt?: string;
   isRenewal?: boolean;
+  /** Guest checkout already sent magic-link access email. */
+  skipCustomerEmail?: boolean;
 };
 
 /**
@@ -185,7 +187,7 @@ export async function handleOrderPaidNotification(
       console.warn("[order-paid] no client email for order", params.orderId.slice(0, 8));
     }
 
-    if (clientEmail) {
+    if (clientEmail && !params.skipCustomerEmail) {
       const clientLines = [
         "Оплата получена. Мы уже передали заказ в работу и скоро начнём активацию подписки.",
         `Тариф: ${params.planName}`,

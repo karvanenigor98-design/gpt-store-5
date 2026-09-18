@@ -500,7 +500,7 @@ export function SpotifyCheckoutFlow() {
           >
             <h1 className="font-heading text-2xl font-bold text-white md:text-3xl">Оплата</h1>
             <p className="mt-2 mb-8 text-sm md:text-base" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Оплата через Pally, СБП и банковскую карту РФ — вы перейдёте на защищённую страницу провайдера.
+              Оплата картой РФ или СБП — вы перейдёте на защищённую страницу оплаты.
             </p>
 
             {selectedPlan && (

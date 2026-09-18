@@ -12,6 +12,15 @@ function jsonDiagnostic(status: number, message: string, code: string, extra?: R
   return NextResponse.json({ ok: false, error: message, code, ...(extra ?? {}) }, { status });
 }
 
+function applyDeletedVisibility(message: ChatMessage): ChatMessage {
+  if (!message.is_deleted) return message;
+  return {
+    ...message,
+    content: "Сообщение удалено",
+    attachments: null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const threadId = req.nextUrl.searchParams.get("thread_id")?.trim();
   if (!threadId) {
@@ -83,18 +92,24 @@ export async function GET(req: NextRequest) {
   const byId = new Map(list.map((m) => [m.id, m]));
   const withReply = list.map((m) => {
     const replyToId = (m as ChatMessage & { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
-    if (!replyToId) return m;
+    const visibleMessage = applyDeletedVisibility(m);
+    if (!replyToId) return visibleMessage;
     const target = byId.get(replyToId);
     return {
-      ...m,
+      ...visibleMessage,
       reply_to_message: target
         ? {
             id: target.id,
             sender_type: target.sender_type,
-            content: target.content,
+            content: applyDeletedVisibility(target).content,
             is_deleted: (target as ChatMessage & { is_deleted?: boolean }).is_deleted ?? false,
           }
-        : { id: replyToId, sender_type: "auto", content: "", is_deleted: true },
+        : {
+            id: replyToId,
+            sender_type: "auto",
+            content: "Исходное сообщение недоступно",
+            is_deleted: false,
+          },
     } as ChatMessage;
   });
 

@@ -16,6 +16,7 @@ type ConnectCheckoutButtonProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 
   promoCode?: string | null;
   /** Analytics source for select_plan goals (default: landing_pricing). */
   trackSource?: string;
+  skipAuthGate?: boolean;
   children: ReactNode;
 };
 
@@ -25,6 +26,7 @@ export function ConnectCheckoutButton({
   planName,
   promoCode,
   trackSource = "landing_pricing",
+  skipAuthGate = false,
   children,
   onClick,
   ...anchorProps
@@ -51,6 +53,7 @@ export function ConnectCheckoutButton({
         planName,
         promoCode: effectivePromo,
         router,
+        skipAuthGate: skipAuthGate && siteSlug === "gpt-store",
       });
     } finally {
       setBusy(false);

@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       chatId,
       dateFrom,
       dateTo,
+      canViewDeletedContent: access.userRole === "admin",
     });
 
     if (format === "attachments") {

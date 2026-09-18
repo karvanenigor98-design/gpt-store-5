@@ -42,16 +42,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: profile, error: findError } = await db
+    const { data: profileRows, error: findError } = await db
       .from("profiles")
       .select("id, email, role")
       .ilike("email", email)
-      .maybeSingle();
+      .limit(10);
 
     if (findError) {
       return NextResponse.json({ error: findError.message }, { status: 400 });
     }
-    if (!profile?.id) {
+    const profileList = profileRows ?? [];
+    if (profileList.length === 0) {
       return NextResponse.json(
         {
           error:
@@ -62,6 +63,18 @@ export async function POST(request: NextRequest) {
         { status: 404 },
       );
     }
+
+    if (profileList.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            "Найдено несколько профилей с этим email. Назначьте роль через таблицу пользователей (по конкретному user_id), чтобы не выдать права не тому аккаунту.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const profile = profileList[0]!;
 
     const nextRole = roleAfterGrant((profile.role ?? "client") as UserRole, "operator");
     const { error: updateError } = await db.from("profiles").update({ role: nextRole }).eq("id", profile.id);

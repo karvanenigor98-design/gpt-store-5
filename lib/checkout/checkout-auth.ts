@@ -97,8 +97,17 @@ export async function navigateToCheckoutOrAuth(params: {
   planName?: string | null;
   promoCode?: string | null;
   router: AppRouterInstance;
+  skipAuthGate?: boolean;
 }): Promise<void> {
-  const { siteSlug, planId, planName, promoCode, router } = params;
+  const { siteSlug, planId, planName, promoCode, router, skipAuthGate } = params;
   persistCheckoutIntent({ siteSlug, planId, planName, promoCode });
-  router.push(buildCheckoutPath(siteSlug, planId, promoCode ?? readCapturedPromo()));
+  const checkoutPath = buildCheckoutPath(siteSlug, planId, promoCode ?? readCapturedPromo());
+  if (siteSlug === "gpt-store" && !skipAuthGate) {
+    const { user } = await getCheckoutSessionUser(siteSlug);
+    if (!user) {
+      router.push(buildCheckoutAuthUrl(siteSlug, checkoutPath));
+      return;
+    }
+  }
+  router.push(checkoutPath);
 }

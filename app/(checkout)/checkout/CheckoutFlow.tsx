@@ -25,10 +25,16 @@ const ALL_PLANS = [...PLUS_PLANS, ...PRO_PLANS];
 
 const STEPS = ["Выбор тарифа", "Оплата"];
 
-export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }) {
+export function CheckoutFlow({
+  initialPlans,
+  allowGuest = false,
+}: {
+  initialPlans?: ExtendedPlan[];
+  allowGuest?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const authGate = useCheckoutAuthGate("gpt-store");
+  const authGate = useCheckoutAuthGate("gpt-store", { allowGuest });
 
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState<ExtendedPlan | null>(null);
@@ -38,6 +44,8 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [promoOpen, setPromoOpen] = useState(false);
   const [runtimePlans, setRuntimePlans] = useState<ExtendedPlan[]>(
     (initialPlans && initialPlans.length ? initialPlans : ALL_PLANS).filter(
       (p) => p.inStock !== false,
@@ -166,7 +174,7 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   }, []);
 
   async function saveDraftOrder() {
-    if (!selectedPlan) return;
+    if (!selectedPlan || (allowGuest && !authGate.authenticated)) return;
     try {
       const res = await fetch("/api/checkout/gpt/draft", {
         method: "POST",
@@ -190,6 +198,17 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
   async function onPaymentSubmit() {
     if (!selectedPlan || selectedPlan.inStock === false || !agreeTerms) return;
     if (submittingRef.current || isSubmitting) return;
+    if (!authGate.authenticated) {
+      if (!allowGuest) {
+        const ret = `/checkout?plan=${encodeURIComponent(selectedPlan.id)}`;
+        router.push(buildCheckoutAuthUrl("gpt-store", ret));
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim())) {
+        setError("Укажите email — на него придёт доступ к заказу.");
+        return;
+      }
+    }
     submittingRef.current = true;
     trackGPTPayClick(selectedPlan.id, "checkout_step2");
     setIsSubmitting(true);
@@ -204,6 +223,9 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
           planId: selectedPlan.id,
           promoCode: promoCode.trim().toUpperCase() || null,
           orderId: draftOrderId,
+          ...(allowGuest && !authGate.authenticated
+            ? { email: guestEmail.trim().toLowerCase() }
+            : {}),
         }),
       });
 
@@ -226,6 +248,10 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
       if (!res.ok || !json.paymentUrl || !json.orderId) {
         const base = formatPallyCheckoutError(json.error ?? "Платёжная ссылка недоступна");
         if (res.status === 401) {
+          if (allowGuest) {
+            setError("Не удалось создать платёж. Проверьте email и попробуйте снова.");
+            return;
+          }
           const ret = `/checkout?plan=${encodeURIComponent(selectedPlan.id)}`;
           router.push(buildCheckoutAuthUrl("gpt-store", ret));
           return;
@@ -373,11 +399,18 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
           >
             <h2 className="font-heading text-xl font-bold text-gray-900 mb-2">Оплата</h2>
             <p className="mb-5 text-sm text-gray-500">
-              Оплата доступна через Pally, СБП и банковскую карту РФ — вы перейдёте на защищённую страницу
-              провайдера.
+              {allowGuest && !authGate.authenticated
+                ? "Укажите email и оплатите — заказ и чат откроются сразу, без подтверждения почты."
+                : "Оплата картой РФ или СБП — вы перейдёте на защищённую страницу оплаты."}
             </p>
 
-            <TokenSafetyBlock compact={true} className="mb-4" supportHref="/dashboard/chat" />
+            {allowGuest && !authGate.authenticated ? (
+              <p className="mb-4 text-sm leading-relaxed text-gray-600">
+                После оплаты откроется заказ и чат, где менеджер поможет с подключением.
+              </p>
+            ) : (
+              <TokenSafetyBlock compact={true} className="mb-4" supportHref="/dashboard/chat" />
+            )}
 
             {/* Summary */}
             {selectedPlan && (
@@ -406,16 +439,54 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
               </div>
             )}
 
-            {/* Terms consent */}
+            {allowGuest && !authGate.authenticated ? (
+              <div className="mb-4">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Email</label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="example@mail.ru"
+                  className="w-full rounded-xl border border-black/[0.12] px-3.5 py-2.5 text-sm outline-none transition-shadow focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/30"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">На этот email привяжем заказ. Подтверждать почту не нужно.</p>
+              </div>
+            ) : null}
+
             <div className="mb-4">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Промокод (если есть)</label>
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Например: COMP10"
-                className="w-full rounded-xl border border-black/[0.12] px-3.5 py-2.5 text-sm outline-none transition-shadow focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/30"
-              />
+              {allowGuest ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPromoOpen((open) => !open)}
+                    className="mb-1.5 text-sm font-medium text-[#10a37f] hover:underline"
+                  >
+                    {promoOpen || promoCode ? "Промокод" : "Есть промокод?"}
+                  </button>
+                  {promoOpen || promoCode ? (
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      placeholder="Например: COMP10"
+                      className="w-full rounded-xl border border-black/[0.12] px-3.5 py-2.5 text-sm outline-none transition-shadow focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/30"
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Промокод (если есть)</label>
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    placeholder="Например: COMP10"
+                    className="w-full rounded-xl border border-black/[0.12] px-3.5 py-2.5 text-sm outline-none transition-shadow focus:border-[#10a37f] focus:ring-2 focus:ring-[#10a37f]/30"
+                  />
+                </>
+              )}
               {promoPreview.status === "ok" ? (
                 <p className="mt-1.5 text-xs font-medium text-[#10a37f]">
                   Промокод применён: −{promoPreview.discountValue.toLocaleString("ru")} ₽
@@ -461,7 +532,12 @@ export function CheckoutFlow({ initialPlans }: { initialPlans?: ExtendedPlan[] }
               </button>
               <button
                 type="button"
-                disabled={!agreeTerms || isSubmitting || promoPreview.status === "invalid"}
+                disabled={
+                  !agreeTerms ||
+                  isSubmitting ||
+                  promoPreview.status === "invalid" ||
+                  (allowGuest && !authGate.authenticated && !guestEmail.trim())
+                }
                 onClick={onPaymentSubmit}
                 className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-[#10a37f] py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
               >

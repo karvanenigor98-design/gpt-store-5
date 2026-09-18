@@ -6,7 +6,7 @@ import type { Database } from "@/types/database";
 
 type SessionRow = Database["public"]["Tables"]["chat_sessions"]["Row"];
 
-/** Канонические operator-сессии (одна на клиента) — как в списке диалогов. */
+/** Fallback when RPC is missing: canonical sessions then count (bounded). */
 async function listCanonicalGptOperatorSessionIds(
   admin: SupabaseClient,
   siteSlug: "gpt-store" | "subs-store" = "gpt-store",
@@ -14,7 +14,14 @@ async function listCanonicalGptOperatorSessionIds(
   const siteId = await getSiteUUID(siteSlug);
   const subsSiteId = siteSlug === "gpt-store" ? await getSiteUUID("subs-store") : null;
 
-  let sessionsQ = admin.from("chat_sessions").select("id,user_id,type,status,created_at,site_id").eq("type", "operator");
+  let sessionsQ = admin
+    .from("chat_sessions")
+    .select("id,user_id,type,status,created_at,site_id,last_message_at")
+    .eq("type", "operator")
+    .eq("status", "open")
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(400);
+
   if (siteId) {
     if (siteSlug === "gpt-store") {
       sessionsQ = sessionsQ.or(`site_id.eq.${siteId},site_id.is.null`);
@@ -31,20 +38,23 @@ async function listCanonicalGptOperatorSessionIds(
     return s.site_id !== subsSiteId;
   });
 
-  const sessionIds = filtered.map((s) => s.id).filter(Boolean);
+  const sessionIds = filtered.filter((s) => s.user_id).map((s) => s.id).filter(Boolean);
   if (!sessionIds.length) return [];
 
-  const { data: lastMsgs } = await admin
-    .from("chat_messages")
-    .select("session_id, created_at")
-    .in("session_id", sessionIds)
-    .order("created_at", { ascending: false });
+  const sessionsPerUser = new Map<string, number>();
+  let hasDuplicates = false;
+  for (const session of filtered) {
+    if (!session.user_id) continue;
+    const count = (sessionsPerUser.get(session.user_id) ?? 0) + 1;
+    sessionsPerUser.set(session.user_id, count);
+    if (count > 1) hasDuplicates = true;
+  }
+  if (!hasDuplicates) return sessionIds;
 
   const lastAtBySession = new Map<string, string>();
-  for (const m of lastMsgs ?? []) {
-    if (!lastAtBySession.has(m.session_id)) {
-      lastAtBySession.set(m.session_id, m.created_at as string);
-    }
+  for (const s of filtered) {
+    const at = (s as { last_message_at?: string | null }).last_message_at;
+    if (at) lastAtBySession.set(s.id, at);
   }
 
   const byUser = new Map<string, SessionRow[]>();
@@ -69,6 +79,25 @@ export async function countGptStoreUnreadClientMessages(
   admin: SupabaseClient,
   siteSlug: "gpt-store" | "subs-store" = "gpt-store",
 ): Promise<number> {
+  const siteId = await getSiteUUID(siteSlug);
+  const excludeSiteId =
+    siteSlug === "gpt-store" ? await getSiteUUID("subs-store") : null;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (admin as any).rpc(
+      "count_gpt_unread_client_chat_messages",
+      {
+        p_site_id: siteId,
+        p_exclude_site_id: excludeSiteId,
+      },
+    );
+    if (!error && typeof data === "number") return data;
+    if (!error && data != null) return Number(data) || 0;
+  } catch {
+    /* RPC missing — fallback */
+  }
+
   const sessionIds = await listCanonicalGptOperatorSessionIds(admin, siteSlug);
   if (!sessionIds.length) return 0;
 
@@ -85,7 +114,11 @@ export async function countGptStoreUnreadClientMessages(
 
 /** Непрочитанные сообщения клиентов в активных тредах Subs Store. */
 export async function countSubsStoreUnreadClientMessages(subs: SupabaseClient): Promise<number> {
-  const { data: threads, error: tErr } = await subs.from("chat_threads").select("id").limit(500);
+  const { data: threads, error: tErr } = await subs
+    .from("chat_threads")
+    .select("id")
+    .eq("status", "open")
+    .limit(200);
   if (tErr) return 0;
 
   const threadIds = (threads ?? []).map((t) => t.id as string).filter(Boolean);

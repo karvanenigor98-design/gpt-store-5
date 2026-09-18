@@ -104,13 +104,24 @@ function periodLabel(dateFrom: string | null, dateTo: string | null): string {
   return `до ${dateTo}`;
 }
 
+function maskDeletedContent(message: ChatMessage, canViewDeletedContent: boolean): ChatMessage {
+  if (!message.is_deleted || canViewDeletedContent) return message;
+  return {
+    ...message,
+    content: "Сообщение удалено",
+    attachments: null,
+  };
+}
+
 export async function buildExportPayload(params: {
   siteSlug: SiteSlug;
   chatId: string;
   dateFrom: string | null;
   dateTo: string | null;
+  canViewDeletedContent?: boolean;
 }): Promise<ExportPayload> {
   const siteSlug = params.siteSlug === "subs-store" ? "subs-store" : "gpt-store";
+  const canViewDeletedContent = Boolean(params.canViewDeletedContent);
   const loaded =
     siteSlug === "subs-store" ? await loadSubsMessages(params.chatId) : await loadGptMessages(params.chatId);
 
@@ -137,11 +148,14 @@ export async function buildExportPayload(params: {
     }
   }
 
-  const exportMessages: ExportMessage[] = withReplies.map((msg) => ({
-    ...msg,
-    author: authorForMessage(msg, profileEmails, loaded.clientUserId),
-    attachmentsList: msg.is_deleted ? [] : parseMessageAttachments(msg),
-  }));
+  const exportMessages: ExportMessage[] = withReplies.map((rawMsg) => {
+    const msg = maskDeletedContent(rawMsg, canViewDeletedContent);
+    return {
+      ...msg,
+      author: authorForMessage(msg, profileEmails, loaded.clientUserId),
+      attachmentsList: msg.is_deleted ? [] : parseMessageAttachments(msg),
+    };
+  });
 
   const attachmentCount = exportMessages.reduce((n, m) => n + m.attachmentsList.length, 0);
 

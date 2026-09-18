@@ -309,7 +309,7 @@ export function LoginForm() {
         style={{ backgroundColor: accentColor, boxShadow: `0 4px 14px ${accentColor}40` }}
       >
         {isSubmitting && <Loader2 size={15} className="animate-spin" />}
-        Войти
+        {checkoutMessage && !isSubsStore ? "Войти и перейти к оплате" : "Войти"}
       </button>
 
       <p className={cn("text-center text-sm", isSubsStore ? "text-gray-400" : "text-gray-500")}>

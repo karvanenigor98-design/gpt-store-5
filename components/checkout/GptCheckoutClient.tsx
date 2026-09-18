@@ -15,9 +15,7 @@ type Props = {
 export function GptCheckoutClient({ plans }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const planIdFromUrlRaw = searchParams.get("plan");
-  const planIdFromUrl =
-    planIdFromUrlRaw === "plus-ready" ? "plus-fast" : planIdFromUrlRaw;
+  const planIdFromUrl = searchParams.get("plan");
 
   const [selectedPlanId, setSelectedPlanId] = useState(planIdFromUrl ?? plans[0]?.id ?? "");
   const [accountEmail, setAccountEmail] = useState("");

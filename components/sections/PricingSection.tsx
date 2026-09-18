@@ -939,7 +939,7 @@ export function PricingSection({
         </AnimatePresence>
 
         <p className="mt-8 text-center text-sm text-gray-400">
-          Оплата через Pally, СБП и банковскую карту РФ — без иностранной карты
+          Оплата картой РФ или СБП — без иностранной карты
         </p>
       </div>
     </section>

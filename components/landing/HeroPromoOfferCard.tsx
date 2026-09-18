@@ -110,15 +110,17 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
               wide ? "text-xl sm:text-2xl" : "text-lg",
             )}
           >
-            {offer.planName}
-            <span
-              className={cn(
-                "ml-2 text-base font-semibold",
-                isGpt ? "text-gray-400" : "text-white/45",
-              )}
-            >
-              / {offer.periodLabel}
-            </span>
+            {offer.displayPlanName || offer.planName}
+            {offer.displayPlanName ? null : (
+              <span
+                className={cn(
+                  "ml-2 text-base font-semibold",
+                  isGpt ? "text-gray-400" : "text-white/45",
+                )}
+              >
+                / {offer.periodLabel}
+              </span>
+            )}
           </p>
           {offer.offerHeadline ? (
             <p
@@ -164,11 +166,11 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
 
         {promo ? (
           <div className="flex flex-wrap gap-1.5">
-            {offer.discountLabel ? (
+            {!isGpt && offer.discountLabel ? (
               <span
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                  isGpt ? "bg-emerald-50 text-[#0f7d62]" : "bg-[rgba(29,185,84,0.14)] text-[#1DB954]",
+                  "bg-[rgba(29,185,84,0.14)] text-[#1DB954]",
                 )}
               >
                 <Percent className="h-3 w-3" aria-hidden />
@@ -184,7 +186,7 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
               >
                 <PiggyBank className="h-3 w-3" aria-hidden />
                 {isGpt
-                  ? `минус ${offer.savingsRub.toLocaleString("ru")} ₽`
+                  ? `−${offer.savingsRub.toLocaleString("ru")} ₽`
                   : `Экономия ${offer.savingsRub.toLocaleString("ru")} ₽`}
               </span>
             ) : null}
@@ -196,7 +198,9 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
                 )}
               >
                 <CalendarDays className="h-3 w-3" aria-hidden />
-                {offer.untilLabel || offer.periodBadge}
+                {isGpt
+                  ? (offer.untilLabel || offer.periodBadge)?.replace(/^До\s+/i, "до ")
+                  : offer.untilLabel || offer.periodBadge}
               </span>
             ) : null}
           </div>
@@ -238,7 +242,14 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
             }}
           >
             <span className="relative z-[2] inline-flex items-center justify-center gap-2">
-              {offer.ctaLabel}
+              {isGpt && offer.ctaLabelWide ? (
+                <>
+                  <span className="sm:hidden">{offer.ctaLabel}</span>
+                  <span className="hidden sm:inline">{offer.ctaLabelWide}</span>
+                </>
+              ) : (
+                offer.ctaLabel
+              )}
               <ArrowRight size={16} />
             </span>
           </ConnectCheckoutButton>
@@ -255,7 +266,14 @@ export function HeroPromoOfferCard({ site, className, layout = "compact" }: Hero
             }}
           >
             <span className="relative z-[2] inline-flex items-center justify-center gap-2">
-              {offer.ctaLabel}
+              {isGpt && offer.ctaLabelWide ? (
+                <>
+                  <span className="sm:hidden">{offer.ctaLabel}</span>
+                  <span className="hidden sm:inline">{offer.ctaLabelWide}</span>
+                </>
+              ) : (
+                offer.ctaLabel
+              )}
               <ArrowRight size={16} />
             </span>
           </Link>

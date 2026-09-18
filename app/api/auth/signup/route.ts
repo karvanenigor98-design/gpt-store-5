@@ -10,6 +10,7 @@ import {
   humanizeSignupEmailError,
   sendSignupConfirmationEmail,
 } from "@/lib/auth/send-signup-confirmation-email";
+import { getPublicBaseUrl } from "@/lib/site-url";
 import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
@@ -20,15 +21,11 @@ const signupBodySchema = z.object({
   returnUrl: z.string().optional(),
 });
 
-function getAppBaseUrl(request: NextRequest): string {
+function getAppBaseUrl(request: NextRequest, siteSlug: AuthSiteSlug): string {
   if (process.env.NODE_ENV !== "production") {
     return request.nextUrl.origin.replace(/\/$/, "");
   }
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    request.nextUrl.origin;
-  return raw.replace(/\/$/, "");
+  return getPublicBaseUrl(siteSlug);
 }
 
 function getAdminClient(siteSlug: AuthSiteSlug) {
@@ -65,7 +62,7 @@ export async function POST(request: NextRequest) {
       !parsed.data.returnUrl.startsWith("//")
         ? parsed.data.returnUrl
         : defaultCustomerDashboard(siteSlug);
-    const appBaseUrl = getAppBaseUrl(request);
+    const appBaseUrl = getAppBaseUrl(request, siteSlug);
 
     const admin = getAdminClient(siteSlug);
     if (!admin) {

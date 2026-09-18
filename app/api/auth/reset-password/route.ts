@@ -7,7 +7,7 @@ import { logAuthEmailAttempt } from "@/lib/auth/auth-email-log";
 import { hasSubsStoreAuthUserByEmail } from "@/lib/auth/subsMembershipByEmail";
 import { sendTransactionalEmail } from "@/lib/email/send-email";
 import { getPublicBrandName } from "@/lib/sites";
-import { buildRecoveryRedirectTo } from "@/lib/site-url";
+import { buildRecoveryRedirectTo, getPublicBaseUrl } from "@/lib/site-url";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   getSubsPublicSupabaseAnonKey,
@@ -45,6 +45,9 @@ function humanizeAuthDeliveryError(message: string): string {
   if (lower.includes("error sending recovery email") || lower.includes("error sending email")) {
     return "Supabase не смог отправить письмо через SMTP. Проверьте Authentication → Emails (логин/пароль mail.ru, порт 587, пароль приложения).";
   }
+  if (lower.includes("exceed_egress_quota") || lower.includes("service for this project is restricted")) {
+    return "Сервис восстановления пароля временно недоступен из-за лимита проекта. Обновите лимиты хостинга или отключите spend cap.";
+  }
   return message;
 }
 
@@ -56,17 +59,12 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function getAppBaseUrl(request: NextRequest): string {
+function getAppBaseUrl(request: NextRequest, siteSlug: "gpt-store" | "subs-store"): string {
   // В dev сервер может стартовать на 3001/3002/3003...; берём фактический origin запроса.
   if (process.env.NODE_ENV !== "production") {
     return request.nextUrl.origin.replace(/\/$/, "");
   }
-
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    request.nextUrl.origin;
-  return raw.replace(/\/$/, "");
+  return getPublicBaseUrl(siteSlug);
 }
 
 function buildResetEmailHtml(recoveryLink: string, siteSlug: string, appLoginUrl: string): string {
@@ -129,45 +127,6 @@ function buildResetEmailHtml(recoveryLink: string, siteSlug: string, appLoginUrl
   `;
 }
 
-async function sendViaResend(to: string, recoveryLink: string, siteSlug: string, appLoginUrl: string): Promise<SendResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from =
-    process.env.RESET_PASSWORD_FROM_EMAIL ||
-    process.env.RESEND_FROM_EMAIL ||
-    process.env.MAIL_FROM;
-  if (!apiKey || !from) {
-    return { ok: false, reason: "resend_not_configured" };
-  }
-
-  const isSubsStore = siteSlug === "subs-store";
-  const subject = `Сброс пароля ${getPublicBrandName(siteSlug)}`;
-  const html = buildResetEmailHtml(recoveryLink, siteSlug, appLoginUrl);
-
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to: [to], subject, html }),
-    });
-    if (!response.ok) {
-      let detail = "";
-      try {
-        const body = (await response.json()) as { message?: string };
-        detail = body.message ?? "";
-      } catch {
-        /* noop */
-      }
-      return { ok: false, status: response.status, reason: "resend_rejected", detail };
-    }
-    return { ok: true, status: response.status };
-  } catch {
-    return { ok: false, reason: "resend_network_error" };
-  }
-}
-
 export async function POST(request: NextRequest) {
   const isLocalRequest =
     request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
@@ -184,7 +143,6 @@ export async function POST(request: NextRequest) {
 
     const siteSlug = body.site === "subs-store" ? "subs-store" : "gpt-store";
     const isSubsStore = siteSlug === "subs-store";
-
     if (isSubsStore) {
       if (!createSubsStoreAdminClient() || !getSubsPublicSupabaseUrl() || !getSubsPublicSupabaseAnonKey()) {
         return NextResponse.json(
@@ -207,14 +165,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const appBaseUrl = getAppBaseUrl(request);
+    const appBaseUrl = getAppBaseUrl(request, siteSlug);
     const redirectTo = buildRecoveryRedirectTo(siteSlug, appBaseUrl);
 
-    const appLoginUrl = isSubsStore
-      ? `${appBaseUrl}/login?site=subs-store`
-      : (process.env.NEXT_PUBLIC_APP_URL?.trim()
-          ? `${process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, "")}/login`
-          : "");
+    const appLoginUrl = `${appBaseUrl}/login?site=${siteSlug}`;
 
     const debug: Record<string, unknown> = { redirectTo, siteSlug };
 
@@ -243,13 +197,13 @@ export async function POST(request: NextRequest) {
     }
 
     async function sendCustomRecoveryEmail(recoveryLink: string): Promise<SendResult> {
-      const isSubs = siteSlug === "subs-store";
       const subject = `Сброс пароля ${getPublicBrandName(siteSlug)}`;
       const html = buildResetEmailHtml(recoveryLink, siteSlug, appLoginUrl);
       const text = `Сброс пароля. Откройте ссылку: ${recoveryLink}`;
 
       const result = await sendTransactionalEmail(email, subject, text, html, {
         siteSlug,
+        purpose: "auth",
       });
 
       if (result.ok) {

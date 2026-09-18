@@ -1,7 +1,8 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CheckoutFlow } from "@/app/(checkout)/checkout/CheckoutFlow";
 import { CheckoutVisitMetrika } from "@/components/analytics/CheckoutVisitMetrika";
+import { isGptGuestCheckoutEnabled } from "@/lib/checkout/gpt-guest-checkout-flag";
 
 export const metadata: Metadata = {
   title: "Оформление заказа",
@@ -22,7 +23,7 @@ export default function CheckoutPage() {
           </div>
         }
       >
-        <CheckoutFlow />
+        <CheckoutFlow allowGuest={isGptGuestCheckoutEnabled()} />
       </Suspense>
     </>
   );

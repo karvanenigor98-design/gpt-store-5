@@ -4,6 +4,7 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { resolveHumanSenderType } from "@/lib/chat/messageSender";
 import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-validation";
+import { getOrCreateClientOperatorSession } from "@/lib/chat/operatorSession";
 
 export async function POST(req: NextRequest) {
   let body: { userId?: string; content?: string };
@@ -42,40 +43,11 @@ export async function POST(req: NextRequest) {
   const senderType = resolveHumanSenderType(role);
 
   const admin = createAdminClient();
-  const { data: sessionRow } = await admin
-    .from("chat_sessions")
-    .select("id, status")
-    .eq("user_id", userId)
-    .eq("type", "operator")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (sessionRow?.id && sessionRow.status !== "open") {
-    await admin
-      .from("chat_sessions")
-      .update({ status: "open" })
-      .eq("id", sessionRow.id);
+  const session = await getOrCreateClientOperatorSession(admin, userId, "gpt-store");
+  if (!session?.id) {
+    return NextResponse.json({ error: "Не удалось создать сессию" }, { status: 500 });
   }
-
-  let sessionId = sessionRow?.id ?? null;
-  if (!sessionId) {
-    const { data: created, error: createError } = await admin
-      .from("chat_sessions")
-      .insert({
-        user_id: userId,
-        type: "operator",
-        status: "open",
-        first_message_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (createError || !created?.id) {
-      return NextResponse.json({ error: "Не удалось создать сессию" }, { status: 500 });
-    }
-    sessionId = created.id;
-  }
+  const sessionId = session.id;
 
   const { error: insertError } = await admin.from("chat_messages").insert({
     session_id: sessionId,

@@ -231,7 +231,10 @@ export async function sendSignupConfirmationEmail(args: {
     const subject = `Подтвердите email — ${getPublicBrandName(siteSlug)}`;
     const text = `Подтвердите регистрацию: ${link}`;
     const html = buildSignupEmailHtml(link, siteSlug);
-    const custom = await sendTransactionalEmail(email, subject, text, html, { siteSlug });
+    const custom = await sendTransactionalEmail(email, subject, text, html, {
+      siteSlug,
+      purpose: "auth",
+    });
     if (custom.ok) {
       logAuthEmailAttempt({
         event: trigger === "post_signup" ? "signup_send" : "resend_confirmation",

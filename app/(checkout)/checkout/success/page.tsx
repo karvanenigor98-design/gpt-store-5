@@ -11,17 +11,7 @@ export const metadata: Metadata = { title: "Оплата получена" };
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams: Promise<{
-    order?: string;
-    orderId?: string;
-    order_id?: string;
-    orderid?: string;
-    site?: string;
-    InvId?: string;
-    inv_id?: string;
-    invoice_id?: string;
-    bill_id?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function CheckoutSuccessPage({ searchParams }: Props) {

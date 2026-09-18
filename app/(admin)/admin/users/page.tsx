@@ -3,6 +3,7 @@ import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/auth/requireAdminPage";
 import { ReferralAdminPanel } from "@/components/admin/ReferralAdminPanel";
+import { AdminListPager } from "@/components/admin/AdminListPager";
 import { UsersRoleManager } from "./UsersRoleManager";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getSiteBySlug } from "@/lib/sites";
@@ -14,16 +15,20 @@ import type { UserRole } from "@/types/database";
 
 export const metadata: Metadata = { title: "Admin · Пользователи" };
 
+const PAGE_SIZE = 50;
+
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ site?: string }>;
+  searchParams: Promise<{ site?: string; page?: string }>;
 }) {
   await requireAdminPage();
 
-  const { site: siteParam } = await searchParams;
+  const { site: siteParam, page: pageParam } = await searchParams;
   const siteSlug = resolveAdminSiteSlug({ site: siteParam });
   const site = getSiteBySlug(siteSlug);
+  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
 
   const session = await createClient();
   const {
@@ -41,13 +46,6 @@ export default async function AdminUsersPage({
   };
 
   let loadError: string | null = null;
-  let merged: {
-    id: string;
-    email: string | null;
-    telegram_username: string | null;
-    role: UserRole;
-    created_at: string;
-  }[] = [];
 
   const db =
     siteSlug === "subs-store" ?
@@ -65,15 +63,24 @@ export default async function AdminUsersPage({
     );
   }
 
-  const profileSelect = await selectProfilesFlexible(db, [
-    "id",
-    "email",
-    "telegram_username",
-    "role",
-    "created_at",
-    "referral_code",
-    "referred_by_user_id",
-  ]);
+  const profileSelect = await selectProfilesFlexible(
+    db,
+    [
+      "id",
+      "email",
+      "telegram_username",
+      "role",
+      "created_at",
+      "referral_code",
+      "referred_by_user_id",
+    ],
+    {
+      limit: PAGE_SIZE,
+      offset,
+      countExact: true,
+      excludeId: user?.id ?? null,
+    },
+  );
 
   if (profileSelect.error) {
     loadError = profileSelect.error;
@@ -92,37 +99,17 @@ export default async function AdminUsersPage({
 
   const profileById = new Map(profileRows.map((p) => [p.id, p]));
 
-  const authUsers: { id: string; email: string | null; created_at: string | null }[] = [];
-  let page = 1;
-  while (page <= 50) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) {
-      loadError =
-        loadError ??
-        `${siteSlug === "subs-store" ? "Subs Store Auth" : "GPT Store Auth"}: ${error.message || "ошибка listUsers"}`;
-      break;
-    }
-    const list = data.users ?? [];
-    if (!list.length) break;
-    for (const u of list) {
-      authUsers.push({ id: u.id, email: u.email ?? null, created_at: u.created_at ?? null });
-    }
-    if (list.length < 100) break;
-    page += 1;
-  }
-
-  merged = authUsers.map((au) => {
-    const p = profileById.get(au.id);
-    const email = p?.email ?? au.email ?? null;
-    const fromProfile = effectiveRoleFromProfile((p?.role ?? null) as UserRole | null, email);
+  const merged = profileRows.map((p) => {
+    const email = p.email ?? null;
+    const fromProfile = effectiveRoleFromProfile((p.role ?? null) as UserRole | null, email);
     const byEmail = resolveRoleByEmail(email);
     const mappedRole: UserRole = fromProfile === "client" && byEmail !== "client" ? byEmail : fromProfile;
     return {
-      id: au.id,
+      id: p.id,
       email,
-      telegram_username: p?.telegram_username ?? null,
+      telegram_username: p.telegram_username ?? null,
       role: mappedRole,
-      created_at: p?.created_at ?? au.created_at ?? new Date(0).toISOString(),
+      created_at: p.created_at,
     };
   });
 
@@ -132,6 +119,8 @@ export default async function AdminUsersPage({
         .from("orders")
         .select("id, user_id, price, status, created_at")
         .in("user_id", userIds)
+        .order("created_at", { ascending: false })
+        .limit(Math.min(userIds.length * 40, 2000))
     : { data: [] as { id: string; user_id: string | null; price: unknown; status: string | null; created_at: string }[] };
 
   const paidStatuses =
@@ -155,20 +144,23 @@ export default async function AdminUsersPage({
   }
 
   const referralsByReferrer = new Map<string, number>();
-  try {
-    type RefEventRow = { referrer_user_id: string | null };
-    const { data: refRows } = await (
-      db as import("@supabase/supabase-js").SupabaseClient
-    )
-      .from("referral_events")
-      .select("referrer_user_id");
-    for (const r of (refRows ?? []) as RefEventRow[]) {
-      const id = String(r.referrer_user_id ?? "");
-      if (!id) continue;
-      referralsByReferrer.set(id, (referralsByReferrer.get(id) ?? 0) + 1);
+  if (userIds.length) {
+    try {
+      type RefEventRow = { referrer_user_id: string | null };
+      const { data: refRows } = await (
+        db as import("@supabase/supabase-js").SupabaseClient
+      )
+        .from("referral_events")
+        .select("referrer_user_id")
+        .in("referrer_user_id", userIds);
+      for (const r of (refRows ?? []) as RefEventRow[]) {
+        const id = String(r.referrer_user_id ?? "");
+        if (!id) continue;
+        referralsByReferrer.set(id, (referralsByReferrer.get(id) ?? 0) + 1);
+      }
+    } catch {
+      /* миграция 012/005 ещё не применена */
     }
-  } catch {
-    /* миграция 012/005 ещё не применена */
   }
 
   const emailById = new Map(profileRows.map((p) => [p.id, p.email]));
@@ -194,6 +186,9 @@ export default async function AdminUsersPage({
     if (subsSelfId) currentUserIdForTransfer = subsSelfId;
   }
 
+  const total = profileSelect.count;
+  const baseHref = `/admin/users?site=${siteSlug}`;
+
   return (
     <div className="p-6">
       <h1 className="mb-2 font-heading text-2xl font-bold text-gray-900">
@@ -201,10 +196,9 @@ export default async function AdminUsersPage({
         <span className="ml-3 text-base font-normal text-gray-500">{site.brandName}</span>
       </h1>
       <p className="mb-5 max-w-2xl text-sm text-gray-600">
-        Все зарегистрированные пользователи{" "}
-        {site.brandName} — из{" "}
-        <code className="rounded bg-gray-100 px-1">auth.users</code>, строки профиля подтягиваются когда есть в{" "}
-        <code className="rounded bg-gray-100 px-1">profiles</code>.
+        Пользователи {site.brandName} из{" "}
+        <code className="rounded bg-gray-100 px-1">profiles</code>
+        {total != null ? ` · всего ${total}` : ""}.
       </p>
       {loadError && (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
@@ -217,6 +211,7 @@ export default async function AdminUsersPage({
         currentUserId={currentUserIdForTransfer}
         adminSite={siteSlug}
       />
+      <AdminListPager page={page} pageSize={PAGE_SIZE} total={total} baseHref={baseHref} />
     </div>
   );
 }

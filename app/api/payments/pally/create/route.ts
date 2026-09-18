@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isGptGuestCheckoutEnabled } from "@/lib/checkout/gpt-guest-checkout-flag";
 import {
   isGptUnpaidReuseStatus,
   resolveGptCheckoutPlan,
   upsertGptPendingOrder,
 } from "@/lib/checkout/resolve-gpt-checkout";
+import {
+  isCheckoutContactEmail,
+  resolveGptGuestBuyer,
+} from "@/lib/checkout/resolve-gpt-guest-buyer";
 import { ensureGptProfile } from "@/lib/orders/create-gpt-order";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { appendCheckoutReturnCookie } from "@/lib/payments/checkout-return-cookie";
@@ -26,23 +31,22 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
-    }
-
     const body = (await request.json()) as {
       planId?: string;
       accountEmail?: string;
+      email?: string;
       promoCode?: string | null;
       orderId?: string | null;
     };
     const { planId, accountEmail, promoCode, orderId } = body;
+    const guestEmail = (body.email ?? body.accountEmail)?.trim() || "";
+
+    if (!user && !isGptGuestCheckoutEnabled()) {
+      return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
+    }
 
     if (!planId) {
-      return NextResponse.json(
-        { error: "Укажите тариф" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Укажите тариф" }, { status: 400 });
     }
 
     const resolvedPlan = await resolveGptCheckoutPlan(planId, promoCode);
@@ -55,17 +59,46 @@ export async function POST(request: NextRequest) {
 
     const { plan, finalPrice } = resolvedPlan.resolved;
     const admin = createAdminClient();
-    await ensureGptProfile(admin, user);
+
+    let buyerUserId: string;
+    let buyerEmail: string | null;
+    let guestCheckout = false;
+
+    if (user) {
+      await ensureGptProfile(admin, user);
+      buyerUserId = user.id;
+      buyerEmail = accountEmail?.trim() || user.email?.trim() || null;
+    } else {
+      if (!isCheckoutContactEmail(guestEmail)) {
+        return NextResponse.json({ error: "Укажите email для заказа" }, { status: 400 });
+      }
+      const buyer = await resolveGptGuestBuyer(admin, guestEmail);
+      if ("error" in buyer) {
+        return NextResponse.json({ error: buyer.error }, { status: buyer.status });
+      }
+      buyerUserId = buyer.userId;
+      buyerEmail = buyer.email;
+      guestCheckout = true;
+    }
+
+    const forwarded = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const host = (forwarded || request.headers.get("host") || "").trim();
+    const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+    const checkoutOrigin = guestCheckout && host ? `${proto}://${host}` : null;
 
     const {
       order,
       error: orderError,
       created: createdNew,
     } = await upsertGptPendingOrder(admin, {
-      userId: user.id,
-      accountEmail: accountEmail?.trim() || user.email?.trim() || null,
+      userId: buyerUserId,
+      accountEmail: buyerEmail,
       resolved: resolvedPlan.resolved,
       existingOrderId: orderId,
+      guestCheckout,
+      extraMeta: guestCheckout
+        ? { guest_checkout: true, checkout_origin: checkoutOrigin }
+        : null,
     });
 
     if (orderError || !order) {
@@ -76,8 +109,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Уже оплачен / в работе — не создаём второй счёт Pally и не плодим twin.
     if (!isGptUnpaidReuseStatus(order.status)) {
+      if (guestCheckout) {
+        return NextResponse.json(
+          { error: "Не удалось создать платёж. Войдите в аккаунт или укажите другой email." },
+          { status: 409 },
+        );
+      }
       return appendCheckoutReturnCookie(
         NextResponse.json(
           {
@@ -94,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     if (createdNew) {
       await insertGptCustomerNotification({
-        recipientUserId: user.id,
+        recipientUserId: buyerUserId,
         type: "new_order",
         title: "Заказ создан",
         message: `${plan.name} · ${finalPrice} ₽`,
@@ -116,7 +154,7 @@ export async function POST(request: NextRequest) {
         successUrl,
         failUrl,
         webhookUrl: `${appUrl}/api/payments/pally/webhook`,
-        customerEmail: user.email ?? undefined,
+        customerEmail: buyerEmail ?? undefined,
         site: "gpt-store",
       });
     } catch (payErr) {
@@ -150,7 +188,7 @@ export async function POST(request: NextRequest) {
       .eq("id", order.id);
 
     if (createdNew) {
-      const accountEmailValue = accountEmail?.trim() || user.email || null;
+      const accountEmailValue = buyerEmail;
       await notifyNewOrder(
         {
           id: order.id,
@@ -159,31 +197,35 @@ export async function POST(request: NextRequest) {
           account_email: accountEmailValue,
           product: plan.productId ?? "chatgpt-plus",
         },
-        { email: user.email ?? null },
+        { email: buyerEmail },
         { siteSlug: "gpt-store" },
       ).catch(() => {});
 
-      if (user.email) {
+      if (buyerEmail) {
         await notifyCustomerOrderCreated({
-          customerEmail: user.email,
-          customerUserId: user.id,
+          customerEmail: buyerEmail,
+          customerUserId: buyerUserId,
           orderId: order.id,
           planName: plan.name,
           price: finalPrice,
-          accountEmail: accountEmail?.trim() || undefined,
+          accountEmail: buyerEmail,
           siteSlug: "gpt-store",
         }).catch(() => {});
         await scheduleUnpaidOrderReminder({
           siteSlug: "gpt-store",
           orderId: order.id,
-          recipientEmail: user.email,
+          recipientEmail: buyerEmail,
           planName: plan.name,
           price: finalPrice,
         }).catch(() => {});
       }
     }
 
-    const response = NextResponse.json({ paymentUrl: payment.paymentUrl, orderId: order.id });
+    const response = NextResponse.json({
+      paymentUrl: payment.paymentUrl,
+      orderId: order.id,
+      guestCheckout,
+    });
     return appendCheckoutReturnCookie(response, "gpt-store", order.id);
   } catch (err) {
     console.error("[Checkout] Ошибка:", err);

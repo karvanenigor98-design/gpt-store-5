@@ -85,27 +85,16 @@ export function getServerSiteOriginBySlug(siteSlug: "gpt-store" | "subs-store"):
   return getServerSiteOrigin();
 }
 
-function normalizeStoreHostname(host: string): string {
-  return host.toLowerCase().split(":")[0];
-}
-
-/** Origin для Pally bill/create: домен запроса, если это известный storefront. */
+/**
+ * Origin для Pally bill/create.
+ * Pally whitelist — только apex магазинов. www / *.vercel.app / APP_URL
+ * дают api:error.url_not_allowed (гость на vercel.app тоже).
+ */
 export function getPallyAppUrlFromRequest(
-  request: { headers: { get(name: string): string | null } },
+  _request: { headers: { get(name: string): string | null } },
   siteSlug: "gpt-store" | "subs-store",
 ): string {
-  const forwarded = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const host = normalizeStoreHostname(forwarded || request.headers.get("host") || "");
-
-  if (siteSlug === "subs-store") {
-    if (host === "spotify-store.ru" || host === "www.spotify-store.ru") {
-      return FALLBACK_SPOTIFY_ORIGIN;
-    }
-  } else if (host === "gptplus-store.ru" || host === "www.gptplus-store.ru") {
-    return FALLBACK_ORIGIN;
-  }
-
-  return getServerSiteOriginBySlug(siteSlug);
+  return siteSlug === "subs-store" ? FALLBACK_SPOTIFY_ORIGIN : FALLBACK_ORIGIN;
 }
 
 export function getMetadataBase(): URL {

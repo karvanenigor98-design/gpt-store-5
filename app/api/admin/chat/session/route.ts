@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { resolveServerRole } from "@/lib/auth/server-role";
-import { pickCanonicalOperatorSession } from "@/lib/chat/operatorSession";
+import { getOrCreateClientOperatorSession } from "@/lib/chat/operatorSession";
 import { getOrCreateSubsStaffSupportThread } from "@/lib/chat/subs-support-thread";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
-import type { Database } from "@/types/database";
 
 function normalizeStaffSiteSlug(raw: string | undefined): "gpt-store" | "subs-store" | undefined {
   return raw === "subs-store" || raw === "gpt-store" ? raw : undefined;
@@ -146,36 +145,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const existing = await pickCanonicalOperatorSession(admin, resolvedUserId, siteSlug);
-
-  if (existing?.id) {
-    if (existing.status !== "open") {
-      await admin
-        .from("chat_sessions")
-        .update({ status: "open" })
-        .eq("id", existing.id);
-    }
-    return NextResponse.json({ sessionId: existing.id });
-  }
-
-  const siteUuid = siteSlug ? await getSiteUUID(siteSlug) : null;
-  const insertRow: Database["public"]["Tables"]["chat_sessions"]["Insert"] = {
-    user_id: resolvedUserId,
-    type: "operator",
-    status: "open",
-    ...(siteUuid ? { site_id: siteUuid } : {}),
-  };
-
-  const { data: created, error } = await admin
-    .from("chat_sessions")
-    .insert(insertRow)
-    .select("id")
-    .single();
-
-  if (error || !created?.id) {
+  const session = await getOrCreateClientOperatorSession(
+    admin,
+    resolvedUserId,
+    siteSlug ?? "gpt-store",
+  );
+  if (!session?.id) {
     return NextResponse.json({ error: "Не удалось создать сессию" }, { status: 500 });
   }
 
-  return NextResponse.json({ sessionId: created.id });
+  return NextResponse.json({ sessionId: session.id });
 }
 

@@ -17,6 +17,11 @@ export function formatAdminSubscriptionDateRu(iso: string | null | undefined): s
 export function inferDurationMonthsFromText(text: string | null | undefined): number | null {
   if (!text) return null;
   const t = text.trim().toLowerCase();
+  const slugM = t.match(/-(\d+)m$/);
+  if (slugM) {
+    const n = Number(slugM[1]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
   const numbered = t.match(/(\d+)\s*(?:мес|месяц|month)/);
   if (numbered) {
     const n = Number(numbered[1]);

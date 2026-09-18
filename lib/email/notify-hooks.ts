@@ -101,7 +101,7 @@ export async function emailCustomerOrderUpdate(params: {
 }): Promise<void> {
   const label = orderStatusLabelRu(params.status);
   const lines = [
-    `Заказ: ${params.orderId.slice(0, 8)}…`,
+    `Заказ: ${params.orderId}`,
     `Тариф: ${params.planName}`,
     `Сумма: ${params.price} ₽`,
     `Статус: ${label}`,
@@ -169,7 +169,7 @@ export async function emailCustomerOrderCreated(params: {
     recipientUserId: params.customerUserId,
     title: "Заказ создан",
     bodyLines: [
-      `Номер: ${params.orderId.slice(0, 8)}…`,
+      `Номер: ${params.orderId}`,
       `Тариф: ${params.planName}`,
       `Сумма: ${params.price} ₽`,
       `Статус: ${orderStatusLabelRu("pending")}`,
@@ -218,7 +218,7 @@ export async function emailStaffPromocodeUsed(params: {
     siteSlug: params.siteSlug,
     eventType: "promocode_used",
     title: `Промокод использован — ${brand}`,
-    bodyLines: [`Код: ${params.code}`, `Заказ: ${params.orderId.slice(0, 8)}…`],
+    bodyLines: [`Код: ${params.code}`, `Заказ: ${params.orderId}`],
     ctaLabel: "Открыть заказы",
     ctaUrl: buildStaffOrderUrl(params.siteSlug),
     dedupeKey: `promo:${params.siteSlug}:${params.orderId}:${params.code}`,
@@ -244,7 +244,7 @@ export async function emailStaffNewReview(params: {
       params.content.slice(0, 200),
     ],
     ctaLabel: "Модерация",
-    ctaUrl: `${app}/admin/reviews?status=pending&site=${params.siteSlug}`,
+    ctaUrl: `${app}/operator/reviews?status=pending&site=${params.siteSlug}`,
     dedupeKey: `review:${params.siteSlug}:${params.reviewId ?? params.content.slice(0, 40)}`,
     relatedEntityType: "review",
     relatedEntityId: params.reviewId ?? null,

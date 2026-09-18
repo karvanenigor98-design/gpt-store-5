@@ -253,6 +253,22 @@ async function processGptOrder(
   });
 
   if (becamePaidLike) {
+    const paidMeta = order.meta as Record<string, unknown> | null;
+    const isGuestCheckout = paidMeta?.guest_checkout === true;
+    if (isGuestCheckout && customerEmail) {
+      const checkoutOrigin =
+        typeof paidMeta?.checkout_origin === "string" ? paidMeta.checkout_origin : null;
+      const { sendGuestOrderAccessEmail } = await import("@/lib/auth/send-guest-order-access-email");
+      const accessMail = await sendGuestOrderAccessEmail({
+        email: customerEmail,
+        orderId: order.id,
+        checkoutOrigin,
+      });
+      if (!accessMail.ok) {
+        console.error("[Pally webhook] guest access email failed:", accessMail.error);
+      }
+    }
+
     void handleOrderPaidNotification({
       orderId: order.id,
       siteSlug,
@@ -263,6 +279,7 @@ async function processGptOrder(
       customerUserId: order.user_id,
       accountEmail: order.account_email ?? undefined,
       paidAt: new Date().toISOString(),
+      skipCustomerEmail: isGuestCheckout,
     }).catch(() => undefined);
 
     void notifyPaymentStatus(

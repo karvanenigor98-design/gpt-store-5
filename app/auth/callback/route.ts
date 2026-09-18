@@ -254,19 +254,37 @@ export async function GET(request: NextRequest) {
     }
   } else if (token_hash) {
     // token_hash не зависит от PKCE-verifier — работает на любом устройстве.
-    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    // Не делаем signOut перед magiclink: вторая ссылка из того же письма (чат / кабинет)
+    // использует тот же token_hash — после первого клика OTP уже погашен, сессия должна остаться.
+    if (isRecovery) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    }
     const otpType = (type ?? (isRecovery ? "recovery" : "signup")) as
       | "signup"
       | "recovery"
       | "email"
-      | "invite";
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash,
-      type: otpType,
-    });
-    if (error) {
-      console.error("[auth/callback] verifyOtp error:", error.message);
-      exchangeError = error.message;
+      | "invite"
+      | "magiclink";
+    const typesToTry: Array<"signup" | "recovery" | "email" | "invite" | "magiclink"> = isRecovery
+      ? ["recovery"]
+      : otpType === "magiclink"
+        ? ["magiclink", "email"]
+        : [otpType, "magiclink", "email"];
+    let verifyError: string | null = null;
+    for (const tryType of typesToTry) {
+      const { error } = await supabase.auth.verifyOtp({
+        token_hash,
+        type: tryType,
+      });
+      if (!error) {
+        verifyError = null;
+        break;
+      }
+      verifyError = error.message;
+    }
+    if (verifyError) {
+      console.error("[auth/callback] verifyOtp error:", verifyError);
+      exchangeError = verifyError;
     }
   }
 

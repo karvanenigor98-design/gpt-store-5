@@ -23,6 +23,7 @@ export async function getOrCreateSubsStaffSupportThread(
         .select("id")
         .eq("user_id", userId)
         .eq("status", "open")
+        .order("last_message_at", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -45,11 +46,32 @@ export async function getOrCreateSubsStaffSupportThread(
         .single();
 
       if (insErr || !inserted?.id) {
+        // Unique violation / race: re-select open thread instead of failing.
+        const { data: raced } = await subsAdmin
+          .from("chat_threads")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "open")
+          .order("last_message_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (raced?.id) return { id: raced.id as string };
         console.error("[subs-chat-thread]", insErr?.message ?? "insert failed");
         return null;
       }
 
-      return { id: inserted.id as string };
+      const { data: canonical } = await subsAdmin
+        .from("chat_threads")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "open")
+        .order("last_message_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return { id: (canonical?.id ?? inserted.id) as string };
     } catch (e) {
       console.error("[subs-chat-thread] unexpected:", e);
       return null;
@@ -64,6 +86,7 @@ export async function getOrCreateSubsStaffSupportThread(
       .select("id, status")
       .eq("order_id", orderId)
       .eq("status", "open")
+      .order("last_message_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import { resolveAuthSiteContext } from "@/lib/auth/devStoreProfile";
+import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
+import { GptPayerEmailRecover } from "@/components/checkout/GptPayerEmailRecover";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Вход" };
@@ -36,9 +38,20 @@ export default function LoginPage({
     );
   }
 
+  const checkoutMessage = getCheckoutAuthMessage(returnUrl);
+
   return (
     <div className="w-full max-w-sm">
-      <h1 className="font-heading text-2xl font-bold text-gray-900 mb-2">Вход в кабинет</h1>
+      <h1 className="font-heading text-2xl font-bold text-gray-900 mb-2">
+        {checkoutMessage ? "Чтобы оплатить Plus" : "Войти"}
+      </h1>
+      {checkoutMessage ? (
+        <p className="text-sm text-gray-600 mb-2">
+          После входа откроется оплата выбранного тарифа. Менеджер напишет в чат.
+        </p>
+      ) : (
+        <p className="text-sm text-gray-500 mb-2">Почта и пароль для заказа</p>
+      )}
       <p className="text-sm text-gray-500 mb-8">
         Нет аккаунта?{" "}
         <a href={registerHref} className="text-[#10a37f] hover:underline">
@@ -46,6 +59,11 @@ export default function LoginPage({
         </a>
       </p>
       <LoginForm />
+      {returnUrl.includes("/dashboard") || returnUrl.includes("/cabinet") ? (
+        <div className="mt-8 border-t border-gray-100 pt-6">
+          <GptPayerEmailRecover />
+        </div>
+      ) : null}
     </div>
   );
 }

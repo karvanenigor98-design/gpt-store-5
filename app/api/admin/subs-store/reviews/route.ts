@@ -5,7 +5,7 @@ import { revalidatePublicReviewPages } from "@/lib/reviews/revalidate-public-rev
 
 /** Модерация отзывов Subs Store (таблица reviews: name, text, is_published, status). */
 export async function PATCH(req: NextRequest) {
-  const ctx = await requireSubsStaffContext({ adminOnly: true });
+  const ctx = await requireSubsStaffContext();
   if (ctx instanceof NextResponse) return ctx;
 
   let body: { id?: string; action?: "approve" | "reject" | "delete"; rating?: number };
@@ -21,6 +21,9 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (body.action === "delete") {
+    if (ctx.role !== "admin") {
+      return NextResponse.json({ error: "Удалять отзывы может только администратор" }, { status: 403 });
+    }
     const { error } = await ctx.subs.from("reviews").delete().eq("id", id);
     if (error) {
       return NextResponse.json({ error: "Не удалось удалить отзыв" }, { status: 500 });

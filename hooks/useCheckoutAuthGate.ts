@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthSiteSlug } from "@/lib/auth/detectAuthSite";
-import { getCheckoutSessionUser, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
+import { buildCheckoutAuthUrl, getCheckoutSessionUser, persistCheckoutIntent } from "@/lib/checkout/checkout-auth";
 import {
   clearCheckoutIntent,
   parsePlanIdFromCheckoutPath,
@@ -20,7 +20,10 @@ export type CheckoutAuthGateState = {
   intent: CheckoutIntent | null;
 };
 
-export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateState {
+export function useCheckoutAuthGate(
+  siteSlug: AuthSiteSlug,
+  options?: { allowGuest?: boolean },
+): CheckoutAuthGateState {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planFromUrl = searchParams.get("plan");
@@ -79,8 +82,14 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
             }
           : null);
 
-      /** Гость может пройти выбор тарифа и email; вход — перед оплатой. */
+      /** Гость GPT — login wall, если guest checkout выключен. */
       if (!user) {
+        if (siteSlug === "gpt-store" && !options?.allowGuest) {
+          redirectedRef.current = true;
+          const ret = returnPath ?? getCheckoutPlanStepPath(siteSlug);
+          router.replace(buildCheckoutAuthUrl(siteSlug, ret));
+          return;
+        }
         setState({
           ready: true,
           authenticated: false,
@@ -90,7 +99,7 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
         return;
       }
 
-      if (!emailConfirmed) {
+      if (!emailConfirmed && !(siteSlug === "gpt-store" && options?.allowGuest)) {
         redirectedRef.current = true;
         const verifyParams = new URLSearchParams({
           email: user.email ?? "",
@@ -130,7 +139,7 @@ export function useCheckoutAuthGate(siteSlug: AuthSiteSlug): CheckoutAuthGateSta
     return () => {
       cancelled = true;
     };
-  }, [siteSlug, planFromUrl, router]);
+  }, [siteSlug, planFromUrl, router, options?.allowGuest]);
 
   return state;
 }

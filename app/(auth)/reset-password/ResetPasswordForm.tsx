@@ -14,6 +14,32 @@ type Props = {
   siteSlug?: "subs-store" | "gpt-store";
 };
 
+type ResetResponse = {
+  reason?: string;
+  channel?: string;
+  recoveryLink?: string;
+  error?: string;
+  warning?: string;
+  retryAfter?: number;
+  debug?: { supabaseError?: string | null; generateLinkError?: string | null };
+};
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function formatResetErrorMessage(message?: string): string {
+  const text = (message ?? "").trim();
+  if (!text) {
+    return "Сервис восстановления временно недоступен. Повторите попытку через минуту.";
+  }
+  const lower = text.toLowerCase();
+  if (lower.includes("exceed_egress_quota")) {
+    return "Сервис временно ограничен по лимитам хостинга. Попробуйте позже или свяжитесь с поддержкой.";
+  }
+  return text;
+}
+
 export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Props) {
   const [done, setDone] = useState(false);
   const [devRecoveryLink, setDevRecoveryLink] = useState<string | null>(null);
@@ -66,30 +92,47 @@ export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Pro
     if (cooldownSec > 0) return;
     setNotEligible(null);
     setWarning(null);
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: data.email, site: siteSlug }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      reason?: string;
-      channel?: string;
-      recoveryLink?: string;
-      error?: string;
-      warning?: string;
-      retryAfter?: number;
-      debug?: { supabaseError?: string | null; generateLinkError?: string | null };
-    };
+
+    let res: Response;
+    let json: ResetResponse = {};
+    try {
+      res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email, site: siteSlug }),
+      });
+      json = (await res.json().catch(() => ({}))) as ResetResponse;
+
+      if (res.status === 503) {
+        await delay(1000);
+        const retryRes = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: data.email, site: siteSlug }),
+        });
+        const retryJson = (await retryRes.json().catch(() => ({}))) as ResetResponse;
+        res = retryRes;
+        json = retryJson;
+      }
+    } catch {
+      setNotEligible("Сеть недоступна или сервер не отвечает. Проверьте интернет и повторите попытку.");
+      return;
+    }
 
     if (typeof json.retryAfter === "number" && json.retryAfter > 0) {
       setCooldownSec(json.retryAfter);
     }
 
     if (!res.ok && json.error) {
-      setNotEligible(json.error);
+      setNotEligible(formatResetErrorMessage(json.error));
       if (json.recoveryLink) {
         setDevRecoveryLink(json.recoveryLink);
       }
+      return;
+    }
+
+    if (!res.ok) {
+      setNotEligible("Сервис восстановления временно недоступен. Повторите попытку через минуту.");
       return;
     }
 
@@ -115,11 +158,11 @@ export function ResetPasswordForm({ callbackError, siteSlug = "gpt-store" }: Pro
         json.debug?.supabaseError ||
         json.debug?.generateLinkError ||
         "Письмо не отправлено. Проверьте Resend в .env.local или SMTP в Supabase → Authentication.";
-      setNotEligible(hint);
+      setNotEligible(formatResetErrorMessage(hint));
       if (json.recoveryLink) {
         setDevRecoveryLink(json.recoveryLink);
         setNotEligible(
-          `${hint}<br/><br/>Локально можно открыть ссылку сброса: <a href="${json.recoveryLink}" style="color:#1DB954;text-decoration:underline;word-break:break-all">перейти</a>`
+          `${formatResetErrorMessage(hint)}<br/><br/>Локально можно открыть ссылку сброса: <a href="${json.recoveryLink}" style="color:#1DB954;text-decoration:underline;word-break:break-all">перейти</a>`
         );
       }
       return;

@@ -8,6 +8,30 @@ function relayConfig(): { base: string; secret: string } | null {
   return { base, secret: process.env.PALLY_RELAY_SECRET?.trim() ?? "" };
 }
 
+function isTryCloudflareRelay(base: string): boolean {
+  try {
+    return /\.trycloudflare\.com$/i.test(new URL(base).hostname);
+  } catch {
+    return /trycloudflare\.com/i.test(base);
+  }
+}
+
+/** HTTP IP:8787 (Timeweb) — порт закрыт снаружи, Vercel туда не достучится. */
+function isDeadRawRelay(base: string): boolean {
+  try {
+    const u = new URL(base);
+    const isIp = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(u.hostname);
+    return u.protocol === "http:" && isIp && u.port === "8787";
+  } catch {
+    return false;
+  }
+}
+
+function shouldSkipRelay(base: string): boolean {
+  // trycloudflare-туннели живут часы — мёртвый hostname = 20s timeout на «Оплатить».
+  return isDeadRawRelay(base) || isTryCloudflareRelay(base);
+}
+
 function proxyDispatcher(): ProxyAgent | undefined {
   const proxy =
     process.env.PALLY_HTTP_PROXY?.trim() ||
@@ -23,7 +47,13 @@ export async function pallyHttpPost(
   path: string,
   init: { headers: Record<string, string>; body: string },
 ): Promise<Response> {
-  const relay = relayConfig();
+  const configured = relayConfig();
+  const relay =
+    configured && !shouldSkipRelay(configured.base) ? configured : null;
+  const strictRelay =
+    process.env.PALLY_RELAY_STRICT === "true" &&
+    !!relay &&
+    !isTryCloudflareRelay(relay.base);
   const normalizedBase = apiBaseUrl.replace(/\/$/, "");
   const directUrl = `${normalizedBase}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -63,12 +93,12 @@ export async function pallyHttpPost(
       /* not json */
     }
     if (relayRes.ok) return relayRes;
-    if (process.env.PALLY_RELAY_STRICT === "true") return relayRes;
+    if (strictRelay) return relayRes;
   } catch {
     /* relay network error */
   }
 
-  if (process.env.PALLY_RELAY_STRICT === "true") {
+  if (strictRelay) {
     throw new Error(
       `Pally relay недоступен (${relay.base}). Задеплойте relay или снимите PALLY_RELAY_STRICT.`,
     );

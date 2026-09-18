@@ -35,7 +35,7 @@ export function GptHeroResultCard({ className = "" }: { className?: string }) {
               key={line}
               className="flex items-center gap-3.5 text-base font-medium text-gray-800 md:text-lg lg:text-xl"
             >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#10a37f]/12 md:h-12 md:w-12">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#10a37f]/12 md:h-12 md:w-12">
                 <Check className="h-6 w-6 text-[#10a37f] md:h-7 md:w-7" strokeWidth={2.6} aria-hidden />
               </span>
               {line}

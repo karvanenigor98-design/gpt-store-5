@@ -27,6 +27,19 @@ type SessionAccessRow = {
   site_id: string | null;
 };
 
+function applyDeletedVisibility(
+  message: ChatMessage,
+  options: { canViewDeletedContent: boolean },
+): ChatMessage {
+  if (!message.is_deleted) return message;
+  if (options.canViewDeletedContent) return message;
+  return {
+    ...message,
+    content: "Сообщение удалено",
+    attachments: null,
+  };
+}
+
 function canAccessSupportSession(
   authUserId: string | null,
   sessionUserId: string | null,
@@ -103,20 +116,27 @@ export async function GET(req: NextRequest) {
 
   const list = (messages ?? []) as ChatMessage[];
   const byId = new Map(list.map((m) => [m.id, m]));
+  const canViewDeletedContent = role === "admin";
   const withReply = list.map((m) => {
     const replyToId = (m as ChatMessage & { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
-    if (!replyToId) return m;
+    const visibleMessage = applyDeletedVisibility(m, { canViewDeletedContent });
+    if (!replyToId) return visibleMessage;
     const target = byId.get(replyToId);
     return {
-      ...m,
+      ...visibleMessage,
       reply_to_message: target
         ? {
             id: target.id,
             sender_type: target.sender_type,
-            content: target.content,
+            content: applyDeletedVisibility(target, { canViewDeletedContent }).content,
             is_deleted: (target as ChatMessage & { is_deleted?: boolean }).is_deleted ?? false,
           }
-        : { id: replyToId, sender_type: "auto", content: "", is_deleted: true },
+        : {
+            id: replyToId,
+            sender_type: "auto",
+            content: "Исходное сообщение недоступно",
+            is_deleted: false,
+          },
     } as ChatMessage;
   });
 
@@ -240,17 +260,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Не удалось отправить сообщение" }, { status: 500 });
   }
 
-  if (!isStaff) {
+  const nowIso = new Date().toISOString();
+  if (session.type === "operator" || session.type === "ai") {
+    // App-layer touch: do not rely only on DB trigger for room sort / pickBest.
     await supabaseAdmin
       .from("chat_sessions")
-      .update({ first_message_at: new Date().toISOString() })
-      .eq("id", sessionId)
-      .is("first_message_at", null);
-  } else if (session.type === "operator" || session.type === "ai") {
-    await supabaseAdmin
-      .from("chat_sessions")
-      .update({ last_operator_reply_at: new Date().toISOString() })
+      .update({
+        last_message_at: nowIso,
+        ...(isStaff ? { last_operator_reply_at: nowIso } : {}),
+      })
       .eq("id", sessionId);
+
+    if (!isStaff) {
+      await supabaseAdmin
+        .from("chat_sessions")
+        .update({ first_message_at: nowIso })
+        .eq("id", sessionId)
+        .is("first_message_at", null);
+    }
   }
 
   const textForNotify = isBlankMessage(content) ? body.attachment?.name || "вложение" : content;
@@ -360,8 +387,6 @@ export async function PATCH(req: NextRequest) {
     is_deleted: true,
     deleted_at: new Date().toISOString(),
     deleted_by: user.id,
-    content: "Сообщение удалено",
-    attachments: null,
   };
 
   const { error: updateErr } = await supabaseAdmin

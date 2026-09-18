@@ -24,5 +24,5 @@ export const GPT_ORDER_STATUSES: OrderStatus[] = [
 ];
 
 export function gptOrderStatusLabelRu(status: string): string {
-  return GPT_ORDER_STATUS_LABELS[status as OrderStatus] ?? status;
+  return GPT_ORDER_STATUS_LABELS[status as OrderStatus] ?? "Неизвестный статус";
 }

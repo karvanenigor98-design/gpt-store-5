@@ -83,7 +83,7 @@ export function customerOrderStatusBadgeColor(
 export function customerOrderStatusLabelRu(siteSlug: SiteSlug, status: string): string {
   const s = coerceOrderStatus(status);
   const map = CUSTOMER_STATUS_LABELS[siteSlug];
-  return map[s] ?? s;
+  return map[s] ?? "Неизвестный статус";
 }
 
 /** Стили badge для страницы заказов. */

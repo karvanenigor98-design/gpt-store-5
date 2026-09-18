@@ -178,6 +178,9 @@ export async function upsertGptPendingOrder(
     accountEmail?: string | null;
     resolved: GptCheckoutResolved;
     existingOrderId?: string | null;
+    extraMeta?: Json | null;
+    /** Guest Pay: reuse only this unpaid id — never attach to another user's open fulfillment. */
+    guestCheckout?: boolean;
   },
 ): Promise<{
   order: Database["public"]["Tables"]["orders"]["Row"] | null;
@@ -187,13 +190,35 @@ export async function upsertGptPendingOrder(
   const { plan, finalPrice, meta } = input.resolved;
   const email = input.accountEmail?.trim() || null;
   const product = plan.productId ?? "chatgpt-plus";
+  const mergedMeta: Json | null = (() => {
+    const extra = input.extraMeta;
+    if (!meta && !extra) return null;
+    return {
+      ...(typeof meta === "object" && meta ? meta : {}),
+      ...(typeof extra === "object" && extra ? extra : {}),
+    } as Json;
+  })();
 
-  const existing = await findReusableGptOrder(admin, {
-    userId: input.userId,
-    planId: plan.id,
-    accountEmail: email,
-    existingOrderId: input.existingOrderId,
-  });
+  let existing: Database["public"]["Tables"]["orders"]["Row"] | null = null;
+  if (input.guestCheckout) {
+    if (input.existingOrderId) {
+      const { data: byId } = await admin
+        .from("orders")
+        .select("*")
+        .eq("id", input.existingOrderId)
+        .eq("user_id", input.userId)
+        .or(GPT_UNPAID_OR)
+        .maybeSingle();
+      existing = byId;
+    }
+  } else {
+    existing = await findReusableGptOrder(admin, {
+      userId: input.userId,
+      planId: plan.id,
+      accountEmail: email,
+      existingOrderId: input.existingOrderId,
+    });
+  }
 
   if (existing) {
     // Уже в работе после оплаты — не откатываем в pending и не плодим twin.
@@ -208,7 +233,7 @@ export async function upsertGptPendingOrder(
         plan_id: plan.id,
         price: finalPrice,
         ...(email ? { account_email: email } : {}),
-        meta,
+        meta: mergedMeta,
         payment_provider: "pally",
         status: "pending",
       })
@@ -229,7 +254,7 @@ export async function upsertGptPendingOrder(
     price: finalPrice,
     accountEmail: email,
     paymentProvider: "pally",
-    meta,
+    meta: mergedMeta,
   });
 
   return { order, error, created: true };

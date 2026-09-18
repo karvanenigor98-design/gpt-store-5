@@ -28,8 +28,15 @@ async function resolveSiteId(admin: Admin, siteSlug: string): Promise<string | n
 export async function pickCanonicalOperatorSession(
   admin: Admin,
   userId: string,
-  siteSlug?: string
+  siteSlug?: "gpt-store" | "subs-store",
 ): Promise<{ id: string; status: "open" | "closed" } | null> {
+  const effectiveSiteSlug = siteSlug ?? "gpt-store";
+  const siteId = await resolveSiteId(admin, effectiveSiteSlug);
+  if (!siteId) {
+    console.error("[operator-session] Site UUID not found:", effectiveSiteSlug);
+    return null;
+  }
+
   let q = admin
     .from("chat_sessions")
     .select("id, status, created_at")
@@ -39,12 +46,10 @@ export async function pickCanonicalOperatorSession(
 
   // Filter by site_id UUID when siteSlug is provided (migration 005+)
   // chat_sessions.site_id is a UUID FK — must use UUID, not slug string
-  if (siteSlug) {
-    const siteId = await resolveSiteId(admin, siteSlug);
-    if (siteId) {
-      q = q.eq("site_id", siteId);
-    }
-    // If siteId not resolved (sites table missing), skip site filter for resilience
+  if (effectiveSiteSlug === "gpt-store") {
+    q = q.or(`site_id.eq.${siteId},site_id.is.null`);
+  } else {
+    q = q.eq("site_id", siteId);
   }
 
   const { data: sessions, error } = await q;
@@ -91,12 +96,16 @@ export async function pickCanonicalOperatorSession(
 export async function getOrCreateClientOperatorSession(
   admin: Admin,
   userId: string,
-  siteSlug?: string
+  siteSlug?: "gpt-store" | "subs-store",
 ): Promise<{ id: string; status: "open" | "closed" } | null> {
-  // Resolve UUID once for all operations below
-  const siteId = siteSlug ? await resolveSiteId(admin, siteSlug) : null;
+  const effectiveSiteSlug = siteSlug ?? "gpt-store";
+  const siteId = await resolveSiteId(admin, effectiveSiteSlug);
+  if (!siteId) {
+    console.error("[operator-session] Site UUID not found:", effectiveSiteSlug);
+    return null;
+  }
 
-  let activeSession = await pickCanonicalOperatorSession(admin, userId, siteSlug);
+  let activeSession = await pickCanonicalOperatorSession(admin, userId, effectiveSiteSlug);
 
   if (activeSession?.id && activeSession.status !== "open") {
     await admin.from("chat_sessions").update({ status: "open" }).eq("id", activeSession.id);
@@ -113,30 +122,21 @@ export async function getOrCreateClientOperatorSession(
       ...(siteId ? { site_id: siteId } : {}),
     };
 
-    let { data: created } = await admin
+    const { data: created, error: createError } = await admin
       .from("chat_sessions")
       .insert(basePayload)
       .select("id, status")
       .single();
 
-    if (!created?.id) {
-      const fallbackPayload: ChatSessionInsert = {
-        user_id: null,
-        type: "operator",
-        status: "open",
-        ...(siteId ? { site_id: siteId } : {}),
+    if (createError || !created?.id) {
+      // Another request may have created the session concurrently.
+      activeSession = await pickCanonicalOperatorSession(admin, userId, effectiveSiteSlug);
+    } else {
+      activeSession = {
+        id: created.id,
+        status: created.status === "closed" ? "closed" : "open",
       };
-      const fallback = await admin
-        .from("chat_sessions")
-        .insert(fallbackPayload)
-        .select("id, status")
-        .single();
-      created = fallback.data ?? null;
     }
-
-    activeSession = created?.id
-      ? { id: created.id, status: created.status === "closed" ? "closed" : "open" }
-      : null;
   }
 
   if (activeSession?.id) {

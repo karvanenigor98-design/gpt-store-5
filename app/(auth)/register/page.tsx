@@ -45,15 +45,20 @@ export default async function RegisterPage({
     );
   }
 
+  const loginHref = `/login?site=gpt-store${returnUrl ? `&returnUrl=${encodeURIComponent(returnUrl)}` : ""}`;
+
   return (
     <div className="w-full max-w-sm">
-      <h1 className="font-heading text-2xl font-bold text-gray-900 mb-2">Создать аккаунт</h1>
+      <h1 className="font-heading text-2xl font-bold text-gray-900 mb-2">
+        {checkoutMessage ? "Чтобы оплатить" : "Создать аккаунт"}
+      </h1>
+      <p className="text-sm text-gray-500 mb-2">Почта и пароль для заказа</p>
       {checkoutMessage ? (
         <p className="text-sm text-gray-600 mb-4">{checkoutMessage}</p>
       ) : null}
       <p className="text-sm text-gray-500 mb-8">
         Уже есть аккаунт?{" "}
-        <a href="/login" className="text-[#10a37f] hover:underline">
+        <a href={loginHref} className="text-[#10a37f] hover:underline">
           Войти
         </a>
       </p>

@@ -1,7 +1,7 @@
 import { buildYandexMetrikaInlineScript } from "@/lib/analytics/yandex-metrika-snippet";
 
 /** Счётчик Я.Метрики только для витрины GPT STORE (не Subs / админка / кабинет). */
-export const GPT_STORE_YM_COUNTER_ID = 109608543;
+export const GPT_STORE_YM_COUNTER_ID = 109765207;
 
 export function getGptStoreYmId(): number | null {
   const raw = process.env.NEXT_PUBLIC_GPT_STORE_YM_ID;

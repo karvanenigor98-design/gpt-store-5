@@ -23,6 +23,29 @@ function lockGptGoStorefrontPrice(plans: ExtendedPlan[]): ExtendedPlan[] {
   });
 }
 
+const LOCKED_STOREFRONT_PLAN_IDS = ["plus-std", "plus-fast", "pro-5x", "pro-20x"] as const;
+
+function lockGptListPrices(plans: ExtendedPlan[]): ExtendedPlan[] {
+  const canonical = new Map(
+    getCanonicalGptStorefrontPlans().map((plan) => [plan.id, plan] as const),
+  );
+
+  return plans.map((plan) => {
+    if (!LOCKED_STOREFRONT_PLAN_IDS.includes(plan.id as (typeof LOCKED_STOREFRONT_PLAN_IDS)[number])) {
+      return plan;
+    }
+    const base = canonical.get(plan.id);
+    if (!base) return plan;
+    return {
+      ...plan,
+      price: base.price,
+      cta: formatGptPlanCta(base.price, plan.currency ?? base.currency),
+      original_price: undefined,
+      landing_discount_name: null,
+    } as ExtendedPlan;
+  });
+}
+
 /** Публичный каталог GPT STORE — source of truth для витрины. */
 export function getCanonicalGptStorefrontPlans(): ExtendedPlan[] {
   return [...CHATGPT_PLANS.plus, ...CHATGPT_PLANS.pro, ...CHATGPT_PLANS.go].filter(
@@ -51,5 +74,7 @@ export function mergeGptStorefrontPlans(overlays?: ExtendedPlan[] | null, now = 
     byId.set(plan.id, base ? { ...base, ...plan } : plan);
   }
 
-  return lockGptGoStorefrontPrice(applyHeroPromoDisplayToGptPlans([...byId.values()], now));
+  return lockGptListPrices(
+    lockGptGoStorefrontPrice(applyHeroPromoDisplayToGptPlans([...byId.values()], now)),
+  );
 }

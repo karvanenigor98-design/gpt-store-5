@@ -88,12 +88,27 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
 }
 
 /** Административный клиент (обходит RLS) — только на сервере. */
+const ADMIN_FETCH_TIMEOUT_MS = 20_000;
+
+function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const signal = AbortSignal.timeout(ADMIN_FETCH_TIMEOUT_MS);
+  const merged: RequestInit = {
+    ...init,
+    signal: init?.signal ?? signal,
+  };
+  return fetch(input, merged);
+}
+
 export function tryCreateAdminClient(): SupabaseClient<Database> | null {
   const creds = gptAdminCredentials();
   if (!creds) return null;
   try {
     return createSupabaseClient(creds.url, creds.serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: fetchWithTimeout },
     }) as SupabaseClient<Database>;
   } catch {
     return null;

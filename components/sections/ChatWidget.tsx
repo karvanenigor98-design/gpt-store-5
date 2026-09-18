@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { GuestOperatorChat } from "@/components/chat/GuestOperatorChat";
+import { GPT_OPEN_SUPPORT_CHAT } from "@/lib/chat/open-support-chat";
 import type { Profile } from "@/types";
 import type { ClientChatSessionPayload } from "@/types/chat-ui";
 import { cn } from "@/lib/utils";
@@ -30,6 +32,12 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   const gptSupabase = useMemo(() => createClient(), []);
   const subsSupabase = useMemo(() => (isSubsStore ? tryCreateSubsBrowserClient() : null), [isSubsStore]);
 
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(GPT_OPEN_SUPPORT_CHAT, onOpen);
+    return () => window.removeEventListener(GPT_OPEN_SUPPORT_CHAT, onOpen);
+  }, []);
+
   const fetchClientSession = useCallback(async () => {
     if (isSubsStore) {
       const r = await fetch("/api/subs/chat/rooms", { credentials: "include" });
@@ -41,7 +49,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
       else throw new Error("Пустой ответ сервера (Subs chat)");
       return;
     }
-    const r = await fetch("/api/chat/rooms", { credentials: "include" });
+    const r = await fetch("/api/chat/rooms?site=gpt-store", { credentials: "include" });
     if (!r.ok) throw new Error("Не удалось получить чат");
     const d = (await r.json()) as ClientChatSessionPayload;
     if (d?.id) setSession(d);
@@ -122,11 +130,15 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   }, [user, fetchClientSession, fetchUnread]);
 
   useEffect(() => {
-    if (isSubsStore) return;
     if (!user || user.role === "admin" || user.role === "operator") return;
     if (!session?.id) return;
+    const realtime = isSubsStore ? subsSupabase : gptSupabase;
+    if (!realtime) return;
+    const filter = isSubsStore
+      ? `thread_id=eq.${session.id}`
+      : `session_id=eq.${session.id}`;
 
-    const ch = gptSupabase
+    const ch = realtime
       .channel(`widget-unread:${session.id}`)
       .on(
         "postgres_changes",
@@ -134,11 +146,12 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
           event: "INSERT",
           schema: "public",
           table: "chat_messages",
-          filter: `session_id=eq.${session.id}`,
+          filter,
         },
         (payload) => {
-          const row = payload.new as { sender_type?: string };
-          if (row.sender_type === "operator" || row.sender_type === "admin") {
+          const row = payload.new as { sender_type?: string; author_role?: string };
+          const senderRole = row.sender_type ?? row.author_role;
+          if (senderRole === "operator" || senderRole === "admin" || senderRole === "super_admin") {
             if (!open) setUnread((n) => n + 1);
           }
         },
@@ -146,15 +159,15 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
       .subscribe();
 
     return () => {
-      void gptSupabase.removeChannel(ch);
+      void realtime.removeChannel(ch);
     };
-  }, [user, session?.id, gptSupabase, open, isSubsStore]);
+  }, [user, session?.id, gptSupabase, subsSupabase, open, isSubsStore]);
 
   useEffect(() => {
     if (!isSubsStore || !user || open) return;
     const t = window.setInterval(() => {
-      void fetchUnread();
-    }, 5000);
+      if (document.visibilityState === "visible") void fetchUnread();
+    }, 30_000);
     return () => window.clearInterval(t);
   }, [isSubsStore, user, open, fetchUnread]);
 
@@ -321,14 +334,23 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
     );
   }
 
-  if (pathname === "/") {
-    const landingSupportHref = user ? chatDashboardHref : loginHref;
+  if (pathname === "/" && !user) {
     return (
-      <div className={landingChatDockClass}>
-        <a
-          href={landingSupportHref}
-          className={landingChatButtonClass}
-          aria-label="Чат поддержки"
+      <div className={cn(landingChatDockClass, "flex flex-col items-end gap-2")}>
+        <div
+          className={cn(
+            "overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl transition-all duration-300",
+            open
+              ? "h-[min(560px,calc(100dvh-6rem))] w-[min(380px,calc(100vw-2rem))] translate-y-0 opacity-100"
+              : "pointer-events-none h-0 w-0 translate-y-4 opacity-0",
+          )}
+        >
+          {open ? <GuestOperatorChat /> : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={cn("relative", landingChatButtonClass)}
           style={{
             backgroundColor: accentColor,
             boxShadow: `0 4px 14px ${accentColor}40`,
@@ -339,10 +361,11 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = accentColor;
           }}
+          aria-label={open ? "Закрыть чат" : "Открыть чат поддержки"}
         >
           {chatIconSvg}
           {landingChatLabel}
-        </a>
+        </button>
       </div>
     );
   }

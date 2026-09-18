@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CreditCard, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { startCheckoutPaymentWait } from "@/lib/checkout/start-payment-wait";
+import { trackGPTPayClick } from "@/lib/metrics";
 
 type SiteSlug = "gpt-store" | "subs-store";
 
@@ -30,6 +31,10 @@ export function CompletePaymentButton({
   const accent = isSubs ? "#1DB954" : "#10a37f";
 
   async function handlePay() {
+    if (loading) return;
+    if (siteSlug !== "subs-store") {
+      trackGPTPayClick(planId, "complete_payment_button");
+    }
     setLoading(true);
     setError(null);
     try {

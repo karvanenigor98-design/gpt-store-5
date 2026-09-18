@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
+import { LOOKBACK_MS } from "@/lib/checkout/complete-gpt-payer-login";
 import {
   CHECKOUT_RETURN_COOKIE,
   parseCheckoutReturnCookieValue,
@@ -58,6 +59,19 @@ export async function userOwnsOrder(
   return false;
 }
 
+/** QR/SBP on another phone: no checkout cookie. UUID + recent order is the Pally InvId. */
+async function isRecentGptCheckoutOrder(orderId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id,created_at")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order?.created_at) return false;
+  const ts = Date.parse(order.created_at);
+  return Number.isFinite(ts) && Date.now() - ts <= LOOKBACK_MS;
+}
+
 export async function canAccessOrderStatus(orderId: string, siteSlug: SiteSlug): Promise<boolean> {
   const jar = await cookies();
   const parsed = parseCheckoutReturnCookieValue(jar.get(CHECKOUT_RETURN_COOKIE)?.value);
@@ -70,10 +84,16 @@ export async function canAccessOrderStatus(orderId: string, siteSlug: SiteSlug):
     const {
       data: { user },
     } = await bundle.browserLike.auth.getUser();
-    if (!user) return false;
-    return userOwnsOrder(siteSlug, orderId, user.id, user.email ?? null);
+    if (user && (await userOwnsOrder(siteSlug, orderId, user.id, user.email ?? null))) {
+      return true;
+    }
   } catch (err) {
     console.error("[order-status-access] session check failed", siteSlug, orderId, err);
-    return false;
   }
+
+  if (siteSlug === "gpt-store") {
+    return isRecentGptCheckoutOrder(orderId);
+  }
+
+  return false;
 }

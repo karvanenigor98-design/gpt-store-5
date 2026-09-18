@@ -29,6 +29,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.production
 .pally-relay-setup.local.json
 .pally-relay-deployed.local.json
 .vps-deploy-key

@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 
 import { buildYandexMetrikaInlineScript } from "@/lib/analytics/yandex-metrika-snippet";
 import {
-  GPT_STORE_YM_COUNTER_ID,
+  getGptStoreYmId,
   isGptStoreMetrikaPath,
   parseSiteQueryFromSearch,
 } from "@/lib/analytics/gpt-store-metrika";
@@ -15,7 +15,9 @@ function resolveRequestHost(headerBag: Headers): string {
 
 /** Официальный счётчик Я.Метрики в <head> для GPT STORE (gptplus-store.ru). */
 export function GptYandexMetrikaCounterHead() {
-  const ymId = GPT_STORE_YM_COUNTER_ID;
+  const ymId = getGptStoreYmId();
+  if (!ymId) return null;
+
   const h = headers();
   const host = resolveRequestHost(h);
 
@@ -33,6 +35,7 @@ export function GptYandexMetrikaCounterHead() {
       {/* Yandex.Metrika counter */}
       <script
         type="text/javascript"
+        data-gpt-store-metrika="1"
         dangerouslySetInnerHTML={{
           __html: buildYandexMetrikaInlineScript(ymId),
         }}

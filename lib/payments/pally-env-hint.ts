@@ -14,6 +14,7 @@ export function getPallyEnvSetupHint(): string {
 export function isPallyConfigError(message: string | undefined): boolean {
   if (!message) return false;
   if (/url_not_allowed|настройками магазина|магазин неактивен|неактивн/i.test(message)) return false;
+  if (/relay недоступен|pally relay недоступен/i.test(message)) return false;
   return /pally|fetch failed|PALLY_|не настроен|связаться с pally|ENOTFOUND|ip_access|белом списке|relay недоступен/i.test(
     message,
   );

@@ -31,5 +31,5 @@ export const SUBS_ORDER_STATUSES = [
 ] as const;
 
 export function subsOrderStatusLabelRu(status: string): string {
-  return SUBS_ORDER_STATUS_LABELS[status] ?? status;
+  return SUBS_ORDER_STATUS_LABELS[status] ?? "Неизвестный статус";
 }

@@ -40,6 +40,19 @@ const nextConfig = {
     }
     return config;
   },
+  async headers() {
+    const noStore = [
+      { key: "Cache-Control", value: "private, no-cache, no-store, max-age=0, must-revalidate" },
+    ];
+    return [
+      { source: "/dashboard", headers: noStore },
+      { source: "/dashboard/:path*", headers: noStore },
+      { source: "/cabinet", headers: noStore },
+      { source: "/cabinet/:path*", headers: noStore },
+      { source: "/login", headers: noStore },
+      { source: "/register", headers: noStore },
+    ];
+  },
   async redirects() {
     return [
       {

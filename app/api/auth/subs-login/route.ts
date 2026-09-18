@@ -122,7 +122,11 @@ export async function POST(request: NextRequest) {
     /* profile sync optional */
   }
 
-  await upsertSiteMembership(authData.user.id, "subs-store", "customer").catch(() => undefined);
+  const membershipRole =
+    role === "admin" || role === "operator" ? role : ("customer" as const);
+  await upsertSiteMembership(authData.user.id, "subs-store", membershipRole).catch(
+    () => undefined,
+  );
 
   const path = resolvePostLoginPath(effectiveReturnUrl, role);
   const res = NextResponse.json({ ok: true, path, role });
