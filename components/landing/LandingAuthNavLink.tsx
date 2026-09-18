@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import { User } from "lucide-react";
 
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
@@ -11,6 +12,7 @@ type LandingAuthNavLinkProps = {
   /** SSR: сессия с сервера (httpOnly cookies), без мигания «Войти». */
   initialLoggedIn?: boolean;
   className?: string;
+  icon?: LucideIcon;
   style?: React.CSSProperties;
   onMouseEnter?: React.MouseEventHandler<HTMLAnchorElement>;
   onMouseLeave?: React.MouseEventHandler<HTMLAnchorElement>;
@@ -59,6 +61,7 @@ export function LandingAuthNavLink({
   siteSlug,
   initialLoggedIn = false,
   className,
+  icon: Icon = User,
   style,
   onMouseEnter,
   onMouseLeave,
@@ -96,7 +99,7 @@ export function LandingAuthNavLink({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <User size={14} />
+      <Icon size={14} />
       {label}
     </Link>
   );

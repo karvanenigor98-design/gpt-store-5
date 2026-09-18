@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Headphones } from "lucide-react";
+import { Headphones, Search } from "lucide-react";
 
 import { LandingAuthNavLink } from "@/components/landing/LandingAuthNavLink";
 import { openGptSupportChat } from "@/lib/chat/open-support-chat";
@@ -16,6 +16,7 @@ export function GptSimpleNav() {
         <div className="flex items-center gap-2 sm:gap-3">
           <LandingAuthNavLink
             siteSlug="gpt-store"
+            icon={Search}
             className="inline-flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-500 transition-colors hover:text-gray-900"
           />
           <button
