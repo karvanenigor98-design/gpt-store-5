@@ -1,20 +1,7 @@
-/** Inline CSS + script: must live in HTML, not a JS chunk (chunks 404 with stale HTML). */
+/** Inline CSS + script: must live in HTML, not a JS chunk (chunks 404 with stale HTML).
+ *  Do NOT inline Tailwind utilities here — they override `md:flex-row` and shove operator/admin content down. */
 
 export const CSS_LOAD_GUARD_STYLE = `
-.hidden{display:none}
-.flex{display:flex}
-.flex-col{flex-direction:column}
-.items-center{align-items:center}
-.shrink-0,.flex-shrink-0{flex-shrink:0}
-.h-8{height:2rem}
-.w-8{width:2rem}
-.h-6{height:1.5rem}
-.w-6{width:1.5rem}
-.rounded-full{border-radius:9999px}
-@media (min-width:768px){
-  .md\\:flex{display:flex}
-  .md\\:hidden{display:none}
-}
 #css-fail-banner{display:none;position:fixed;z-index:2147483647;left:0;right:0;top:0;padding:12px 16px;background:#111827;color:#fff;font:14px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 #css-fail-banner button{margin-left:12px;padding:6px 12px;border:0;border-radius:8px;background:#10a37f;color:#fff;font-weight:600;cursor:pointer}
 `.trim();
