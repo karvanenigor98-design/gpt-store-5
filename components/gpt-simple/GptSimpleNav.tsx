@@ -1,6 +1,6 @@
 "use client";
 
-import { Headphones, Search } from "lucide-react";
+import { Headphones } from "lucide-react";
 
 import { LandingAuthNavLink } from "@/components/landing/LandingAuthNavLink";
 import { openGptSupportChat } from "@/lib/chat/open-support-chat";
@@ -16,7 +16,6 @@ export function GptSimpleNav({ initialLoggedIn = false }: { initialLoggedIn?: bo
           <LandingAuthNavLink
             siteSlug="gpt-store"
             initialLoggedIn={initialLoggedIn}
-            icon={Search}
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-gray-500 transition-colors hover:bg-white/70 hover:text-gray-800"
           />
           <button

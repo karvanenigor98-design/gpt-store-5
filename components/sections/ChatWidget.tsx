@@ -69,11 +69,15 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   }, [isSubsStore]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadUser = async () => {
       if (isSubsStore && subsSupabase) {
         const { data: { session: authSession } } = await subsSupabase.auth.getSession();
+        if (cancelled) return;
         const authUser = authSession?.user ?? null;
         if (!authUser) {
+          setUser(null);
           setLoading(false);
           return;
         }
@@ -96,8 +100,10 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
         return;
       }
       const { data: { session: authSession } } = await gptSupabase.auth.getSession();
+      if (cancelled) return;
       const authUser = authSession?.user ?? null;
       if (!authUser) {
+        setUser(null);
         setLoading(false);
         return;
       }
@@ -106,13 +112,29 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
         .select("id, email, username, telegram_id, telegram_username, role, created_at, last_seen")
         .eq("id", authUser.id)
         .single();
-      setUser(profile as Profile);
+      if (cancelled) return;
+      setUser((profile as Profile) ?? null);
       setLoading(false);
     };
-    const deferTimer = window.setTimeout(() => {
+
+    void loadUser();
+
+    const authClient = isSubsStore ? subsSupabase : gptSupabase;
+    const { data } = authClient?.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+        setSession(null);
+        setLoading(false);
+        return;
+      }
       void loadUser();
-    }, 4_000);
-    return () => window.clearTimeout(deferTimer);
+    }) ?? { data: { subscription: null } };
+
+    return () => {
+      cancelled = true;
+      data.subscription?.unsubscribe();
+    };
   }, [gptSupabase, isSubsStore, subsSupabase]);
 
   useEffect(() => {
@@ -238,7 +260,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   );
 
   if (pathname === "/support" && !isSubsStore) return null;
-  if (loading) return null;
+  if (loading && pathname !== "/") return null;
 
   if (subsLandingSupportLink) {
     const landingSupportHref =
@@ -334,7 +356,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
     );
   }
 
-  if (pathname === "/" && !user) {
+  if (pathname === "/" && (!user || user.role === "admin" || user.role === "operator")) {
     return (
       <div className={cn(landingChatDockClass, "flex flex-col items-end gap-2")}>
         <div
