@@ -74,12 +74,8 @@ export function GptSimplePlans({
     <section id="plans" className="px-4 pb-6 pt-8 md:px-6 md:pb-10 md:pt-12">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 text-center">
-          <h2 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">
-            Выберите, что получите
-          </h2>
-          <p className="mt-2 text-sm text-gray-500 md:text-base">
-            Go, Plus или Pro. Со входом в аккаунт или без.
-          </p>
+          <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">Тарифы</h2>
+          <p className="mt-2 text-sm text-gray-500 md:text-base">Выберите вариант под свои задачи</p>
         </div>
 
         <div className="grid items-start gap-3 md:grid-cols-3 md:gap-4">
@@ -99,8 +95,8 @@ export function GptSimplePlans({
 
           {plusPlan && plusStd && plusFast ? (
             <article className="relative flex flex-col rounded-2xl border-2 border-[#10a37f] bg-white p-4 shadow-md">
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-[#10a37f] px-3 py-0.5 text-[11px] font-semibold text-white">
-                Популярный выбор
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-[#b8f05c] px-3 py-0.5 text-[11px] font-semibold text-[#1f3d12]">
+                Самый популярный
               </span>
               <Star className="mt-1 h-8 w-8 rounded-md bg-[#10a37f] p-1.5 text-white" strokeWidth={2} aria-hidden />
               <h2 className="font-heading mt-2 text-lg font-bold text-gray-900">ChatGPT Plus</h2>
