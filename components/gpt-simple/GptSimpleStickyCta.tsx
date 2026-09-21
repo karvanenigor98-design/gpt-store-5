@@ -56,7 +56,7 @@ export function GptSimpleStickyCta() {
       >
         <button
           type="button"
-          onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onClick={() => document.getElementById("plans")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           className="flex min-h-[3rem] min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#10a37f] px-3 py-3 text-sm font-semibold text-white shadow-lg"
           style={{ boxShadow: "0 6px 24px rgba(16,163,127,0.35)" }}
         >

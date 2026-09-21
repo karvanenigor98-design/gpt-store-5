@@ -71,25 +71,23 @@ export function GptSimplePlans({
   const proPlan = proId === "pro-20x" ? pro20 : pro5;
 
   return (
-    <section id="pricing" className="px-4 pb-6 pt-8 md:px-6 md:pb-10 md:pt-12">
+    <section id="plans" className="px-4 pb-6 pt-8 md:px-6 md:pb-10 md:pt-12">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 text-center">
+        <div className="mb-8 text-center">
           <h2 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">
-            Тарифы
+            Выберите, что получите
           </h2>
-          <p className="mt-2 text-sm text-gray-500">
-            Выберите вариант под свои задачи
+          <p className="mt-2 text-sm text-gray-500 md:text-base">
+            Go, Plus или Pro. Со входом в аккаунт или без.
           </p>
         </div>
 
         <div className="grid items-start gap-3 md:grid-cols-3 md:gap-4">
           {go ? (
-            <article className="flex flex-col rounded-2xl border border-black/[0.08] bg-white p-5 shadow-sm md:p-6">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#10a37f]/12">
-                <Plane className="h-6 w-6 text-[#10a37f]" strokeWidth={2.1} aria-hidden />
-              </span>
-              <h2 className="font-heading mt-2 text-base font-bold text-gray-900">ChatGPT Go</h2>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">
+            <article className="flex flex-col rounded-2xl border border-black/[0.08] bg-white p-4 shadow-sm">
+              <Plane className="h-8 w-8 text-[#10a37f]" strokeWidth={2} aria-hidden />
+              <h2 className="font-heading mt-2 text-lg font-bold text-gray-900">ChatGPT Go</h2>
+              <p className="mt-1 text-sm text-gray-500">
                 Больше, чем бесплатный ChatGPT. Со входом в ваш аккаунт.
               </p>
               <PlanPrice plan={go} />
@@ -100,17 +98,13 @@ export function GptSimplePlans({
           ) : null}
 
           {plusPlan && plusStd && plusFast ? (
-            <article className="relative flex flex-col rounded-2xl border-2 border-[#10a37f] bg-white p-5 shadow-md md:p-6">
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-[#10a37f] px-2.5 py-0.5 text-[10px] font-semibold text-white">
-                Самый популярный
+            <article className="relative flex flex-col rounded-2xl border-2 border-[#10a37f] bg-white p-4 shadow-md">
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-[#10a37f] px-3 py-0.5 text-[11px] font-semibold text-white">
+                Популярный выбор
               </span>
-              <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#10a37f]">
-                <Star className="h-6 w-6 text-white" strokeWidth={2.1} aria-hidden />
-              </span>
-              <h2 className="font-heading mt-2 text-base font-bold text-gray-900">ChatGPT Plus</h2>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                Со входом в ваш ChatGPT или без входа.
-              </p>
+              <Star className="mt-1 h-8 w-8 rounded-md bg-[#10a37f] p-1.5 text-white" strokeWidth={2} aria-hidden />
+              <h2 className="font-heading mt-2 text-lg font-bold text-gray-900">ChatGPT Plus</h2>
+              <p className="mt-1 text-sm text-gray-500">Со входом в ваш ChatGPT или без входа.</p>
               <div className="mt-3 space-y-1.5">
                 <label
                   className={cn(
@@ -128,7 +122,7 @@ export function GptSimplePlans({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-2">
                       <span className="text-xs font-semibold leading-snug text-gray-900">
-                        Популярный вариант
+                        Подключение со входом в аккаунт
                       </span>
                       <span className="shrink-0 text-xs font-bold text-gray-900">{formatRub(plusStd.price)}</span>
                     </span>
@@ -151,7 +145,7 @@ export function GptSimplePlans({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-2">
                       <span className="text-xs font-semibold leading-snug text-gray-900">
-                        Быстрая активация
+                        Подключение без входа в аккаунт
                       </span>
                       <span className="shrink-0 text-xs font-bold text-gray-900">{formatRub(plusFast.price)}</span>
                     </span>
@@ -166,36 +160,11 @@ export function GptSimplePlans({
           ) : null}
 
           {proPlan && pro5 && pro20 ? (
-            <article className="flex flex-col rounded-2xl border border-black/[0.08] bg-white p-5 shadow-sm md:p-6">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#7c3aed]/12">
-                <Crown className="h-6 w-6 text-[#7c3aed]" strokeWidth={2.1} aria-hidden />
-              </span>
-              <h2 className="font-heading mt-2 text-base font-bold text-gray-900">ChatGPT Pro</h2>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                Максимум лимитов. Со входом в ваш аккаунт.
-              </p>
+            <article className="flex flex-col rounded-2xl border border-black/[0.08] bg-white p-4 shadow-sm">
+              <Crown className="h-8 w-8 text-[#7c3aed]" strokeWidth={2} aria-hidden />
+              <h2 className="font-heading mt-2 text-lg font-bold text-gray-900">ChatGPT Pro</h2>
+              <p className="mt-1 text-sm text-gray-500">Максимум лимитов. Со входом в ваш аккаунт.</p>
               <div className="mt-3 space-y-1.5">
-                <label
-                  className={cn(
-                    "flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2",
-                    proId === "pro-5x" ? "border-[#10a37f] bg-[#10a37f]/6" : "border-black/[0.08]",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="pro-mode"
-                    className="mt-0.5 accent-[#10a37f]"
-                    checked={proId === "pro-5x"}
-                    onChange={() => setProId("pro-5x")}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-semibold text-gray-900">Pro 5× — Популярный</span>
-                      <span className="shrink-0 text-xs font-bold text-gray-900">{formatRub(pro5.price)}</span>
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-gray-500">Лимиты ~5× к Plus</span>
-                  </span>
-                </label>
                 <label
                   className={cn(
                     "flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2",
@@ -211,10 +180,33 @@ export function GptSimplePlans({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-semibold text-gray-900">Pro 20× — Максимальный</span>
+                      <span className="text-xs font-semibold leading-snug text-gray-900">
+                        ChatGPT Pro 20x — Максимальный
+                      </span>
                       <span className="shrink-0 text-xs font-bold text-gray-900">{formatRub(pro20.price)}</span>
                     </span>
-                    <span className="mt-0.5 block text-[11px] text-gray-500">Лимиты ~20× к Plus</span>
+                  </span>
+                </label>
+                <label
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2",
+                    proId === "pro-5x" ? "border-[#10a37f] bg-[#10a37f]/6" : "border-black/[0.08]",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="pro-mode"
+                    className="mt-0.5 accent-[#10a37f]"
+                    checked={proId === "pro-5x"}
+                    onChange={() => setProId("pro-5x")}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-semibold leading-snug text-gray-900">
+                        ChatGPT Pro 5x — Популярный
+                      </span>
+                      <span className="shrink-0 text-xs font-bold text-gray-900">{formatRub(pro5.price)}</span>
+                    </span>
                   </span>
                 </label>
               </div>
