@@ -395,18 +395,7 @@ export function ChatWidget({ siteSlug = "gpt-store" }: ChatWidgetProps) {
   }
 
   if (user.role === "admin" || user.role === "operator") {
-    const staffChatHref =
-      isSubsStore ? "/operator/chat?site=subs-store" : user.role === "admin" ? "/admin/chat" : "/operator/chat";
-    return (
-      <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
-        <a
-          href={staffChatHref}
-          className="flex items-center gap-2 rounded-full border border-white/20 bg-gray-900 px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all hover:bg-gray-800 sm:px-4 sm:py-3"
-        >
-          Панель чата
-        </a>
-      </div>
-    );
+    return null;
   }
 
   if (pathname === "/support") return null;
