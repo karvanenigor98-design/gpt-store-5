@@ -146,7 +146,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     if (becamePaidSubs) {
-      void handleOrderPaidNotification({
+      await handleOrderPaidNotification({
         orderId,
         siteSlug: "subs-store",
         planName: planTitle,
@@ -267,7 +267,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   if (becamePaidGpt) {
-    void handleOrderPaidNotification({
+    await handleOrderPaidNotification({
       orderId: order.id,
       siteSlug,
       planName: planTitle,

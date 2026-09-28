@@ -103,6 +103,7 @@ export async function recordGptStaffNotification(params: {
         .eq("type", params.type)
         .eq("entity_type", entityType)
         .eq("entity_id", entityId)
+        .is("recipient_user_id", null)
         .gte("created_at", since)
         .limit(1);
       if (existing?.length) {

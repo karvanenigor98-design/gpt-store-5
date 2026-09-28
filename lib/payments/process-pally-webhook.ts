@@ -269,7 +269,7 @@ async function processGptOrder(
       }
     }
 
-    void handleOrderPaidNotification({
+    await handleOrderPaidNotification({
       orderId: order.id,
       siteSlug,
       planName: planTitle,
@@ -453,7 +453,7 @@ async function processSubsOrder(
   }
 
   if (becamePaidLike) {
-    void handleOrderPaidNotification({
+    await handleOrderPaidNotification({
       orderId: order.id,
       siteSlug,
       planName: planTitle,

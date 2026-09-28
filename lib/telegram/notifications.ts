@@ -204,6 +204,8 @@ async function hasRecentNewOrderNotification(
       .eq("type", "new_order")
       .eq("entity_type", "order")
       .eq("entity_id", orderId)
+      // Client "Заказ создан" is the same type — do not treat it as staff already notified.
+      .is("recipient_user_id", null)
       .gte("created_at", cutoff)
       .limit(1);
     return (count ?? 0) > 0;
