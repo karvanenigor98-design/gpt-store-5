@@ -5,9 +5,10 @@ import type { SiteSlug } from "@/lib/sites";
 import {
   hasAnyEmailProvider,
   hasResendConfigured,
+  hasResendFromReady,
   hasSmtpConfigured,
   isEmailNotificationsEnabled,
-  resolveFromAddress,
+  resolveResendFromAddress,
 } from "@/lib/email/config";
 import { resolveSmtpFromAddress } from "@/lib/email/smtp-from";
 import { isEmailRecipientSuppressed } from "@/lib/email/suppression";
@@ -28,16 +29,27 @@ export function getLastEmailError(): string | null {
 function providersToTry(): ("resend" | "smtp")[] {
   const explicit = process.env.EMAIL_PROVIDER?.trim().toLowerCase();
   const order: ("resend" | "smtp")[] = [];
+  const resendOk = hasResendConfigured() && hasResendFromReady();
 
   if (explicit === "smtp") {
     if (hasSmtpConfigured()) order.push("smtp");
-    if (hasResendConfigured()) order.push("resend");
+    if (resendOk) order.push("resend");
   } else if (explicit === "resend" || explicit === "auto" || !explicit) {
-    if (hasResendConfigured()) order.push("resend");
+    if (resendOk) order.push("resend");
     if (hasSmtpConfigured()) order.push("smtp");
   }
 
   return order;
+}
+
+function isTransientSmtpError(message: string): boolean {
+  return /(?:^|\D)(421|450|451|452)(?:\D|$)|try again|temporarily|closing connection|service not available/i.test(
+    message,
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function sendViaSmtp(
@@ -62,30 +74,36 @@ async function sendViaSmtp(
   }
 
   const secure = port === 465;
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
 
-  try {
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
+  const mail = {
+    from: from ?? resolveSmtpFromAddress(),
+    to,
+    subject,
+    text,
+    html: html ?? `<pre style="font-family:Arial,sans-serif;white-space:pre-wrap">${text}</pre>`,
+  };
 
-    await transporter.sendMail({
-      from: from ?? resolveSmtpFromAddress(),
-      to,
-      subject,
-      text,
-      html: html ?? `<pre style="font-family:Arial,sans-serif;white-space:pre-wrap">${text}</pre>`,
-    });
-
-    lastEmailError = null;
-    return { ok: true, skipped: false, provider: "smtp" };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "SMTP send failed";
-    lastEmailError = message;
-    return { ok: false, skipped: false, provider: "smtp", error: message };
+  let lastMessage = "SMTP send failed";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await transporter.sendMail(mail);
+      lastEmailError = null;
+      return { ok: true, skipped: false, provider: "smtp" };
+    } catch (err) {
+      lastMessage = err instanceof Error ? err.message : "SMTP send failed";
+      if (!isTransientSmtpError(lastMessage) || attempt === 2) break;
+      await sleep(400 * 2 ** attempt);
+    }
   }
+
+  lastEmailError = lastMessage;
+  return { ok: false, skipped: false, provider: "smtp", error: lastMessage };
 }
 
 async function sendViaResend(
@@ -100,6 +118,11 @@ async function sendViaResend(
     return { ok: false, skipped: false, provider: "resend", error: "Не найден RESEND_API_KEY в .env.local" };
   }
 
+  const fromAddr = from ?? resolveResendFromAddress();
+  if (!fromAddr) {
+    return { ok: false, skipped: true, provider: "resend", error: "resend_from_unverified" };
+  }
+
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -108,7 +131,7 @@ async function sendViaResend(
         Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: from ?? resolveFromAddress(),
+        from: fromAddr,
         to: [to],
         subject,
         text,
@@ -143,7 +166,7 @@ export async function sendTransactionalEmail(
 ): Promise<SendEmailResult> {
   const siteSlug = options?.siteSlug;
   const purpose = options?.purpose ?? "notification";
-  const resendFrom = siteSlug ? resolveFromAddress(siteSlug) : resolveFromAddress();
+  const resendFrom = resolveResendFromAddress(siteSlug);
   const smtpFrom = siteSlug ? resolveSmtpFromAddress(siteSlug) : resolveSmtpFromAddress();
 
   if (!to?.trim()) {
@@ -178,6 +201,7 @@ export async function sendTransactionalEmail(
 
   for (const provider of providers) {
     const from = provider === "smtp" ? smtpFrom : resendFrom;
+    if (provider === "resend" && !from) continue;
     const result =
       provider === "smtp"
         ? await sendViaSmtp(to.trim(), subject, text, html, from)
@@ -227,10 +251,13 @@ export async function notifyAdminEmailFailure(context: string, detail: string): 
   const text = `Не удалось отправить email.\n\nКонтекст: ${context}\nДетали: ${detail.slice(0, 500)}\n\nСобытие сохранено в notifications.`;
 
   for (const provider of providersToTry()) {
+    const from =
+      provider === "smtp" ? resolveSmtpFromAddress() : resolveResendFromAddress();
+    if (provider === "resend" && !from) continue;
     const result =
       provider === "smtp"
-        ? await sendViaSmtp(adminEmail, subject, text)
-        : await sendViaResend(adminEmail, subject, text);
+        ? await sendViaSmtp(adminEmail, subject, text, undefined, from)
+        : await sendViaResend(adminEmail, subject, text, undefined, from ?? undefined);
     if (result.ok) return;
   }
 }

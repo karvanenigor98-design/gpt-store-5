@@ -44,13 +44,15 @@ export function resolveEmailProvider(): EmailProvider {
     return "none";
   }
   if (explicit === "resend") {
-    if (hasResendConfigured()) return "resend";
+    if (hasResendFromReady()) return "resend";
     if (hasSmtpConfigured()) return "smtp";
+    if (hasResendConfigured()) return "resend";
     return "none";
   }
 
-  if (hasResendConfigured()) return "resend";
+  if (hasResendFromReady()) return "resend";
   if (hasSmtpConfigured()) return "smtp";
+  if (hasResendConfigured()) return "resend";
   return "none";
 }
 
@@ -60,7 +62,8 @@ export function getEmailConfigStatus(): EmailConfigStatus {
   const missingEnv: string[] = [];
   const diagnostics: string[] = [];
 
-  const fromEmail = env("SMTP_FROM_EMAIL") ?? env("RESEND_FROM_EMAIL") ?? null;
+  const fromEmail =
+    (hasResendFromReady() ? env("RESEND_FROM_EMAIL") : null) ?? env("SMTP_FROM_EMAIL") ?? null;
   const fromName = env("SMTP_FROM_NAME") ?? null;
 
   if (!enabled) {
@@ -68,8 +71,7 @@ export function getEmailConfigStatus(): EmailConfigStatus {
   }
 
   const smtpReady = hasSmtpConfigured();
-  const resendReady =
-    hasResendConfigured() && Boolean(env("RESEND_FROM_EMAIL") ?? env("SMTP_FROM_EMAIL"));
+  const resendReady = hasResendConfigured() && hasResendFromReady();
 
   if (provider === "smtp" && smtpReady) {
     if (!env("SMTP_HOST")) missingEnv.push("SMTP_HOST");
@@ -92,14 +94,40 @@ function extractEmailAddress(raw: string): string {
   return (m?.[1] ?? raw).trim();
 }
 
-/** From-имя по сайту (SPOTIFY STORE / GPT STORE), адрес из SMTP/Resend env. */
-export function resolveFromAddress(siteSlug?: SiteSlug): string {
-  const rawFrom = env("SMTP_FROM_EMAIL") ?? env("RESEND_FROM_EMAIL") ?? "";
-  const emailOnly = rawFrom ? extractEmailAddress(rawFrom) : null;
+/** Resend cannot send From consumer mailboxes (mail.ru, gmail, …) — domain not owned/verified. */
+export function isUnverifiableResendFrom(email: string): boolean {
+  const domain = extractEmailAddress(email).split("@")[1]?.toLowerCase() ?? "";
+  if (!domain) return true;
+  return (
+    /^(mail|bk|inbox|list)\.ru$/.test(domain) ||
+    /^(gmail|googlemail)\.com$/.test(domain) ||
+    /^(yandex|ya)\.(ru|com|kz|by|ua)$/.test(domain) ||
+    /^(rambler|lenta|autorambler|myrambler|ro)\.ru$/.test(domain) ||
+    /^(outlook|hotmail|live|msn)\.(com|ru)$/.test(domain) ||
+    /^(icloud|me|mac)\.com$/.test(domain)
+  );
+}
 
+export function hasResendFromReady(): boolean {
+  const raw = env("RESEND_FROM_EMAIL");
+  if (!raw) return false;
+  const emailOnly = extractEmailAddress(raw);
+  return Boolean(emailOnly.includes("@") && !isUnverifiableResendFrom(emailOnly));
+}
+
+/** From for Resend only — never SMTP_FROM (Mail.ru mailbox). */
+export function resolveResendFromAddress(siteSlug?: SiteSlug): string | null {
+  if (!hasResendFromReady()) return null;
+  const emailOnly = extractEmailAddress(env("RESEND_FROM_EMAIL") ?? "");
   const brandName = siteSlug ? getSiteBySlug(siteSlug).brandName : (env("SMTP_FROM_NAME") ?? "GPT STORE");
+  return `${brandName} <${emailOnly}>`;
+}
 
-  if (emailOnly) return `${brandName} <${emailOnly}>`;
+/** From-имя по сайту (SPOTIFY STORE / GPT STORE). Resend: verified domain; SMTP uses smtp-from.ts. */
+export function resolveFromAddress(siteSlug?: SiteSlug): string {
+  const resend = resolveResendFromAddress(siteSlug);
+  if (resend) return resend;
+  const brandName = siteSlug ? getSiteBySlug(siteSlug).brandName : (env("SMTP_FROM_NAME") ?? "GPT STORE");
   return `${brandName} <onboarding@resend.dev>`;
 }
 
