@@ -57,7 +57,7 @@ async function sendViaSmtp(
   subject: string,
   text: string,
   html?: string,
-  from?: string,
+  from?: string | null,
 ): Promise<SendEmailResult> {
   const host = process.env.SMTP_HOST?.trim();
   const portRaw = process.env.SMTP_PORT?.trim() ?? "587";
@@ -111,7 +111,7 @@ async function sendViaResend(
   subject: string,
   text: string,
   html?: string,
-  from?: string,
+  from?: string | null,
 ): Promise<SendEmailResult> {
   const resendKey = process.env.RESEND_API_KEY?.trim();
   if (!resendKey) {
