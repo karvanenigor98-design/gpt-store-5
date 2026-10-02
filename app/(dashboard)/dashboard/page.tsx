@@ -9,6 +9,7 @@ import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import { countLoyaltyCompletedOrders } from "@/lib/loyalty/tier";
 import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
+import { loadCustomerOrdersForUser } from "@/lib/dashboard/load-customer-orders";
 import { resolvePageSearchParams } from "@/lib/next/resolve-page-search-params";
 
 export const metadata: Metadata = { title: "Личный кабинет" };
