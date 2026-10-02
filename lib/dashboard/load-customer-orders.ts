@@ -94,9 +94,11 @@ function isPaidLikeCollapsibleStatus(status: string): boolean {
 }
 
 /**
- * Один paid-like заказ на тариф в кабинете (twin’ы shel.put и т.п.).
- * Приоритет: активированный → с activated_at → новейший created_at.
+ * Схлопываем только близнецов одного тарифа (двойной webhook / повтор клика),
+ * не месячные продления — иначе ранг лояльности всегда «Новичок».
  */
+const PAID_TWIN_MS = 72 * 60 * 60 * 1000;
+
 function collapseDuplicatePaidLikeOrders(orders: CustomerOrderView[]): CustomerOrderView[] {
   const groups = new Map<string, CustomerOrderView[]>();
   const rest: CustomerOrderView[] = [];
@@ -114,21 +116,36 @@ function collapseDuplicatePaidLikeOrders(orders: CustomerOrderView[]): CustomerO
 
   const picked: CustomerOrderView[] = [];
   for (const list of groups.values()) {
-    list.sort((a, b) => {
+    const sorted = [...list].sort(
+      (a, b) =>
+        new Date(getCustomerOrderRecencyIso(a)).getTime() -
+        new Date(getCustomerOrderRecencyIso(b)).getTime(),
+    );
+    const kept: CustomerOrderView[] = [];
+    for (const order of sorted) {
+      const prev = kept[kept.length - 1];
+      if (prev) {
+        const dt = Math.abs(
+          new Date(getCustomerOrderRecencyIso(order)).getTime() -
+            new Date(getCustomerOrderRecencyIso(prev)).getTime(),
+        );
+        if (dt < PAID_TWIN_MS) continue;
+      }
+      kept.push(order);
+    }
+    kept.sort((a, b) => {
       const aAct = isActivatedCustomerStatus(a.status) ? 1 : 0;
       const bAct = isActivatedCustomerStatus(b.status) ? 1 : 0;
       if (aAct !== bAct) return bAct - aAct;
-
       const aActAt = a.activated_at ? new Date(a.activated_at).getTime() : 0;
       const bActAt = b.activated_at ? new Date(b.activated_at).getTime() : 0;
       if (aActAt !== bActAt) return bActAt - aActAt;
-
       return (
         new Date(getCustomerOrderRecencyIso(b)).getTime() -
         new Date(getCustomerOrderRecencyIso(a)).getTime()
       );
     });
-    picked.push(list[0]!);
+    picked.push(...kept);
   }
 
   return sortOrdersNewestFirst([...rest, ...picked]);

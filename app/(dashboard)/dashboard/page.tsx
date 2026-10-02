@@ -7,7 +7,7 @@ import type { SiteSlug } from "@/lib/auth/siteUiSession";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 import { createSiteSessionClient } from "@/lib/supabase/site-session-server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
-import { loadCustomerOrdersForUser } from "@/lib/dashboard/load-customer-orders";
+import { countLoyaltyCompletedOrders } from "@/lib/loyalty/tier";
 import type { CustomerOrderView } from "@/lib/dashboard/customer-order-view";
 import { resolvePageSearchParams } from "@/lib/next/resolve-page-search-params";
 
@@ -93,6 +93,7 @@ export default async function DashboardPage({
   }
 
   const ordersCount = orders.length;
+  const completedOrders = countLoyaltyCompletedOrders(orders, siteSlug);
   const activeCount = orders.filter((o) => {
     const s = String(o.status ?? "");
     if (siteSlug === "subs-store") {
@@ -110,6 +111,7 @@ export default async function DashboardPage({
       profileCreatedAt={profile?.created_at ?? user.created_at ?? new Date().toISOString()}
       orders={orders.slice(0, 10)}
       ordersCount={ordersCount}
+      completedOrders={completedOrders}
       activeCount={activeCount}
       chatsCount={chatsCount}
       siteSlug={site.slug}

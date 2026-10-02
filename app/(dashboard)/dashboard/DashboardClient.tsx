@@ -26,6 +26,7 @@ interface Props {
   profileCreatedAt: string;
   orders: Order[];
   ordersCount: number;
+  completedOrders: number;
   activeCount: number;
   chatsCount: number;
   siteSlug?: string;
@@ -46,6 +47,7 @@ export function DashboardClient({
   profileCreatedAt,
   orders,
   ordersCount,
+  completedOrders,
   activeCount,
   chatsCount,
   siteSlug,
@@ -55,7 +57,6 @@ export function DashboardClient({
   const isSpotify = siteSlug === "subs-store";
   const checkoutSiteSlug: AuthSiteSlug = isSpotify ? "subs-store" : "gpt-store";
   const primaryColor = sitePrimaryColor;
-  const completedOrders = orders.filter((o) => o.status === "active").length;
   const ordersHref = `/dashboard/orders${siteSlug ? `?site=${siteSlug}` : ""}`;
 
   const greeting = username ? `Привет, ${username}!` : "Добро пожаловать!";

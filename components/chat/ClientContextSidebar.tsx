@@ -43,6 +43,8 @@ type Summary = {
   } | null;
   site_slug?: "gpt-store" | "subs-store";
   effective_stage: string;
+  loyalty_completed_orders?: number;
+  loyalty_tier?: string;
   has_active_subscription: boolean;
   focus_order: OrderRow | null;
   active_order: OrderRow | null;
@@ -349,6 +351,15 @@ export function ClientContextSidebar({
                   <p className="text-xs text-gray-400">Подписка</p>
                   <p className="text-gray-900">
                     {data.has_active_subscription ? "Есть активная" : "Нет активной"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Ранг</p>
+                  <p className="text-gray-900">
+                    {data.loyalty_tier ?? "Новичок"}
+                    {typeof data.loyalty_completed_orders === "number"
+                      ? ` · ${data.loyalty_completed_orders} оплач.`
+                      : ""}
                   </p>
                 </div>
                 {focusOrder ? (

@@ -9,6 +9,7 @@ import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
+import { countLoyaltyCompletedOrders, getBonusTier } from "@/lib/loyalty/tier";
 
 const STAGES = ["purchased", "waiting", "no_purchase", "needs_help", "other"] as const;
 
@@ -66,6 +67,17 @@ async function attachSubsTariffTitles(
     ...o,
     plan_title: titleById.get(o.plan_id) ?? o.plan_title,
   }));
+}
+
+function loyaltyMeta(
+  list: { status: string }[],
+  siteSlug: "gpt-store" | "subs-store",
+): { loyalty_completed_orders: number; loyalty_tier: string } {
+  const completed = countLoyaltyCompletedOrders(list, siteSlug);
+  return {
+    loyalty_completed_orders: completed,
+    loyalty_tier: getBonusTier(completed).name,
+  };
 }
 
 function canonicalEmail(value: string | null | undefined): string {
@@ -164,6 +176,7 @@ export async function GET(req: NextRequest) {
           site_slug: siteSlug,
           derived_stage: deriveStageFromOrders(list, siteSlug),
           effective_stage: deriveStageFromOrders(list, siteSlug),
+          ...loyaltyMeta(list, siteSlug),
           has_active_subscription: list.some((o) => ["activated", "completed"].includes(o.status)),
           focus_order: list[0] ?? null,
           active_order: list[0] ?? null,
@@ -212,6 +225,7 @@ export async function GET(req: NextRequest) {
         site_slug: siteSlug,
         derived_stage: "no_purchase",
         effective_stage: "no_purchase",
+        ...loyaltyMeta([], siteSlug),
         has_active_subscription: false,
         focus_order: null,
         active_order: null,
@@ -243,6 +257,7 @@ export async function GET(req: NextRequest) {
       site_slug: siteSlug,
       derived_stage: derived,
       effective_stage: derived,
+      ...loyaltyMeta(list, siteSlug),
       has_active_subscription: hasActive,
       focus_order: focusOrder,
       active_order: focusOrder,
@@ -342,6 +357,7 @@ export async function GET(req: NextRequest) {
       site_slug: siteSlug,
       derived_stage: "no_purchase",
       effective_stage: "no_purchase",
+      ...loyaltyMeta([], siteSlug),
       has_active_subscription: false,
       focus_order: null,
       active_order: null,
@@ -362,16 +378,40 @@ export async function GET(req: NextRequest) {
     gptOrdersQuery = gptOrdersQuery.or(`site_id.eq.${gptSiteId},site_id.is.null`);
   }
   const { data: orders } = await gptOrdersQuery;
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const o of orders ?? []) {
+    byId.set(String(o.id), o as Record<string, unknown>);
+  }
+  const profileEmail = (profile.email ?? "").trim().toLowerCase();
+  if (profileEmail) {
+    let emailQuery = admin
+      .from("orders")
+      .select("id, status, plan_id, price, created_at, payment_provider, activated_at, expires_at")
+      .eq("account_email", profileEmail)
+      .not("product", "ilike", "spotify%")
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (gptSiteId) {
+      emailQuery = emailQuery.or(`site_id.eq.${gptSiteId},site_id.is.null`);
+    }
+    const { data: byEmail } = await emailQuery;
+    for (const o of byEmail ?? []) {
+      byId.set(String(o.id), o as Record<string, unknown>);
+    }
+  }
+  const mergedOrders = [...byId.values()].sort(
+    (a, b) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime(),
+  );
 
-  const list: StaffOrderRow[] = (orders ?? []).map((o) => ({
+  const list: StaffOrderRow[] = mergedOrders.map((o) => ({
     id: String(o.id),
-    status: String(o.status),
-    plan_id: String(o.plan_id),
+    status: String(o.status ?? ""),
+    plan_id: String(o.plan_id ?? ""),
     price: Number(o.price ?? 0),
-    created_at: String(o.created_at),
+    created_at: String(o.created_at ?? ""),
     payment_status: null,
     paid_at: null,
-    plan_title: String(o.plan_id),
+    plan_title: String(o.plan_id ?? ""),
   }));
 
   const focusOrder = resolveStaffFocusOrder(list, siteSlug, orderId);
@@ -398,6 +438,7 @@ export async function GET(req: NextRequest) {
     site_slug: siteSlug,
     derived_stage: derived,
     effective_stage: stage,
+    ...loyaltyMeta(list, siteSlug),
     has_active_subscription: list.some((o) => o.status === "active"),
     focus_order: focusOrder,
     active_order: focusOrder,
