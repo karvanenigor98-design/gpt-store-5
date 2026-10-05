@@ -183,7 +183,8 @@ export function MessageBubble({
         {canShowMenu && (
           <div
             className={cn(
-              "absolute -top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100",
+              "absolute -top-2 z-10 transition-opacity",
+              canModerate ? "opacity-100" : "opacity-0 group-hover:opacity-100",
               isOwn ? "-left-8" : "-right-8",
             )}
           >

@@ -62,14 +62,14 @@ async function sendTelegram(row: OutboxRow): Promise<DeliveryResult> {
   }
 
   const threadId = resolveTelegramMessageThreadId(row.site_slug);
-  const post = async (withThread: boolean) => {
+  const post = async (opts: { withThread: boolean; html: boolean }) => {
     const payload: Record<string, unknown> = {
       chat_id: row.recipient,
       text,
-      parse_mode: "HTML",
       disable_web_page_preview: true,
     };
-    if (withThread && threadId) payload.message_thread_id = threadId;
+    if (opts.html) payload.parse_mode = "HTML";
+    if (opts.withThread && threadId) payload.message_thread_id = threadId;
     return fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -78,30 +78,31 @@ async function sendTelegram(row: OutboxRow): Promise<DeliveryResult> {
     });
   };
 
-  try {
-    let response = await post(Boolean(threadId));
-    if (!response.ok && threadId) {
-      const firstBody = await response.text().catch(() => "");
-      if (/thread/i.test(firstBody)) {
-        response = await post(false);
-        if (response.ok) return { ok: true };
-        const body = await response.text().catch(() => "");
-        return {
-          ok: false,
-          error: `telegram_http_${response.status}:${body.slice(0, 120).replace(/\s+/g, " ")}`,
-        };
-      }
-      return {
-        ok: false,
-        error: `telegram_http_${response.status}:${firstBody.slice(0, 120).replace(/\s+/g, " ")}`,
-      };
-    }
-    if (response.ok) return { ok: true };
-    const body = await response.text().catch(() => "");
+  const fail = async (response: Response, extra?: string) => {
+    const body = extra ?? (await response.text().catch(() => ""));
     return {
-      ok: false,
+      ok: false as const,
       error: `telegram_http_${response.status}:${body.slice(0, 120).replace(/\s+/g, " ")}`,
     };
+  };
+
+  try {
+    let response = await post({ withThread: Boolean(threadId), html: true });
+    if (!response.ok) {
+      const firstBody = await response.text().catch(() => "");
+      if (threadId && /thread/i.test(firstBody)) {
+        response = await post({ withThread: false, html: true });
+        if (response.ok) return { ok: true };
+        return fail(response);
+      }
+      if (response.status === 400) {
+        response = await post({ withThread: false, html: false });
+        if (response.ok) return { ok: true };
+        return fail(response);
+      }
+      return fail(response, firstBody);
+    }
+    return { ok: true };
   } catch (error) {
     return { ok: false, error: safeError(error) };
   }
