@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
 
   if (senderType === "client") {
     const siteSlug: "gpt-store" | "subs-store" = subsStoreChat ? "subs-store" : "gpt-store";
-    void alertStaffOnClientSupportMessage({
+    await alertStaffOnClientSupportMessage({
       siteSlug,
       sessionId,
       clientUserId: sessionCustomerId ?? null,

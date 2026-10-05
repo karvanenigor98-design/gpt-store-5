@@ -253,6 +253,18 @@ export function ChatWindow({
           void loadMessages({ silent: true });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "chat_messages",
+          filter: `${filterColumn}=eq.${sessionId}`,
+        },
+        () => {
+          void loadMessages({ silent: true });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -355,7 +367,18 @@ export function ChatWindow({
         credentials: "include",
         body: JSON.stringify({ id: msg.id, action: "delete" }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? "Не удалось удалить сообщение");
+        return;
+      }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id
+            ? { ...m, is_deleted: true, content: "Сообщение удалено", attachments: null }
+            : m,
+        ),
+      );
       void loadMessages({ silent: true });
     },
     [viewerIsStaff, siteSlug, loadMessages],

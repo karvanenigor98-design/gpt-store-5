@@ -5,7 +5,7 @@ import { sendTransactionalEmail } from "@/lib/email/send-email";
 import { canDeliverTelegramHere } from "@/lib/notifications/telegram-egress";
 import type { SiteSlug } from "@/lib/sites";
 import { createAdminClient } from "@/lib/supabase/server";
-import { resolveTelegramBotToken } from "@/lib/telegram/bot-config";
+import { resolveTelegramBotToken, resolveTelegramMessageThreadId } from "@/lib/telegram/bot-config";
 
 type OutboxRow = {
   id: string;
@@ -61,18 +61,41 @@ async function sendTelegram(row: OutboxRow): Promise<DeliveryResult> {
     return { ok: false, error: "telegram_not_configured" };
   }
 
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const threadId = resolveTelegramMessageThreadId(row.site_slug);
+  const post = async (withThread: boolean) => {
+    const payload: Record<string, unknown> = {
+      chat_id: row.recipient,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+    if (withThread && threadId) payload.message_thread_id = threadId;
+    return fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: row.recipient,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(15_000),
     });
+  };
+
+  try {
+    let response = await post(Boolean(threadId));
+    if (!response.ok && threadId) {
+      const firstBody = await response.text().catch(() => "");
+      if (/thread/i.test(firstBody)) {
+        response = await post(false);
+        if (response.ok) return { ok: true };
+        const body = await response.text().catch(() => "");
+        return {
+          ok: false,
+          error: `telegram_http_${response.status}:${body.slice(0, 120).replace(/\s+/g, " ")}`,
+        };
+      }
+      return {
+        ok: false,
+        error: `telegram_http_${response.status}:${firstBody.slice(0, 120).replace(/\s+/g, " ")}`,
+      };
+    }
     if (response.ok) return { ok: true };
     const body = await response.text().catch(() => "");
     return {

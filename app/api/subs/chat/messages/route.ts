@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
     .eq("id", threadId);
 
   const { alertStaffOnClientSupportMessage } = await import("@/lib/notifications/client-chat-alert");
-  void alertStaffOnClientSupportMessage({
+  await alertStaffOnClientSupportMessage({
     siteSlug: "subs-store",
     sessionId: threadId,
     clientUserId: user.id,

@@ -11,11 +11,12 @@ import { getMessageLengthError, isBlankMessage } from "@/lib/chat/message-valida
 import { notifySubsStoreCustomerChatReply } from "@/lib/subs/subs-notifications";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
 
-function applyDeletedVisibility(
-  message: { is_deleted?: boolean; content: string; attachments?: unknown | null },
-  options: { canViewDeletedContent: boolean },
-) {
-  if (!message.is_deleted || options.canViewDeletedContent) return message;
+function applyDeletedVisibility(message: {
+  is_deleted?: boolean;
+  content: string;
+  attachments?: unknown | null;
+}) {
+  if (!message.is_deleted) return message;
   return {
     ...message,
     content: "Сообщение удалено",
@@ -64,10 +65,9 @@ export async function GET(req: NextRequest) {
 
   const list = (messages ?? []).map((row) => mapSubsChatMessageToChatMessage(row as Parameters<typeof mapSubsChatMessageToChatMessage>[0]));
   const byId = new Map(list.map((m) => [m.id, m]));
-  const canViewDeletedContent = ctx.role === "admin";
   const withReply = list.map((m) => {
     const replyToId = (m as { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
-    const visibleMessage = applyDeletedVisibility(m, { canViewDeletedContent });
+    const visibleMessage = applyDeletedVisibility(m);
     if (!replyToId) return visibleMessage;
     const target = byId.get(replyToId);
     return {
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
         ? {
             id: target.id,
             sender_type: target.sender_type,
-            content: applyDeletedVisibility(target, { canViewDeletedContent }).content,
+            content: applyDeletedVisibility(target).content,
             is_deleted: (target as { is_deleted?: boolean }).is_deleted ?? false,
           }
         : {
@@ -210,16 +210,30 @@ export async function PATCH(req: NextRequest) {
   if (ctx instanceof NextResponse) return ctx;
 
   const deletedBy = await resolveSubsStaffAuthorId(ctx.subs, ctx.user.email);
-  const { error } = await ctx.subs
+  const deletedAt = new Date().toISOString();
+  let { error } = await ctx.subs
     .from("chat_messages")
     .update({
       is_deleted: true,
-      deleted_at: new Date().toISOString(),
+      deleted_at: deletedAt,
       deleted_by: deletedBy,
       attachment_url: null,
       attachment_type: null,
     })
     .eq("id", messageId);
+
+  if (error) {
+    const retry = await ctx.subs
+      .from("chat_messages")
+      .update({
+        is_deleted: true,
+        deleted_at: deletedAt,
+        attachment_url: null,
+        attachment_type: null,
+      })
+      .eq("id", messageId);
+    error = retry.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: "Не удалось удалить сообщение" }, { status: 500 });

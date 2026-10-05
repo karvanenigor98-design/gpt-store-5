@@ -17,9 +17,17 @@ import { createAdminClient } from "@/lib/supabase/server";
 import {
   resolveTelegramBotToken,
   resolveTelegramChatIds,
+  resolveTelegramMessageThreadId,
 } from "@/lib/telegram/bot-config";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
 /** Один адрес для операционных писем: ADMIN_EMAIL → SUPPORT_NOTIFICATION_EMAIL → первый из ADMIN_EMAILS. */
 export function resolveAdminNotificationEmail(): string | null {
@@ -115,6 +123,7 @@ async function sendTelegramMessage(
   const botToken = resolveTelegramBotToken(siteSlug);
   if (!botToken) return;
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+  const threadId = resolveTelegramMessageThreadId(siteSlug);
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -124,6 +133,7 @@ async function sendTelegramMessage(
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
+        ...(threadId ? { message_thread_id: threadId } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -346,18 +356,24 @@ export async function sendTelegramStaffChatAlert(params: {
 }) {
   const store =
     params.siteSlug === "subs-store" ? "Spotify STORE" : "GPT STORE";
+  const preview = escapeHtml(
+    (params.messagePreview || "—").slice(0, 100) +
+      (params.messagePreview.length > 100 ? "..." : ""),
+  );
+  const who = escapeHtml(params.clientEmail ?? "неизвестен");
+  const href = escapeHtml(params.chatHref);
   const text = `🔔 <b>Клиент написал — ${store}</b>
-👤 Клиент: ${params.clientEmail ?? "неизвестен"}
-💬 "${params.messagePreview.slice(0, 100)}${params.messagePreview.length > 100 ? "..." : ""}"
-🔗 <a href="${params.chatHref}">Ответить</a>`;
+👤 Клиент: ${who}
+💬 "${preview}"
+🔗 <a href="${href}">Ответить</a>`;
   const siteSlug = params.siteSlug === "subs-store" ? "subs-store" : "gpt-store";
   const sessionHint =
     params.chatHref.match(/(?:thread_id|session_id)=([^&]+)/)?.[1] ?? "x";
-  void broadcastTelegram(text, {
+  await broadcastTelegramToStaff(text, {
     siteSlug,
     eventType: "client_chat_message",
     dedupeKey: `client_chat:${siteSlug}:${sessionHint}:${params.messagePreview.slice(0, 80)}`,
-  }).catch(() => undefined);
+  });
 }
 
 /** @deprecated Используйте alertStaffOnClientSupportMessage */

@@ -27,12 +27,8 @@ type SessionAccessRow = {
   site_id: string | null;
 };
 
-function applyDeletedVisibility(
-  message: ChatMessage,
-  options: { canViewDeletedContent: boolean },
-): ChatMessage {
+function applyDeletedVisibility(message: ChatMessage): ChatMessage {
   if (!message.is_deleted) return message;
-  if (options.canViewDeletedContent) return message;
   return {
     ...message,
     content: "Сообщение удалено",
@@ -116,10 +112,9 @@ export async function GET(req: NextRequest) {
 
   const list = (messages ?? []) as ChatMessage[];
   const byId = new Map(list.map((m) => [m.id, m]));
-  const canViewDeletedContent = role === "admin";
   const withReply = list.map((m) => {
     const replyToId = (m as ChatMessage & { reply_to_message_id?: string | null }).reply_to_message_id ?? null;
-    const visibleMessage = applyDeletedVisibility(m, { canViewDeletedContent });
+    const visibleMessage = applyDeletedVisibility(m);
     if (!replyToId) return visibleMessage;
     const target = byId.get(replyToId);
     return {
@@ -128,7 +123,7 @@ export async function GET(req: NextRequest) {
         ? {
             id: target.id,
             sender_type: target.sender_type,
-            content: applyDeletedVisibility(target, { canViewDeletedContent }).content,
+            content: applyDeletedVisibility(target).content,
             is_deleted: (target as ChatMessage & { is_deleted?: boolean }).is_deleted ?? false,
           }
         : {
@@ -287,7 +282,7 @@ export async function POST(req: NextRequest) {
     const siteSlug: "gpt-store" | "subs-store" = subsStoreChat ? "subs-store" : "gpt-store";
 
     if (senderType === "client") {
-      void alertStaffOnClientSupportMessage({
+      await alertStaffOnClientSupportMessage({
         siteSlug,
         sessionId,
         clientUserId: session.user_id ?? user.id,
@@ -389,11 +384,20 @@ export async function PATCH(req: NextRequest) {
     deleted_by: user.id,
   };
 
-  const { error: updateErr } = await supabaseAdmin
+  let { error: updateErr } = await supabaseAdmin
     .from("chat_messages")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .update(deletePayload as any)
     .eq("id", messageId);
+
+  if (updateErr) {
+    const { error: retryErr } = await supabaseAdmin
+      .from("chat_messages")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ is_deleted: true, deleted_at: deletePayload.deleted_at } as any)
+      .eq("id", messageId);
+    updateErr = retryErr;
+  }
 
   if (updateErr) {
     return NextResponse.json({ error: "Не удалось удалить сообщение" }, { status: 500 });

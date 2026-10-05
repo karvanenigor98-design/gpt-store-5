@@ -146,7 +146,7 @@ export function MessageBubble({
               </span>
             </button>
           )}
-          {att?.url && (
+          {att?.url && !message.is_deleted && (
             <div className="mb-2">
               {att.type && isImageType(att.type) ? (
                 <img
@@ -171,7 +171,13 @@ export function MessageBubble({
             </div>
           )}
 
-          {message.content && <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.content}</span>}
+          {message.is_deleted ? (
+            <span className="italic opacity-70">Сообщение удалено</span>
+          ) : (
+            message.content && (
+              <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.content}</span>
+            )
+          )}
         </div>
 
         {canShowMenu && (

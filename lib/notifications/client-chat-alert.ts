@@ -62,12 +62,12 @@ export async function alertStaffOnClientSupportMessage(params: {
   }
 
   // Telegram is independent of email throttle — always notify staff chat.
-  void sendTelegramStaffChatAlert({
+  await sendTelegramStaffChatAlert({
     clientEmail: email,
     messagePreview: preview,
     chatHref,
     siteSlug: params.siteSlug,
-  }).catch(() => undefined);
+  }).catch((err) => console.error("[client-chat-alert] telegram:", err));
 
   if (!canSendChatEmailNotification(`staff:${params.siteSlug}:${params.sessionId}`)) {
     return;
