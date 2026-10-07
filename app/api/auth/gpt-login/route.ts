@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
+import { authRateLimitUserMessage, isAuthRateLimitError } from "@/lib/auth/auth-rate-limit";
 import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { clearOppositeAuthSession } from "@/lib/auth/clearOppositeAuthSession";
 import { hasGptStoreAuthUserByEmail } from "@/lib/auth/gptAuthByEmail";
@@ -12,13 +13,32 @@ import { clearSiteUiLogout } from "@/lib/auth/siteUiSession";
 import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { upsertSiteMembership } from "@/lib/auth/siteMembership";
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, tryCreateAdminClient } from "@/lib/supabase/server";
+import type { UserRole } from "@/types/database";
 
 type Body = {
   email?: string;
   password?: string;
   returnUrl?: string;
 };
+
+async function peekGptProfileRole(userId: string): Promise<UserRole | null> {
+  const admin = tryCreateAdminClient();
+  if (!admin) return null;
+  try {
+    const query = admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+    const timedOut = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), 2500);
+    });
+    const result = await Promise.race([query, timedOut]);
+    if (!result || !("data" in result)) return null;
+    const role = result.data?.role;
+    if (role === "admin" || role === "operator" || role === "client") return role;
+  } catch {
+    /* login must not fail after a valid password */
+  }
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   let body: Body;
@@ -47,7 +67,6 @@ export async function POST(request: NextRequest) {
   await clearOppositeAuthSession("gpt-store", cookieStore);
 
   const supabase = await createClient();
-  await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
 
   const { data: authData, error } = await supabase.auth.signInWithPassword({
     email,
@@ -55,6 +74,13 @@ export async function POST(request: NextRequest) {
   });
 
   if (error || !authData.user) {
+    if (isAuthRateLimitError(error?.message)) {
+      return NextResponse.json(
+        { error: authRateLimitUserMessage(error?.message ?? ""), code: "rate_limited" },
+        { status: 429 },
+      );
+    }
+
     const lower = (error?.message ?? "").toLowerCase();
     const invalidCreds =
       lower.includes("invalid login") || lower.includes("invalid credentials");
@@ -104,20 +130,16 @@ export async function POST(request: NextRequest) {
   }
 
   const fastRole = fastStaffRoleFromEmail(authData.user.email);
-  const rolePromise = syncProfileRoleForUser(authData.user.id, authData.user.email ?? null).then((synced) => {
-    const membershipRole: "customer" | "operator" | "admin" =
-      synced === "admin" || synced === "operator" ? synced : "customer";
-    void upsertSiteMembership(authData.user.id, "gpt-store", membershipRole).catch(() => undefined);
-    return synced;
-  });
+  const peeked = fastRole ? null : await peekGptProfileRole(authData.user.id);
+  const role: UserRole = fastRole ?? peeked ?? "client";
 
-  let role;
-  if (fastRole) {
-    void rolePromise.catch(() => undefined);
-    role = fastRole;
-  } else {
-    role = await rolePromise;
-  }
+  void syncProfileRoleForUser(authData.user.id, authData.user.email ?? null)
+    .then((synced) => {
+      const membershipRole: "customer" | "operator" | "admin" =
+        synced === "admin" || synced === "operator" ? synced : "customer";
+      return upsertSiteMembership(authData.user.id, "gpt-store", membershipRole);
+    })
+    .catch(() => undefined);
 
   const path = resolvePostLoginPath(effectiveReturnUrl, role);
   const res = NextResponse.json({ ok: true, path, role });

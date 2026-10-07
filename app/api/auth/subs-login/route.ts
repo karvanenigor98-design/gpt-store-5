@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
+import { authRateLimitUserMessage, isAuthRateLimitError } from "@/lib/auth/auth-rate-limit";
 import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { clearOppositeAuthSession } from "@/lib/auth/clearOppositeAuthSession";
 import { hasGptStoreAuthUserByEmail } from "@/lib/auth/gptAuthByEmail";
@@ -63,7 +64,6 @@ export async function POST(request: NextRequest) {
 
   const cookieStore = await cookies();
   await clearOppositeAuthSession("subs-store", cookieStore);
-  await subs.auth.signOut({ scope: "local" }).catch(() => undefined);
 
   const { data: authData, error } = await subs.auth.signInWithPassword({
     email,
@@ -71,6 +71,12 @@ export async function POST(request: NextRequest) {
   });
 
   if (error || !authData.user) {
+    if (isAuthRateLimitError(error?.message)) {
+      return NextResponse.json(
+        { error: authRateLimitUserMessage(error?.message ?? ""), code: "rate_limited" },
+        { status: 429 },
+      );
+    }
     const lower = (error?.message ?? "").toLowerCase();
     const invalidCreds =
       lower.includes("invalid login") || lower.includes("invalid credentials");

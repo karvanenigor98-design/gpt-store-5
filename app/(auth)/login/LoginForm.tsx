@@ -5,8 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { createSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
@@ -68,17 +66,11 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        await createSubsBrowserClient().auth.signOut({ scope: "local" });
-      } catch {
-        /* ignore */
-      }
-
-      try {
         const loginRes = await fetch("/api/auth/gpt-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(45_000),
           body: JSON.stringify({
             email: normalizedEmail,
             password,
@@ -115,12 +107,6 @@ export function LoginForm() {
         setServerError("Сервер временно недоступен. Повторите попытку через 10-20 секунд.");
       }
       return;
-    }
-
-    try {
-      await createClient().auth.signOut({ scope: "local" });
-    } catch {
-      /* ignore */
     }
 
     try {
