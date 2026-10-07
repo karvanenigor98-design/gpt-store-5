@@ -48,26 +48,38 @@ export function RoomList({
     const url = isSubs
       ? `/api/admin/subs-store/chat/rooms?list=1${q}`
       : `/api/chat/rooms?list=1${q}${siteSlug ? `&site=${encodeURIComponent(siteSlug)}` : ""}`;
-    setLoadError(null);
-    const res = await fetch(url, { credentials: "include" });
-    if (res.ok) {
-      const data = (await res.json()) as ChatRoomListItem[];
-      setRooms(Array.isArray(data) ? data : []);
-    } else {
-      setRooms([]);
-      try {
-        const j = (await res.json()) as { error?: string };
-        setLoadError(j.error ?? `Ошибка ${res.status}`);
-      } catch {
-        setLoadError(`Ошибка ${res.status}`);
+    try {
+      const res = await fetch(url, { credentials: "include", cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as ChatRoomListItem[];
+        setRooms(Array.isArray(data) ? data : []);
+        setLoadError(null);
+      } else {
+        try {
+          const j = (await res.json()) as { error?: string };
+          setLoadError(j.error ?? `Ошибка ${res.status}`);
+        } catch {
+          setLoadError(`Ошибка ${res.status}`);
+        }
       }
+    } catch {
+      setLoadError("Нет связи с сервером");
     }
     setLoading(false);
   }, [debounced, siteSlug]);
 
   useEffect(() => {
-    setLoading(true);
+    setLoading((prev) => (rooms.length > 0 ? false : true));
     void loadRooms();
+    // rooms.length намеренно не в deps — иначе цикл
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadRooms]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadRooms();
+    }, 15_000);
+    return () => window.clearInterval(t);
   }, [loadRooms]);
 
   useEffect(() => {
@@ -118,14 +130,6 @@ export function RoomList({
   }, [siteSlug, loadRooms, subsSupabase]);
 
   useEffect(() => {
-    if (siteSlug !== "subs-store") return;
-    const t = window.setInterval(() => {
-      if (document.visibilityState === "visible") void loadRooms();
-    }, 30_000);
-    return () => window.clearInterval(t);
-  }, [siteSlug, loadRooms]);
-
-  useEffect(() => {
     if (loading || !rooms.length) return;
 
     if (pendingSelectRoomId) {
@@ -170,7 +174,7 @@ export function RoomList({
           }}
         />
       </div>
-      {loading ? (
+      {loading && rooms.length === 0 ? (
         <div className="flex h-32 items-center justify-center">
           <svg className="h-5 w-5 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

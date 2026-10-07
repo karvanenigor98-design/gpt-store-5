@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
+import { peekGptProfileRole } from "@/lib/auth/peek-profile-role";
 import { StaffAuthUnavailableError } from "@/lib/auth/staff-auth-errors";
 import { staffLoginUrl } from "@/lib/auth/staff-auth-redirect";
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -16,7 +17,7 @@ export {
   staffPanelHome,
 } from "@/lib/auth/staff-auth-redirect";
 
-const STAFF_SESSION_MS = 1_200;
+const STAFF_SESSION_MS = 2_000;
 const STAFF_USER_LOOKUP_MS = 3_500;
 const STAFF_ROLE_LOOKUP_MS = 2_500;
 
@@ -67,6 +68,13 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
     return { user: sessionUser, role: fastFromSession };
   }
 
+  if (sessionUser && sessionStillFresh(expiresAt)) {
+    const peeked = await peekGptProfileRole(sessionUser.id, 1_500);
+    if (peeked) {
+      return { user: sessionUser, role: peeked };
+    }
+  }
+
   let user = sessionUser;
   try {
     const result = await withTimeout(supabase.auth.getUser(), STAFF_USER_LOOKUP_MS, "staff_user_timeout");
@@ -76,6 +84,10 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
       return { user: sessionUser, role: fastFromSession };
     }
     if (sessionUser) {
+      const peeked = await peekGptProfileRole(sessionUser.id, 1_200);
+      if (peeked) {
+        return { user: sessionUser, role: peeked };
+      }
       user = sessionUser;
     } else if (err instanceof Error && err.message === "staff_user_timeout") {
       throw new StaffAuthUnavailableError();
@@ -91,6 +103,11 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
   const fast = fastStaffRoleFromEmail(user.email);
   if (fast) {
     return { user, role: fast };
+  }
+
+  const peeked = await peekGptProfileRole(user.id, 1_500);
+  if (peeked) {
+    return { user, role: peeked };
   }
 
   try {
