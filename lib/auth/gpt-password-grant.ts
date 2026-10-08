@@ -135,24 +135,6 @@ async function grantViaSiteProxy(
   );
 }
 
-async function grantDirect(
-  email: string,
-  password: string,
-  apiKey: string,
-  timeoutMs: number,
-): Promise<PasswordGrantResult> {
-  const url = getGptPublicSupabaseUrl();
-  if (!url || !apiKey) {
-    return { ok: false, status: 503, message: "Auth не настроен на сервере" };
-  }
-  return postGrant(
-    `${url}/auth/v1/token?grant_type=password`,
-    grantHeaders(apiKey),
-    JSON.stringify({ email, password }),
-    timeoutMs,
-  );
-}
-
 async function grantViaRelay(
   email: string,
   password: string,
@@ -196,5 +178,5 @@ export async function gptPasswordGrant(
   const viaSite = await grantViaSiteProxy(email, password, anon, timeoutMs);
   if (viaSite.ok || viaSite.status === 401 || viaSite.status === 429) return viaSite;
 
-  return grantDirect(email, password, anon, timeoutMs);
+  return viaSite;
 }

@@ -123,31 +123,6 @@ async function grantViaBrowser(email: string, password: string): Promise<ProxyGr
   }
 }
 
-async function grantViaGptLoginApi(email: string, password: string, returnUrl: string): Promise<ProxyGrant | null | { ok: true; path: string; role: UserRole }> {
-  try {
-    const res = await fetch("/api/auth/gpt-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      signal: AbortSignal.timeout(22_000),
-      body: JSON.stringify({ email, password, returnUrl }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      path?: string;
-      role?: UserRole;
-      code?: string;
-    };
-    if (res.ok && json.ok && typeof json.path === "string") {
-      return { ok: true, path: json.path, role: json.role === "admin" || json.role === "operator" ? json.role : "client" };
-    }
-    if (res.status === 401 || json.code === "invalid_credentials") return { rejected: true };
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 async function raceGptGrants(email: string, password: string): Promise<ProxyGrant | null> {
   const ctrl = new AbortController();
   const timer = window.setTimeout(() => ctrl.abort(), 25_000);
@@ -223,18 +198,6 @@ export function LoginForm() {
         }
 
         if (!grant || !("access_token" in grant)) {
-          const viaApi = await grantViaGptLoginApi(normalizedEmail, password, effectiveReturnUrl);
-          if (viaApi && "rejected" in viaApi) {
-            setServerError(
-              "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
-            );
-            return;
-          }
-          if (viaApi && "ok" in viaApi) {
-            document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
-            window.location.replace(viaApi.path);
-            return;
-          }
           setServerError("Сервер входа не ответил. Подождите 5 секунд и нажмите Войти ещё раз.");
           return;
         }
