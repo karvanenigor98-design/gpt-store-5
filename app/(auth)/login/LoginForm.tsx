@@ -39,15 +39,31 @@ function userFromAccessToken(access: string, email: string): { id: string; email
   }
 }
 
+async function loadGptPublicAuth(): Promise<{ url: string; anon: string } | null> {
+  const bundledUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  const bundledAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+  if (bundledUrl && bundledAnon) return { url: bundledUrl.replace(/\/$/, ""), anon: bundledAnon };
+  try {
+    const res = await fetch("/api/auth/gpt-public", { cache: "no-store", signal: AbortSignal.timeout(5_000) });
+    const json = (await res.json().catch(() => ({}))) as { url?: string; anon?: string };
+    const url = (json.url ?? "").replace(/\/$/, "");
+    const anon = json.anon?.trim() ?? "";
+    if (!url || !anon) return null;
+    return { url, anon };
+  } catch {
+    return null;
+  }
+}
+
 async function grantViaAuthProxy(email: string, password: string, signal: AbortSignal): Promise<ProxyGrant | null> {
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  if (!anon) return null;
+  const pub = await loadGptPublicAuth();
+  if (!pub) return null;
   try {
     const res = await fetch("/__sb-auth/auth/v1/token?grant_type=password", {
       method: "POST",
       headers: {
-        apikey: anon,
-        Authorization: `Bearer ${anon}`,
+        apikey: pub.anon,
+        Authorization: `Bearer ${pub.anon}`,
         "Content-Type": "application/json",
       },
       signal,
@@ -107,26 +123,39 @@ async function grantViaBrowser(email: string, password: string): Promise<ProxyGr
   }
 }
 
+async function grantViaGptLoginApi(email: string, password: string, returnUrl: string): Promise<ProxyGrant | null | { ok: true; path: string; role: UserRole }> {
+  try {
+    const res = await fetch("/api/auth/gpt-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      signal: AbortSignal.timeout(22_000),
+      body: JSON.stringify({ email, password, returnUrl }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      path?: string;
+      role?: UserRole;
+      code?: string;
+    };
+    if (res.ok && json.ok && typeof json.path === "string") {
+      return { ok: true, path: json.path, role: json.role === "admin" || json.role === "operator" ? json.role : "client" };
+    }
+    if (res.status === 401 || json.code === "invalid_credentials") return { rejected: true };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function raceGptGrants(email: string, password: string): Promise<ProxyGrant | null> {
   const ctrl = new AbortController();
-  const timer = window.setTimeout(() => ctrl.abort(), 8_000);
+  const timer = window.setTimeout(() => ctrl.abort(), 25_000);
   try {
-    return await new Promise((resolve) => {
-      let left = 2;
-      let rejected = false;
-      const done = (value: ProxyGrant | null) => {
-        if (value && "access_token" in value) {
-          ctrl.abort();
-          resolve(value);
-          return;
-        }
-        if (value && "rejected" in value) rejected = true;
-        left -= 1;
-        if (left <= 0) resolve(rejected ? { rejected: true } : null);
-      };
-      void grantViaAuthProxy(email, password, ctrl.signal).then(done, () => done(null));
-      void grantViaBrowser(email, password).then(done, () => done(null));
-    });
+    const viaProxy = await grantViaAuthProxy(email, password, ctrl.signal);
+    if (viaProxy && "access_token" in viaProxy) return viaProxy;
+    if (viaProxy && "rejected" in viaProxy) return viaProxy;
+    return grantViaBrowser(email, password);
   } finally {
     window.clearTimeout(timer);
   }
@@ -185,15 +214,28 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const grant = await raceGptGrants(normalizedEmail, password);
+        let grant = await raceGptGrants(normalizedEmail, password);
         if (grant && "rejected" in grant) {
           setServerError(
             "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
           );
           return;
         }
+
         if (!grant || !("access_token" in grant)) {
-          setServerError("Сервер входа не ответил. Обновите страницу (Ctrl+F5) и попробуйте снова.");
+          const viaApi = await grantViaGptLoginApi(normalizedEmail, password, effectiveReturnUrl);
+          if (viaApi && "rejected" in viaApi) {
+            setServerError(
+              "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+            );
+            return;
+          }
+          if (viaApi && "ok" in viaApi) {
+            document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
+            window.location.replace(viaApi.path);
+            return;
+          }
+          setServerError("Сервер входа не ответил. Подождите 5 секунд и нажмите Войти ещё раз.");
           return;
         }
 

@@ -193,7 +193,7 @@ export async function gptPasswordGrant(
     if (viaRelay.ok || viaRelay.status === 401 || viaRelay.status === 429) return viaRelay;
   }
 
-  const viaSite = await grantViaSiteProxy(email, password, anon, Math.min(6_000, timeoutMs));
+  const viaSite = await grantViaSiteProxy(email, password, anon, timeoutMs);
   if (viaSite.ok || viaSite.status === 401 || viaSite.status === 429) return viaSite;
 
   return grantDirect(email, password, anon, timeoutMs);

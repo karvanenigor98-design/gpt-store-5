@@ -5,8 +5,8 @@ import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
 import { gptPasswordGrant } from "@/lib/auth/gpt-password-grant";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 
-export const runtime = "edge";
-export const preferredRegion = ["fra1", "cdg1"];
+export const runtime = "nodejs";
+export const preferredRegion = ["fra1"];
 export const maxDuration = 25;
 
 type Body = {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const grant = await gptPasswordGrant(email, password, 8_000);
+  const grant = await gptPasswordGrant(email, password, 20_000);
   if (!grant.ok) {
     if (grant.message === "timeout" || grant.message === "auth_network") {
       return NextResponse.json(
