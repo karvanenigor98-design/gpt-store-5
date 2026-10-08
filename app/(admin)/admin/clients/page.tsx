@@ -260,7 +260,7 @@ export default async function AdminClientsPage({
   let profilesError: { message: string } | null = null;
 
   const profileSelect = await selectProfilesFlexible(db, [...PROFILE_COLUMNS], {
-    ...buildProfileSelectOptions(roleFilter, offset, user?.id ?? null),
+    ...buildProfileSelectOptions(roleFilter, offset, auth.user.id),
   });
 
   if (profileSelect.error) {
