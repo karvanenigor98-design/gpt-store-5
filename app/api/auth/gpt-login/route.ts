@@ -1,9 +1,8 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 import { authRateLimitUserMessage, isAuthRateLimitError } from "@/lib/auth/auth-rate-limit";
 import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
-import { clearOppositeAuthSession } from "@/lib/auth/clearOppositeAuthSession";
+import { gptPasswordGrant } from "@/lib/auth/gpt-password-grant";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { clearSiteUiLogout } from "@/lib/auth/siteUiSession";
@@ -15,7 +14,7 @@ import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createGptRouteAuthClient } from "@/lib/supabase/route-auth-client";
 import type { UserRole } from "@/types/database";
 
-export const maxDuration = 30;
+export const maxDuration = 20;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
@@ -38,7 +37,7 @@ async function peekGptProfileRole(userId: string): Promise<UserRole | null> {
   try {
     const query = admin.from("profiles").select("role").eq("id", userId).maybeSingle();
     const timedOut = new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), 5_000);
+      setTimeout(() => resolve(null), 2_000);
     });
     const result = await Promise.race([query, timedOut]);
     if (!result || !("data" in result)) return null;
@@ -73,8 +72,28 @@ export async function POST(request: NextRequest) {
     rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : "/cabinet";
   const effectiveReturnUrl = normalizeAuthReturnUrl(returnUrl, "gpt-store");
 
-  const cookieStore = await cookies();
-  await withTimeout(clearOppositeAuthSession("gpt-store", cookieStore), 400, undefined);
+  const grant = await gptPasswordGrant(email, password, 8_000);
+  if (!grant.ok) {
+    if (grant.message === "timeout" || grant.message === "auth_network") {
+      return NextResponse.json(
+        { error: "Сервер входа не ответил. Повторите попытку.", code: "auth_timeout" },
+        { status: 503 },
+      );
+    }
+    if (isAuthRateLimitError(grant.message)) {
+      return NextResponse.json(
+        { error: authRateLimitUserMessage(grant.message), code: "rate_limited" },
+        { status: 429 },
+      );
+    }
+    return NextResponse.json(
+      {
+        error: "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+        code: "invalid_credentials",
+      },
+      { status: 401 },
+    );
+  }
 
   let routeAuth: Awaited<ReturnType<typeof createGptRouteAuthClient>>;
   try {
@@ -84,58 +103,39 @@ export async function POST(request: NextRequest) {
   }
   const { supabase, applyCookies } = routeAuth;
 
-  const signedIn = await withTimeout(
-    supabase.auth.signInWithPassword({ email, password }),
-    20_000,
+  const sessionSet = await withTimeout(
+    supabase.auth.setSession({
+      access_token: grant.accessToken,
+      refresh_token: grant.refreshToken,
+    }),
+    4_000,
     { data: { user: null, session: null }, error: { message: "timeout" } } as Awaited<
-      ReturnType<typeof supabase.auth.signInWithPassword>
+      ReturnType<typeof supabase.auth.setSession>
     >,
   );
-  const authData = signedIn.data;
-  const error = signedIn.error;
 
-  if (error?.message === "timeout") {
+  if (sessionSet.error?.message === "timeout" || !sessionSet.data.session) {
     const res = NextResponse.json(
-      { error: "Сервер входа не ответил. Повторите попытку.", code: "auth_timeout" },
+      { error: "Сессия не записалась. Повторите вход.", code: "session_write_timeout" },
       { status: 503 },
     );
     applyCookies(res);
     return res;
   }
 
-  if (error || !authData.user) {
-    if (isAuthRateLimitError(error?.message)) {
-      const res = NextResponse.json(
-        { error: authRateLimitUserMessage(error?.message ?? ""), code: "rate_limited" },
-        { status: 429 },
-      );
-      applyCookies(res);
-      return res;
-    }
-
-    const res = NextResponse.json(
-      {
-        error: "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
-        code: "invalid_credentials",
-      },
-      { status: 401 },
-    );
-    applyCookies(res);
-    return res;
-  }
-
-  const fastRole = fastStaffRoleFromEmail(authData.user.email);
-  const peeked = fastRole ? null : await peekGptProfileRole(authData.user.id);
+  const user = sessionSet.data.user ?? grant.user;
+  const fastRole = fastStaffRoleFromEmail(user.email);
+  const peeked = fastRole ? null : await peekGptProfileRole(user.id);
   const role: UserRole = fastRole ?? peeked ?? "client";
   if (role === "admin" || role === "operator") {
-    rememberGptStaffRole(authData.user.id, role);
+    rememberGptStaffRole(user.id, role);
   }
 
-  void syncProfileRoleForUser(authData.user.id, authData.user.email ?? null)
+  void syncProfileRoleForUser(user.id, user.email ?? null)
     .then((synced) => {
       const membershipRole: "customer" | "operator" | "admin" =
         synced === "admin" || synced === "operator" ? synced : "customer";
-      return upsertSiteMembership(authData.user.id, "gpt-store", membershipRole);
+      return upsertSiteMembership(user.id, "gpt-store", membershipRole);
     })
     .catch(() => undefined);
 

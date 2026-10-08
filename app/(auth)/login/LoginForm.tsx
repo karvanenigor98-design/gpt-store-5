@@ -71,7 +71,7 @@ export function LoginForm() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            signal: AbortSignal.timeout(25_000),
+            signal: AbortSignal.timeout(15_000),
             body: JSON.stringify({
               email: normalizedEmail,
               password,
@@ -80,7 +80,7 @@ export function LoginForm() {
           });
         let loginRes = await loginOnce();
         if (loginRes.status === 503) {
-          await new Promise((r) => setTimeout(r, 600));
+          await new Promise((r) => setTimeout(r, 400));
           loginRes = await loginOnce();
         }
 

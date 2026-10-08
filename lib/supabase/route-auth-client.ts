@@ -1,5 +1,4 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -9,18 +8,21 @@ import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
 type CookieRow = { name: string; value: string; options?: CookieOptions };
 
-/** Route Handler login/logout: cookie пишем и в cookieStore, и в JSON-ответ. */
-export async function createGptRouteAuthClient(): Promise<{
-  supabase: SupabaseClient<Database>;
-  applyCookies: (res: NextResponse) => void;
-}> {
+function gptAuthCreds(): { url: string; anon: string } {
   const url = getGptPublicSupabaseUrl();
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!url || !anon) {
     throw new Error("GPT Auth env missing");
   }
+  return { url, anon };
+}
 
-  const cookieStore = await cookies();
+/** Route Handler login: не читаем старые cookie (refresh зависал на 20с). Пишем только в ответ. */
+export async function createGptRouteAuthClient(): Promise<{
+  supabase: SupabaseClient<Database>;
+  applyCookies: (res: NextResponse) => void;
+}> {
+  const { url, anon } = gptAuthCreds();
   const pending: CookieRow[] = [];
 
   const supabase = createServerClient<Database>(url, anon, {
@@ -28,16 +30,11 @@ export async function createGptRouteAuthClient(): Promise<{
     auth: { persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return [];
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
           pending.push({ name, value, options });
-          try {
-            cookieStore.set(name, value, options);
-          } catch {
-            /* RSC / already committed */
-          }
         });
       },
     },
@@ -46,8 +43,9 @@ export async function createGptRouteAuthClient(): Promise<{
   return {
     supabase: supabase as SupabaseClient<Database>,
     applyCookies(res: NextResponse) {
+      const opts = getAuthCookieOptions();
       for (const row of pending) {
-        res.cookies.set(row.name, row.value, row.options);
+        res.cookies.set(row.name, row.value, { ...opts, ...row.options, httpOnly: true });
       }
     },
   };
