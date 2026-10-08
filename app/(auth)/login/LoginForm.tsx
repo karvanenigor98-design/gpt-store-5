@@ -13,7 +13,17 @@ import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
-async function grantViaAuthProxy(email: string, password: string) {
+type ProxyGrant =
+  | {
+      access_token: string;
+      refresh_token: string;
+      expires_at?: number;
+      expires_in?: number;
+      user: { id: string };
+    }
+  | { rejected: true };
+
+async function grantViaAuthProxy(email: string, password: string): Promise<ProxyGrant | null> {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!anon) return null;
   try {
@@ -34,8 +44,15 @@ async function grantViaAuthProxy(email: string, password: string) {
       expires_in?: number;
       user?: { id: string };
     };
+    if (res.status === 401 || res.status === 400 || res.status === 429) return { rejected: true };
     if (!res.ok || !json.access_token || !json.refresh_token || !json.user?.id) return null;
-    return json;
+    return {
+      access_token: json.access_token,
+      refresh_token: json.refresh_token,
+      expires_at: json.expires_at,
+      expires_in: json.expires_in,
+      user: json.user,
+    };
   } catch {
     return null;
   }
@@ -109,24 +126,31 @@ export function LoginForm() {
           });
 
         let loginRes: Response | null = null;
-        try {
-          loginRes = await postLogin("/api/auth/gpt-login", 10_000);
-        } catch {
-          loginRes = null;
+        const proxied = await grantViaAuthProxy(normalizedEmail, password);
+        if (proxied && "rejected" in proxied) {
+          setServerError(
+            "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+          );
+          return;
+        }
+        if (proxied && "access_token" in proxied) {
+          loginRes = await fetch("/api/auth/gpt-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            signal: AbortSignal.timeout(8_000),
+            body: JSON.stringify({ ...proxied, returnUrl: effectiveReturnUrl }),
+          });
         }
         if (!loginRes || loginRes.status === 503 || loginRes.status === 504) {
-          const proxied = await grantViaAuthProxy(normalizedEmail, password);
-          if (proxied) {
-            loginRes = await fetch("/api/auth/gpt-session", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              signal: AbortSignal.timeout(8_000),
-              body: JSON.stringify({ ...proxied, returnUrl: effectiveReturnUrl }),
-            });
-          } else {
-            loginRes = await postLogin("/api/auth/gpt-login-node", 12_000);
+          try {
+            loginRes = await postLogin("/api/auth/gpt-login", 10_000);
+          } catch {
+            loginRes = loginRes && loginRes.ok ? loginRes : null;
           }
+        }
+        if (!loginRes || loginRes.status === 503 || loginRes.status === 504) {
+          loginRes = await postLogin("/api/auth/gpt-login-node", 12_000);
         }
 
         const loginBody = (await loginRes.json().catch(() => ({}))) as {
