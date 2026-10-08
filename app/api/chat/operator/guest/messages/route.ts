@@ -9,6 +9,7 @@ import {
   isChatSessionForSubsStore,
   notifySubsStoreCustomerChatReply,
 } from "@/lib/subs/subs-notifications";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
@@ -19,9 +20,7 @@ export async function GET(req: NextRequest) {
   const userIdFromQuery = req.nextUrl.searchParams.get("userId")?.trim() ?? null;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
 
   let sessionIds: string[] = [];
 
@@ -85,9 +84,7 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
 
   const { data: sessionRow, error: sessionError } = await supabaseAdmin
     .from("chat_sessions")

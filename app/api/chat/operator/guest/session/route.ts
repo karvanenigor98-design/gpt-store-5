@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateClientOperatorSession } from "@/lib/chat/operatorSession";
@@ -17,9 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
 
   const gptSiteId = await getSiteUUID("gpt-store");
 

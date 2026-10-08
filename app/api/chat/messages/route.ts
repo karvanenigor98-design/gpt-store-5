@@ -12,6 +12,7 @@ import {
   notifySubsStoreCustomerChatReply,
 } from "@/lib/subs/subs-notifications";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { createClient } from "@/lib/supabase/server";
 import { alertStaffOnClientSupportMessage } from "@/lib/notifications/client-chat-alert";
 import { notifyCustomerAboutChatMessage } from "@/lib/telegram/notifications";
@@ -69,9 +70,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -189,9 +188,7 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -356,9 +353,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

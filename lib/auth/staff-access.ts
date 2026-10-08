@@ -2,8 +2,12 @@ import type { User } from "@supabase/supabase-js";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 
+import { cookies } from "next/headers";
+
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
+import { isSupabaseAuthCookieName } from "@/lib/auth/has-supabase-auth-cookie";
 import { peekGptProfileRole } from "@/lib/auth/peek-profile-role";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { StaffAuthUnavailableError } from "@/lib/auth/staff-auth-errors";
 import { staffLoginUrl } from "@/lib/auth/staff-auth-redirect";
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -17,9 +21,18 @@ export {
   staffPanelHome,
 } from "@/lib/auth/staff-auth-redirect";
 
-const STAFF_SESSION_MS = 2_000;
-const STAFF_USER_LOOKUP_MS = 3_500;
+const STAFF_SESSION_MS = 3_000;
+const STAFF_USER_LOOKUP_MS = 4_000;
 const STAFF_ROLE_LOOKUP_MS = 2_500;
+
+async function gptAuthCookiePresent(): Promise<boolean> {
+  try {
+    const store = await cookies();
+    return store.getAll().some((cookie) => isSupabaseAuthCookieName(cookie.name));
+  } catch {
+    return false;
+  }
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -37,9 +50,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-function sessionStillFresh(expiresAt: number | undefined): boolean {
+function sessionNotExpired(expiresAt: number | undefined): boolean {
   if (!expiresAt) return false;
-  return expiresAt * 1000 > Date.now() + 20_000;
+  return expiresAt * 1000 > Date.now() + 5_000;
 }
 
 /**
@@ -56,69 +69,64 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
   let sessionUser: User | null = null;
   let expiresAt: number | undefined;
   try {
-    const { data } = await withTimeout(supabase.auth.getSession(), STAFF_SESSION_MS, "staff_session_timeout");
-    sessionUser = data.session?.user ?? null;
-    expiresAt = data.session?.expires_at;
+    const cookieSession = await withTimeout(readGptCookieUser(supabase), STAFF_SESSION_MS, "staff_session_timeout");
+    sessionUser = cookieSession.user;
+    expiresAt = cookieSession.expiresAt;
   } catch {
     sessionUser = null;
   }
 
+  const cookiePresent = await gptAuthCookiePresent();
   const fastFromSession = sessionUser ? fastStaffRoleFromEmail(sessionUser.email) : null;
-  if (sessionUser && fastFromSession && sessionStillFresh(expiresAt)) {
+
+  async function roleFor(user: User): Promise<UserRole> {
+    const fast = fastStaffRoleFromEmail(user.email);
+    if (fast) return fast;
+    const peeked = await peekGptProfileRole(user.id, 1_500);
+    if (peeked === "admin" || peeked === "operator") return peeked;
+    try {
+      return await withTimeout(resolveServerRole(user), STAFF_ROLE_LOOKUP_MS, "staff_role_timeout");
+    } catch {
+      if (fastFromSession) return fastFromSession;
+      throw new StaffAuthUnavailableError();
+    }
+  }
+
+  if (sessionUser && sessionNotExpired(expiresAt)) {
+    return { user: sessionUser, role: await roleFor(sessionUser) };
+  }
+
+  if (sessionUser && fastFromSession) {
     return { user: sessionUser, role: fastFromSession };
   }
 
-  if (sessionUser && sessionStillFresh(expiresAt)) {
-    const peeked = await peekGptProfileRole(sessionUser.id, 1_500);
-    if (peeked) {
-      return { user: sessionUser, role: peeked };
-    }
-  }
-
-  let user = sessionUser;
-  try {
-    const result = await withTimeout(supabase.auth.getUser(), STAFF_USER_LOOKUP_MS, "staff_user_timeout");
-    user = result.data.user ?? null;
-  } catch (err) {
-    if (sessionUser && fastFromSession) {
-      return { user: sessionUser, role: fastFromSession };
-    }
-    if (sessionUser) {
-      const peeked = await peekGptProfileRole(sessionUser.id, 1_200);
-      if (peeked) {
-        return { user: sessionUser, role: peeked };
+  // Refresh только если JWT уже мёртв. Иначе getUser гоняется с браузером и сносит сессию.
+  if (!sessionUser || !sessionNotExpired(expiresAt)) {
+    try {
+      const result = await withTimeout(supabase.auth.getUser(), STAFF_USER_LOOKUP_MS, "staff_user_timeout");
+      const user = result.data.user ?? sessionUser;
+      if (user) {
+        return { user, role: await roleFor(user) };
       }
-      user = sessionUser;
-    } else if (err instanceof Error && err.message === "staff_user_timeout") {
-      throw new StaffAuthUnavailableError();
-    } else {
-      throw new StaffAuthUnavailableError();
+    } catch {
+      if (sessionUser) {
+        return { user: sessionUser, role: await roleFor(sessionUser) };
+      }
+      if (cookiePresent) {
+        throw new StaffAuthUnavailableError();
+      }
     }
   }
 
-  if (!user) {
-    return { user: null, role: "client" };
+  if (sessionUser) {
+    return { user: sessionUser, role: await roleFor(sessionUser) };
   }
 
-  const fast = fastStaffRoleFromEmail(user.email);
-  if (fast) {
-    return { user, role: fast };
-  }
-
-  const peeked = await peekGptProfileRole(user.id, 1_500);
-  if (peeked) {
-    return { user, role: peeked };
-  }
-
-  try {
-    const role = await withTimeout(resolveServerRole(user), STAFF_ROLE_LOOKUP_MS, "staff_role_timeout");
-    return { user, role };
-  } catch {
-    if (fastFromSession) {
-      return { user, role: fastFromSession };
-    }
+  if (cookiePresent) {
     throw new StaffAuthUnavailableError();
   }
+
+  return { user: null, role: "client" };
 });
 
 export async function getGptStaffSessionUser(): Promise<User | null> {

@@ -6,6 +6,7 @@ import { peekGptProfileRole } from "@/lib/auth/peek-profile-role";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import { loadGptStaffChatRooms } from "@/lib/chat/load-staff-rooms";
 import { getOrCreateClientOperatorSession } from "@/lib/chat/operatorSession";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
@@ -20,9 +21,7 @@ async function resolveListStaffRole(user: User) {
 
 async function handleRooms(req: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
