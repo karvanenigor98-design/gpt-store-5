@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { isSupabaseAuthCookieName } from "@/lib/auth/has-supabase-auth-cookie";
+import { readGptAuthUserFromCookies } from "@/lib/auth/read-gpt-jwt-from-cookies";
 import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { StaffAuthUnavailableError } from "@/lib/auth/staff-auth-errors";
@@ -19,8 +20,6 @@ export {
   staffLoginUrl,
   staffPanelHome,
 } from "@/lib/auth/staff-auth-redirect";
-
-const STAFF_SESSION_MS = 2_000;
 
 async function gptAuthCookiePresent(): Promise<boolean> {
   try {
@@ -48,39 +47,33 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 /**
- * Один probe на RSC-запрос.
- * Свежая JWT-сессия + email staff → сразу в панель, без Auth/DB round-trip.
- * Таймаут Auth не трактуем как «гость» (не выкидываем).
+ * JWT из cookie — без сетевого таймаута. Роль из profiles; таймаут роли
+ * при живой сессии не равен «гостю» и не выкидывает на login.
  */
 export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; role: UserRole }> => {
-  const supabase = await tryCreateClient();
-  if (!supabase) {
-    throw new StaffAuthUnavailableError("Supabase client unavailable");
-  }
+  const fromJwt = await readGptAuthUserFromCookies();
+  let sessionUser = fromJwt.user;
 
-  let sessionUser: User | null = null;
-  try {
-    const cookieSession = await withTimeout(readGptCookieUser(supabase), STAFF_SESSION_MS, "staff_session_timeout");
-    sessionUser = cookieSession.user;
-  } catch {
-    sessionUser = null;
+  if (!sessionUser) {
+    const supabase = await tryCreateClient();
+    if (!supabase) {
+      throw new StaffAuthUnavailableError("Supabase client unavailable");
+    }
+    try {
+      const cookieSession = await withTimeout(readGptCookieUser(supabase), 5_000, "staff_session_timeout");
+      sessionUser = cookieSession.user;
+    } catch {
+      sessionUser = null;
+    }
   }
 
   const cookiePresent = await gptAuthCookiePresent();
-  const fastFromSession = sessionUser ? fastStaffRoleFromEmail(sessionUser.email) : null;
 
   if (sessionUser) {
-    if (fastFromSession) {
-      return { user: sessionUser, role: fastFromSession };
-    }
-    try {
-      return {
-        user: sessionUser,
-        role: await withTimeout(resolveGptStaffRole(sessionUser), 2_000, "staff_role_timeout"),
-      };
-    } catch {
-      throw new StaffAuthUnavailableError();
-    }
+    const fast = fastStaffRoleFromEmail(sessionUser.email);
+    if (fast) return { user: sessionUser, role: fast };
+    const role = await resolveGptStaffRole(sessionUser);
+    return { user: sessionUser, role };
   }
 
   if (cookiePresent) {

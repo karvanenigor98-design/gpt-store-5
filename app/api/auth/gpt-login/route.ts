@@ -10,6 +10,7 @@ import { clearSiteUiLogout } from "@/lib/auth/siteUiSession";
 import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { upsertSiteMembership } from "@/lib/auth/siteMembership";
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
+import { rememberGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { tryCreateAdminClient } from "@/lib/supabase/server";
 import { createGptRouteAuthClient } from "@/lib/supabase/route-auth-client";
 import type { UserRole } from "@/types/database";
@@ -37,7 +38,7 @@ async function peekGptProfileRole(userId: string): Promise<UserRole | null> {
   try {
     const query = admin.from("profiles").select("role").eq("id", userId).maybeSingle();
     const timedOut = new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), 2500);
+      setTimeout(() => resolve(null), 5_000);
     });
     const result = await Promise.race([query, timedOut]);
     if (!result || !("data" in result)) return null;
@@ -126,6 +127,9 @@ export async function POST(request: NextRequest) {
   const fastRole = fastStaffRoleFromEmail(authData.user.email);
   const peeked = fastRole ? null : await peekGptProfileRole(authData.user.id);
   const role: UserRole = fastRole ?? peeked ?? "client";
+  if (role === "admin" || role === "operator") {
+    rememberGptStaffRole(authData.user.id, role);
+  }
 
   void syncProfileRoleForUser(authData.user.id, authData.user.email ?? null)
     .then((synced) => {

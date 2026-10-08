@@ -25,7 +25,7 @@ export async function createGptRouteAuthClient(): Promise<{
 
   const supabase = createServerClient<Database>(url, anon, {
     cookieOptions: getAuthCookieOptions(),
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    auth: { persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
     cookies: {
       getAll() {
         return cookieStore.getAll();
