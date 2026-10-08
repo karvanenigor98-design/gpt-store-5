@@ -29,16 +29,22 @@ function skipRelay(base: string): boolean {
 }
 
 function relayTarget(): { base: string; secret: string } | null {
-  const base = (
-    process.env.GPT_AUTH_RELAY_URL?.trim() ||
-    process.env.PALLY_RELAY_URL?.trim() ||
-    ""
-  ).replace(/\/$/, "");
+  const base = (process.env.GPT_AUTH_RELAY_URL?.trim() || "").replace(/\/$/, "");
   if (!base || skipRelay(base)) return null;
   return {
     base,
-    secret: (process.env.GPT_AUTH_RELAY_SECRET || process.env.PALLY_RELAY_SECRET || "").trim(),
+    secret: (process.env.GPT_AUTH_RELAY_SECRET || "").trim(),
   };
+}
+
+/** Vercel rewrite /__sb-auth → GoTrue. Direct supabase.co from Vercel functions hangs. */
+function siteAuthGrantUrl(): string {
+  const origin = (
+    process.env.NEXT_PUBLIC_GPT_SITE_URL?.trim() ||
+    process.env.GPT_SITE_URL?.trim() ||
+    "https://gptplus-store.ru"
+  ).replace(/\/$/, "");
+  return `${origin}/__sb-auth/auth/v1/token?grant_type=password`;
 }
 
 function parseGrantBody(status: number, body: string): PasswordGrantResult {
@@ -107,6 +113,28 @@ async function postGrant(
   }
 }
 
+function grantHeaders(apiKey: string): Record<string, string> {
+  return {
+    apikey: apiKey,
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+}
+
+async function grantViaSiteProxy(
+  email: string,
+  password: string,
+  apiKey: string,
+  timeoutMs: number,
+): Promise<PasswordGrantResult> {
+  return postGrant(
+    siteAuthGrantUrl(),
+    grantHeaders(apiKey),
+    JSON.stringify({ email, password }),
+    timeoutMs,
+  );
+}
+
 async function grantDirect(
   email: string,
   password: string,
@@ -119,11 +147,7 @@ async function grantDirect(
   }
   return postGrant(
     `${url}/auth/v1/token?grant_type=password`,
-    {
-      apikey: apiKey,
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    grantHeaders(apiKey),
     JSON.stringify({ email, password }),
     timeoutMs,
   );
@@ -169,8 +193,8 @@ export async function gptPasswordGrant(
     if (viaRelay.ok || viaRelay.status === 401 || viaRelay.status === 429) return viaRelay;
   }
 
-  const first = await grantDirect(email, password, anon, Math.min(5_000, timeoutMs));
-  if (first.ok || first.status === 401 || first.status === 429) return first;
+  const viaSite = await grantViaSiteProxy(email, password, anon, Math.min(6_000, timeoutMs));
+  if (viaSite.ok || viaSite.status === 401 || viaSite.status === 429) return viaSite;
 
   return grantDirect(email, password, anon, timeoutMs);
 }

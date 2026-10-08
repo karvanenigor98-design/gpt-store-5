@@ -2,8 +2,8 @@ import https from "node:https";
 import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
+import { gptPasswordGrant, type PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
-import type { PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
 
 function postJson(
   url: string,
@@ -50,6 +50,9 @@ export async function gptPasswordGrantIpv4(
   password: string,
   timeoutMs = 12_000,
 ): Promise<PasswordGrantResult> {
+  const viaSite = await gptPasswordGrant(email, password, Math.min(6_000, timeoutMs));
+  if (viaSite.ok || viaSite.status === 401 || viaSite.status === 429) return viaSite;
+
   const url = getGptPublicSupabaseUrl();
   const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!url || !apiKey) {
