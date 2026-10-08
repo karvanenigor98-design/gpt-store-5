@@ -1,3 +1,5 @@
+import https from "node:https";
+import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
@@ -16,10 +18,50 @@ export type PasswordGrantResult =
       message: string;
     };
 
+function postJson(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request(
+      {
+        hostname: u.hostname,
+        path: `${u.pathname}${u.search}`,
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Length": String(Buffer.byteLength(body)),
+        },
+        timeout: timeoutMs,
+        family: 4,
+        lookup: (hostname, options, callback) => {
+          dnsLookup(hostname, { ...options, family: 4, all: false }, callback);
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+        res.on("end", () => {
+          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") });
+        });
+      },
+    );
+    req.on("timeout", () => {
+      req.destroy(new Error("timeout"));
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 export async function gptPasswordGrant(
   email: string,
   password: string,
-  timeoutMs = 8_000,
+  timeoutMs = 10_000,
 ): Promise<PasswordGrantResult> {
   const url = getGptPublicSupabaseUrl();
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
@@ -27,20 +69,18 @@ export async function gptPasswordGrant(
     return { ok: false, status: 503, message: "Auth не настроен на сервере" };
   }
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
-      method: "POST",
-      headers: {
+    const { status, body } = await postJson(
+      `${url}/auth/v1/token?grant_type=password`,
+      {
         apikey: anon,
         Authorization: `Bearer ${anon}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password }),
-      signal: ctrl.signal,
-    });
-    const json = (await res.json().catch(() => ({}))) as {
+      JSON.stringify({ email, password }),
+      timeoutMs,
+    );
+    const json = JSON.parse(body || "{}") as {
       access_token?: string;
       refresh_token?: string;
       expires_at?: number;
@@ -51,10 +91,10 @@ export async function gptPasswordGrant(
       msg?: string;
       message?: string;
     };
-    if (!res.ok || !json.access_token || !json.refresh_token || !json.user) {
+    if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token || !json.user) {
       const message =
-        json.error_description || json.msg || json.message || json.error || `auth_${res.status}`;
-      return { ok: false, status: res.status || 401, message: String(message) };
+        json.error_description || json.msg || json.message || json.error || `auth_${status}`;
+      return { ok: false, status: status || 401, message: String(message) };
     }
     const expiresAt =
       typeof json.expires_at === "number"
@@ -70,13 +110,11 @@ export async function gptPasswordGrant(
       expiresAt,
     };
   } catch (err) {
-    const aborted = err instanceof Error && err.name === "AbortError";
+    const msg = err instanceof Error ? err.message : "auth_network";
     return {
       ok: false,
       status: 503,
-      message: aborted ? "timeout" : "auth_network",
+      message: msg.includes("timeout") ? "timeout" : "auth_network",
     };
-  } finally {
-    clearTimeout(timer);
   }
 }

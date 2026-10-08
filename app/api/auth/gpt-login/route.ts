@@ -15,6 +15,7 @@ import { createGptRouteAuthClient } from "@/lib/supabase/route-auth-client";
 import type { UserRole } from "@/types/database";
 
 export const maxDuration = 20;
+export const runtime = "nodejs";
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : "/cabinet";
   const effectiveReturnUrl = normalizeAuthReturnUrl(returnUrl, "gpt-store");
 
-  const grant = await gptPasswordGrant(email, password, 8_000);
+  const grant = await gptPasswordGrant(email, password, 10_000);
   if (!grant.ok) {
     if (grant.message === "timeout" || grant.message === "auth_network") {
       return NextResponse.json(
