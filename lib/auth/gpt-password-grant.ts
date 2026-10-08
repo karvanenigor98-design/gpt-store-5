@@ -129,11 +129,8 @@ export async function gptPasswordGrant(
   timeoutMs = 12_000,
 ): Promise<PasswordGrantResult> {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  const first = await grantOnce(email, password, anon || service, timeoutMs);
-  if (first.ok) return first;
-  if (first.message !== "timeout" && first.message !== "auth_network") return first;
-  const key = service || anon;
-  if (!key) return first;
-  return grantOnce(email, password, key, timeoutMs);
+  if (!anon) {
+    return { ok: false, status: 503, message: "Auth не настроен на сервере" };
+  }
+  return grantOnce(email, password, anon, timeoutMs);
 }
