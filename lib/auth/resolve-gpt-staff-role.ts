@@ -23,7 +23,8 @@ function remember(userId: string, role: UserRole): UserRole {
   return role;
 }
 
-export async function resolveGptStaffRole(user: User): Promise<UserRole> {
+export async function resolveGptStaffRole(user: User | null): Promise<UserRole> {
+  if (!user) return "client";
   const fast = fastStaffRoleFromEmail(user.email);
   if (fast) return fast;
 
