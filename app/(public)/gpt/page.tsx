@@ -3,6 +3,5 @@
  * когда корень `/` на Subs-профиле редиректит на /spotify.
  */
 export { default, metadata } from "../page";
-export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const revalidate = 300;
 export const runtime = "nodejs";

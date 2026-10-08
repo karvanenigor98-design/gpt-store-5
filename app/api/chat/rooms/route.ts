@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { User } from "@supabase/supabase-js";
 
-import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
-import { peekGptProfileRole } from "@/lib/auth/peek-profile-role";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { loadGptStaffChatRooms } from "@/lib/chat/load-staff-rooms";
 import { getOrCreateClientOperatorSession } from "@/lib/chat/operatorSession";
 import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
-
-async function resolveListStaffRole(user: User) {
-  const fast = fastStaffRoleFromEmail(user.email);
-  if (fast) return fast;
-  const peeked = await peekGptProfileRole(user.id, 1500);
-  if (peeked === "admin" || peeked === "operator") return peeked;
-  return resolveServerRole(user);
-}
 
 async function handleRooms(req: NextRequest) {
   const supabase = await createClient();
@@ -29,7 +18,7 @@ async function handleRooms(req: NextRequest) {
   const list = req.nextUrl.searchParams.get("list") === "1";
 
   if (list) {
-    const role = await resolveListStaffRole(user);
+    const role = await resolveGptStaffRole(user);
     if (role !== "admin" && role !== "operator") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -47,7 +36,7 @@ async function handleRooms(req: NextRequest) {
     }
   }
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
 
   if (role === "admin" || role === "operator") {
     return NextResponse.json(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { getOrCreateStaffSession } from "@/lib/chat/staffSession";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

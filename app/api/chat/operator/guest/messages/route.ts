@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
 import { resolveHumanSenderType } from "@/lib/chat/messageSender";
 import { getScriptedFaqAnswer, getSupportHandoffAutoReply } from "@/lib/chat/scriptedFaq";
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Нет доступа к этой сессии" }, { status: 403 });
   }
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   const isStaff = role === "admin" || role === "operator";
   const senderType = user?.id ? resolveHumanSenderType(role) : "client";
 

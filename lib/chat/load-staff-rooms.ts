@@ -20,13 +20,14 @@ async function fetchInChunks<T>(
   size: number,
   fn: (chunk: string[]) => Promise<T[]>,
 ): Promise<T[]> {
-  const out: T[] = [];
+  const jobs: Promise<T[]>[] = [];
   for (let i = 0; i < ids.length; i += size) {
     const chunk = ids.slice(i, i + size);
     if (!chunk.length) continue;
-    out.push(...(await fn(chunk)));
+    jobs.push(fn(chunk));
   }
-  return out;
+  const parts = await Promise.all(jobs);
+  return parts.flat();
 }
 
 export async function loadGptStaffChatRooms(
@@ -44,7 +45,7 @@ export async function loadGptStaffChatRooms(
     )
     .eq("type", "operator")
     .order("last_message_at", { ascending: false, nullsFirst: false })
-    .limit(250);
+    .limit(120);
 
   if (siteId) {
     sessionsQuery =
@@ -63,7 +64,7 @@ export async function loadGptStaffChatRooms(
       )
       .eq("type", "operator")
       .order("created_at", { ascending: false })
-      .limit(250);
+      .limit(120);
     if (siteId) {
       fallback =
         siteParam === "gpt-store"
@@ -127,18 +128,18 @@ export async function loadGptStaffChatRooms(
   }
 
   const sessionIds = sessionRows.map((s) => s.id);
-  const previewIds = sessionIds.slice(0, 80);
+  const previewIds = sessionIds.slice(0, 24);
 
   try {
     await Promise.race([
       (async () => {
-        const lastMsgs = await fetchInChunks(previewIds, 40, async (chunk) => {
+        const lastMsgs = await fetchInChunks(previewIds, 24, async (chunk) => {
           const { data } = await admin
             .from("chat_messages")
             .select("session_id, created_at, content")
             .in("session_id", chunk)
             .order("created_at", { ascending: false })
-            .limit(Math.min(chunk.length * 3, 120));
+            .limit(Math.min(chunk.length * 2, 48));
           return data ?? [];
         });
 
@@ -154,27 +155,13 @@ export async function loadGptStaffChatRooms(
             searchMatchSessionIds.add(m.session_id);
           }
         }
-
-        const unreadRows = await fetchInChunks(previewIds, 40, async (chunk) => {
-          const { data } = await admin
-            .from("chat_messages")
-            .select("session_id")
-            .in("session_id", chunk)
-            .eq("sender_type", "client")
-            .eq("is_read", false)
-            .limit(400);
-          return data ?? [];
-        });
-        for (const u of unreadRows) {
-          unreadBySession.set(u.session_id, (unreadBySession.get(u.session_id) ?? 0) + 1);
-        }
       })(),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("preview_timeout")), 4500);
+        setTimeout(() => reject(new Error("preview_timeout")), 800);
       }),
     ]);
   } catch {
-    // Список диалогов важнее превью/unread.
+    // Список диалогов важнее превью.
   }
 
   function toRoom(s: SessionRow | null, clientId: string, profile: ProfileLite | null, guestLabel?: string): ChatRoomListItem {

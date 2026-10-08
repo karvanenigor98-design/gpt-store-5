@@ -8,8 +8,8 @@ import { sortLandingReviewsNewestFirst } from "@/lib/reviews/landing-reviews-dis
 import type { PublicReview } from "@/lib/reviews/publicReviews";
 import { telegramProfileUrl } from "@/lib/reviews/telegram-profile-url";
 
-export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const revalidate = 120;
+export const maxDuration = 30;
 
 export const metadata: Metadata = {
   title: "Отзывы клиентов",
@@ -22,7 +22,7 @@ export const runtime = "nodejs";
 
 async function loadReviewsSafe(): Promise<PublicReview[]> {
   try {
-    const published = await loadGptPublishedDbReviews("gpt-store", 5000);
+    const published = await loadGptPublishedDbReviews("gpt-store", 240);
     return sortLandingReviewsNewestFirst(published);
   } catch (err) {
     console.error("[reviews] load failed:", err);

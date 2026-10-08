@@ -14,8 +14,7 @@ import { getStaticGptLandingPayload, getStaticGptLandingReviews } from "@/lib/la
 
 const APP_URL = getPublicSiteOrigin();
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "ChatGPT Plus без иностранной карты",

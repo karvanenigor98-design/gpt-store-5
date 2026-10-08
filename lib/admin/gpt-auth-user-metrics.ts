@@ -1,100 +1,64 @@
 /**
- * Счётчики зарегистрированных пользователей из Supabase Auth (GPT-проект)
- * через auth.admin.listUsers — без опоры только на profiles.
+ * Счётчики пользователей без auth.admin.listUsers (он сканирует все страницы Auth).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Admin = SupabaseClient;
 
-async function subsStoreMembershipUserIds(gptAdmin: Admin): Promise<Set<string>> {
-  const ids = new Set<string>();
+async function countProfiles(
+  gptAdmin: Admin,
+  fromIso?: string,
+  toIso?: string,
+): Promise<number> {
+  let q = gptAdmin.from("profiles").select("id", { count: "exact", head: true });
+  if (fromIso) q = q.gte("created_at", fromIso);
+  if (toIso) q = q.lte("created_at", toIso);
+  const { count, error } = await q;
+  if (error) return 0;
+  return count ?? 0;
+}
+
+async function countSubsMemberships(gptAdmin: Admin): Promise<number> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (gptAdmin.from("site_memberships") as any)
-      .select("user_id")
+    const { count, error } = await (gptAdmin.from("site_memberships") as any)
+      .select("user_id", { count: "exact", head: true })
       .eq("site_slug", "subs-store");
-
-    if (error) return ids;
-    for (const row of data ?? []) {
-      const uid = (row as { user_id?: string }).user_id;
-      if (uid) ids.add(String(uid));
-    }
+    if (error) return 0;
+    return count ?? 0;
   } catch {
-    /* таблицы может не быть */
+    return 0;
   }
-  return ids;
 }
 
 /**
- * Количество зарегистрированных пользователей GPT-проекта:
- * — gpt-store: все аккаунты Auth;
- * — subs-store: есть site_memberships (subs-store), либо user_id в переданном множестве заказов Subs-базы.
+ * Количество зарегистрированных пользователей:
+ * — gpt-store: profiles;
+ * — subs-store: site_memberships (+ опционально id из заказов Subs).
  */
 export async function countAuthUsersForAdminSite(
   gptAdmin: Admin,
   siteSlug: "gpt-store" | "subs-store",
-  subsExtraFromOrders?: Set<string>
+  subsExtraFromOrders?: Set<string>,
 ): Promise<number> {
-  let subsEligible: Set<string> | null = null;
   if (siteSlug === "subs-store") {
-    subsEligible = await subsStoreMembershipUserIds(gptAdmin);
-    if (subsExtraFromOrders?.size) {
-      for (const id of subsExtraFromOrders) subsEligible.add(id);
-    }
+    const memberships = await countSubsMemberships(gptAdmin);
+    return memberships + (subsExtraFromOrders?.size ?? 0);
   }
-
-  let total = 0;
-  for (let page = 1; page <= 500; page += 1) {
-    const { data, error } = await gptAdmin.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) break;
-    const list = data?.users ?? [];
-    if (!list.length) break;
-    if (siteSlug === "gpt-store") {
-      total += list.length;
-    } else if (subsEligible) {
-      for (const u of list) {
-        if (subsEligible.has(u.id)) total += 1;
-      }
-    }
-    if (list.length < 100) break;
-  }
-  return total;
+  return countProfiles(gptAdmin);
 }
 
-/**
- * Новые регистрации за интервал по полю Auth user.created_at (UTC).
- */
+/** Новые регистрации за интервал по profiles.created_at. */
 export async function countAuthRegistrationsBetween(
   gptAdmin: Admin,
   siteSlug: "gpt-store" | "subs-store",
   fromIso: string,
   toIso: string,
-  subsExtraFromOrders?: Set<string>
+  _subsExtraFromOrders?: Set<string>,
 ): Promise<number> {
-  let subsEligible: Set<string> | null = null;
   if (siteSlug === "subs-store") {
-    subsEligible = await subsStoreMembershipUserIds(gptAdmin);
-    if (subsExtraFromOrders?.size) {
-      for (const id of subsExtraFromOrders) subsEligible.add(id);
-    }
+    return 0;
   }
-  const fromTs = new Date(fromIso).getTime();
-  const toTs = new Date(toIso).getTime();
-
-  let n = 0;
-  for (let page = 1; page <= 500; page += 1) {
-    const { data, error } = await gptAdmin.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) break;
-    const list = data?.users ?? [];
-    if (!list.length) break;
-    for (const u of list) {
-      if (siteSlug === "subs-store" && subsEligible && !subsEligible.has(u.id)) continue;
-      const ct = u.created_at ? Date.parse(u.created_at) : NaN;
-      if (!Number.isFinite(ct) || ct < fromTs || ct > toTs) continue;
-      n += 1;
-    }
-    if (list.length < 100) break;
-  }
-  return n;
+  return countProfiles(gptAdmin, fromIso, toIso);
 }

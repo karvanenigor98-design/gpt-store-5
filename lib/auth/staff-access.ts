@@ -6,11 +6,10 @@ import { cookies } from "next/headers";
 
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { isSupabaseAuthCookieName } from "@/lib/auth/has-supabase-auth-cookie";
-import { peekGptProfileRole } from "@/lib/auth/peek-profile-role";
 import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { StaffAuthUnavailableError } from "@/lib/auth/staff-auth-errors";
 import { staffLoginUrl } from "@/lib/auth/staff-auth-redirect";
-import { resolveServerRole } from "@/lib/auth/server-role";
 import { tryCreateClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
 
@@ -21,8 +20,7 @@ export {
   staffPanelHome,
 } from "@/lib/auth/staff-auth-redirect";
 
-const STAFF_SESSION_MS = 3_000;
-const STAFF_ROLE_LOOKUP_MS = 2_500;
+const STAFF_SESSION_MS = 2_000;
 
 async function gptAuthCookiePresent(): Promise<boolean> {
   try {
@@ -49,11 +47,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-function sessionNotExpired(expiresAt: number | undefined): boolean {
-  if (!expiresAt) return false;
-  return expiresAt * 1000 > Date.now() + 5_000;
-}
-
 /**
  * Один probe на RSC-запрос.
  * Свежая JWT-сессия + email staff → сразу в панель, без Auth/DB round-trip.
@@ -66,11 +59,9 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
   }
 
   let sessionUser: User | null = null;
-  let expiresAt: number | undefined;
   try {
     const cookieSession = await withTimeout(readGptCookieUser(supabase), STAFF_SESSION_MS, "staff_session_timeout");
     sessionUser = cookieSession.user;
-    expiresAt = cookieSession.expiresAt;
   } catch {
     sessionUser = null;
   }
@@ -78,24 +69,18 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
   const cookiePresent = await gptAuthCookiePresent();
   const fastFromSession = sessionUser ? fastStaffRoleFromEmail(sessionUser.email) : null;
 
-  async function roleFor(user: User): Promise<UserRole> {
-    const fast = fastStaffRoleFromEmail(user.email);
-    if (fast) return fast;
-    const peeked = await peekGptProfileRole(user.id, 1_500);
-    if (peeked === "admin" || peeked === "operator") return peeked;
-    try {
-      return await withTimeout(resolveServerRole(user), STAFF_ROLE_LOOKUP_MS, "staff_role_timeout");
-    } catch {
-      if (fastFromSession) return fastFromSession;
-      throw new StaffAuthUnavailableError();
-    }
-  }
-
   if (sessionUser) {
-    if (fastFromSession && !sessionNotExpired(expiresAt)) {
+    if (fastFromSession) {
       return { user: sessionUser, role: fastFromSession };
     }
-    return { user: sessionUser, role: await roleFor(sessionUser) };
+    try {
+      return {
+        user: sessionUser,
+        role: await withTimeout(resolveGptStaffRole(sessionUser), 2_000, "staff_role_timeout"),
+      };
+    } catch {
+      throw new StaffAuthUnavailableError();
+    }
   }
 
   if (cookiePresent) {

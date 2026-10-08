@@ -30,8 +30,9 @@ async function getLandingNavSessionInner(siteSlug: SiteSlug): Promise<LandingNav
     const subs = await createSubsAuthServerClient();
     if (!subs) return LANDING_SESSION_FALLBACK;
     const {
-      data: { user },
-    } = await subs.auth.getUser();
+      data: { session },
+    } = await subs.auth.getSession();
+    const user = session?.user ?? null;
     return {
       loggedIn: Boolean(user),
       emailConfirmed: Boolean(user?.email_confirmed_at),
@@ -41,8 +42,9 @@ async function getLandingNavSessionInner(siteSlug: SiteSlug): Promise<LandingNav
   const gpt = await tryCreateClient();
   if (!gpt) return LANDING_SESSION_FALLBACK;
   const {
-    data: { user },
-  } = await gpt.auth.getUser();
+    data: { session },
+  } = await gpt.auth.getSession();
+  const user = session?.user ?? null;
   return {
     loggedIn: Boolean(user),
     emailConfirmed: Boolean(user?.email_confirmed_at),

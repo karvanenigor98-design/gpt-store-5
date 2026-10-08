@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { canSendChatEmailNotification } from "@/lib/chat/email-notification-throttle";
 import { markStaffChatNotificationsRead } from "@/lib/admin/mark-staff-notifications-read";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   const isStaff = role === "admin" || role === "operator";
 
   const { data: sessionRow, error: sessionError } = await supabaseAdmin
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
 
   const session = sessionRow as SessionAccessRow;
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   const isStaff = role === "admin" || role === "operator";
 
   if (!canAccessSessionRow(user.id, session, isStaff)) {
@@ -358,7 +358,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   const isStaff = role === "admin" || role === "operator";
   if (!isStaff) {
     return NextResponse.json({ error: "Нет доступа" }, { status: 403 });

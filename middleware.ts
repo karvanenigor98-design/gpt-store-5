@@ -8,6 +8,7 @@ import {
 import { requestHasSupabaseAuthCookie } from "@/lib/auth/has-supabase-auth-cookie";
 import { resolveStaffAwayFromClientCabinet } from "@/lib/auth/staff-cabinet-access";
 import { resolveStaffAuthRedirect } from "@/lib/auth/staff-auth-redirect";
+import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { resolveServerRole } from "@/lib/auth/server-role";
 import {
   isSiteUiLoggedOut,
@@ -98,8 +99,8 @@ async function getUserWithTimeout(
   if (!sb) return { user: null, timedOut: false };
   try {
     return await Promise.race([
-      sb.auth.getUser().then((result: { data?: { user?: User | null } }) => ({
-        user: result.data?.user ?? null,
+      sb.auth.getSession().then((result: { data?: { session?: { user?: User | null } | null } }) => ({
+        user: result.data?.session?.user ?? null,
         timedOut: false,
       })),
       new Promise<UserLookup>((resolve) =>
@@ -127,8 +128,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-const AUTH_LOOKUP_MS = 2000;
-const MIDDLEWARE_ROLE_MS = 2500;
+const AUTH_LOOKUP_MS = 1200;
+const MIDDLEWARE_ROLE_MS = 1500;
 
 /** Supabase SSR: refreshed auth cookies must survive NextResponse.redirect. */
 function redirectPreservingCookies(target: URL, source: NextResponse): NextResponse {
@@ -437,7 +438,8 @@ export async function middleware(request: NextRequest) {
 
     if (loggedInForThisSheet && siteForLogin !== "subs-store" && gptUser) {
       try {
-        const role = await withTimeout(resolveServerRole(gptUser), MIDDLEWARE_ROLE_MS);
+        const fast = fastStaffRoleFromEmail(gptUser.email);
+        const role = fast ?? (await withTimeout(resolveServerRole(gptUser), MIDDLEWARE_ROLE_MS));
         const returnUrl = request.nextUrl.searchParams.get("returnUrl");
         const target = resolveStaffAuthRedirect(role, returnUrl);
         return redirectPreservingCookies(new URL(target, request.url), supabaseResponse);
@@ -449,7 +451,8 @@ export async function middleware(request: NextRequest) {
 
   if (gptUser && (path.startsWith("/dashboard") || path.startsWith("/cabinet"))) {
     try {
-      const role = await withTimeout(resolveServerRole(gptUser), MIDDLEWARE_ROLE_MS);
+      const fast = fastStaffRoleFromEmail(gptUser.email);
+      const role = fast ?? (await withTimeout(resolveServerRole(gptUser), MIDDLEWARE_ROLE_MS));
       const staffAway = resolveStaffAwayFromClientCabinet(
         role,
         path,
