@@ -13,8 +13,20 @@ import { clearSiteUiLogout } from "@/lib/auth/siteUiSession";
 import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { upsertSiteMembership } from "@/lib/auth/siteMembership";
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
-import { createClient, tryCreateAdminClient } from "@/lib/supabase/server";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
+import { createGptRouteAuthClient } from "@/lib/supabase/route-auth-client";
 import type { UserRole } from "@/types/database";
+
+export const maxDuration = 30;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), ms);
+    }),
+  ]);
+}
 
 type Body = {
   email?: string;
@@ -64,21 +76,43 @@ export async function POST(request: NextRequest) {
   const effectiveReturnUrl = normalizeAuthReturnUrl(returnUrl, "gpt-store");
 
   const cookieStore = await cookies();
-  await clearOppositeAuthSession("gpt-store", cookieStore);
+  await withTimeout(clearOppositeAuthSession("gpt-store", cookieStore), 400, undefined);
 
-  const supabase = await createClient();
+  let routeAuth: Awaited<ReturnType<typeof createGptRouteAuthClient>>;
+  try {
+    routeAuth = await createGptRouteAuthClient();
+  } catch {
+    return NextResponse.json({ error: "Auth не настроен на сервере" }, { status: 503 });
+  }
+  const { supabase, applyCookies } = routeAuth;
 
-  const { data: authData, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const signedIn = await withTimeout(
+    supabase.auth.signInWithPassword({ email, password }),
+    12_000,
+    { data: { user: null, session: null }, error: { message: "timeout" } } as Awaited<
+      ReturnType<typeof supabase.auth.signInWithPassword>
+    >,
+  );
+  const authData = signedIn.data;
+  const error = signedIn.error;
+
+  if (error?.message === "timeout") {
+    const res = NextResponse.json(
+      { error: "Сервер входа не ответил. Повторите попытку.", code: "auth_timeout" },
+      { status: 503 },
+    );
+    applyCookies(res);
+    return res;
+  }
 
   if (error || !authData.user) {
     if (isAuthRateLimitError(error?.message)) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         { error: authRateLimitUserMessage(error?.message ?? ""), code: "rate_limited" },
         { status: 429 },
       );
+      applyCookies(res);
+      return res;
     }
 
     const lower = (error?.message ?? "").toLowerCase();
@@ -91,7 +125,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (!inGpt && inSubs) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         {
           error:
             "Этот email зарегистрирован в Spotify Store, а не в GPT STORE. Откройте вход: /login?site=subs-store.",
@@ -99,11 +133,13 @@ export async function POST(request: NextRequest) {
         },
         { status: 401 },
       );
+      applyCookies(res);
+      return res;
     }
 
     if (invalidCreds || !authData.user) {
       const suggestedEmail = await suggestGptRegisteredEmail(email);
-      return NextResponse.json(
+      const res = NextResponse.json(
         {
           error: buildGptLoginErrorMessage({
             email,
@@ -115,9 +151,11 @@ export async function POST(request: NextRequest) {
         },
         { status: 401 },
       );
+      applyCookies(res);
+      return res;
     }
 
-    return NextResponse.json(
+    const res = NextResponse.json(
       {
         error:
           process.env.NODE_ENV === "development"
@@ -127,6 +165,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 401 },
     );
+    applyCookies(res);
+    return res;
   }
 
   const fastRole = fastStaffRoleFromEmail(authData.user.email);
@@ -143,7 +183,7 @@ export async function POST(request: NextRequest) {
 
   const path = resolvePostLoginPath(effectiveReturnUrl, role);
   const res = NextResponse.json({ ok: true, path, role });
-
+  applyCookies(res);
   clearSiteUiLogout(res, "gpt-store");
   res.cookies.set("current_site", "gpt-store", {
     path: "/",

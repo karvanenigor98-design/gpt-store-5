@@ -66,17 +66,23 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const loginRes = await fetch("/api/auth/gpt-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          signal: AbortSignal.timeout(45_000),
-          body: JSON.stringify({
-            email: normalizedEmail,
-            password,
-            returnUrl: effectiveReturnUrl,
-          }),
-        });
+        const loginOnce = () =>
+          fetch("/api/auth/gpt-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            signal: AbortSignal.timeout(20_000),
+            body: JSON.stringify({
+              email: normalizedEmail,
+              password,
+              returnUrl: effectiveReturnUrl,
+            }),
+          });
+        let loginRes = await loginOnce();
+        if (loginRes.status === 503) {
+          await new Promise((r) => setTimeout(r, 600));
+          loginRes = await loginOnce();
+        }
 
         const loginBody = (await loginRes.json().catch(() => ({}))) as {
           error?: string;

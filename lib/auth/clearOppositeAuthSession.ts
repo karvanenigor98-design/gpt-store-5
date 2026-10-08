@@ -37,6 +37,7 @@ export async function clearOppositeAuthSession(
 
   const sb = createServerClient<Database>(url, anon, {
     cookieOptions: getAuthCookieOptions(),
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -54,5 +55,10 @@ export async function clearOppositeAuthSession(
     },
   });
 
-  await sb.auth.signOut({ scope: "local" }).catch(() => undefined);
+  await Promise.race([
+    sb.auth.signOut({ scope: "local" }).catch(() => undefined),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, 400);
+    }),
+  ]);
 }
