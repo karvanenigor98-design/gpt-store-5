@@ -5,11 +5,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
+import { tryCreateClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
@@ -19,11 +21,25 @@ type ProxyGrant =
       refresh_token: string;
       expires_at?: number;
       expires_in?: number;
-      user: { id: string };
+      user: { id: string; email?: string | null };
     }
   | { rejected: true };
 
-async function grantViaAuthProxy(email: string, password: string): Promise<ProxyGrant | null> {
+function userFromAccessToken(access: string, email: string): { id: string; email: string } | null {
+  const parts = access.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const json = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = json + "=".repeat((4 - (json.length % 4)) % 4);
+    const payload = JSON.parse(atob(pad)) as { sub?: string; email?: string };
+    if (!payload.sub) return null;
+    return { id: payload.sub, email: payload.email || email };
+  } catch {
+    return null;
+  }
+}
+
+async function grantViaAuthProxy(email: string, password: string, signal: AbortSignal): Promise<ProxyGrant | null> {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!anon) return null;
   try {
@@ -34,7 +50,7 @@ async function grantViaAuthProxy(email: string, password: string): Promise<Proxy
         Authorization: `Bearer ${anon}`,
         "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(10_000),
+      signal,
       body: JSON.stringify({ email, password }),
     });
     const json = (await res.json().catch(() => ({}))) as {
@@ -42,19 +58,77 @@ async function grantViaAuthProxy(email: string, password: string): Promise<Proxy
       refresh_token?: string;
       expires_at?: number;
       expires_in?: number;
-      user?: { id: string };
+      user?: { id: string; email?: string | null };
     };
     if (res.status === 401 || res.status === 400 || res.status === 429) return { rejected: true };
-    if (!res.ok || !json.access_token || !json.refresh_token || !json.user?.id) return null;
+    if (!res.ok || !json.access_token || !json.refresh_token) return null;
+    const user = json.user?.id ? json.user : userFromAccessToken(json.access_token, email);
+    if (!user?.id) return null;
     return {
       access_token: json.access_token,
       refresh_token: json.refresh_token,
       expires_at: json.expires_at,
       expires_in: json.expires_in,
-      user: json.user,
+      user,
     };
   } catch {
     return null;
+  }
+}
+
+async function grantViaBrowser(email: string, password: string): Promise<ProxyGrant | null> {
+  const sb = tryCreateClient();
+  if (!sb) return null;
+  try {
+    const result = await Promise.race([
+      sb.auth.signInWithPassword({ email, password }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("timeout")), 8_000);
+      }),
+    ]);
+    if (result.error) {
+      const msg = result.error.message || "";
+      if (/invalid|credentials|password|email/i.test(msg)) return { rejected: true };
+      return null;
+    }
+    const session = result.data.session;
+    if (!session?.access_token || !session.refresh_token) return null;
+    const user = session.user?.id ? session.user : userFromAccessToken(session.access_token, email);
+    if (!user?.id) return null;
+    return {
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_at: session.expires_at,
+      expires_in: session.expires_in,
+      user,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function raceGptGrants(email: string, password: string): Promise<ProxyGrant | null> {
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), 8_000);
+  try {
+    return await new Promise((resolve) => {
+      let left = 2;
+      let rejected = false;
+      const done = (value: ProxyGrant | null) => {
+        if (value && "access_token" in value) {
+          ctrl.abort();
+          resolve(value);
+          return;
+        }
+        if (value && "rejected" in value) rejected = true;
+        left -= 1;
+        if (left <= 0) resolve(rejected ? { rejected: true } : null);
+      };
+      void grantViaAuthProxy(email, password, ctrl.signal).then(done, () => done(null));
+      void grantViaBrowser(email, password).then(done, () => done(null));
+    });
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
@@ -111,75 +185,51 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const payload = {
-          email: normalizedEmail,
-          password,
-          returnUrl: effectiveReturnUrl,
-        };
-        const postLogin = (url: string, ms: number) =>
-          fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            signal: AbortSignal.timeout(ms),
-            body: JSON.stringify(payload),
-          });
-
-        let loginRes: Response | null = null;
-        const proxied = await grantViaAuthProxy(normalizedEmail, password);
-        if (proxied && "rejected" in proxied) {
+        const grant = await raceGptGrants(normalizedEmail, password);
+        if (grant && "rejected" in grant) {
           setServerError(
             "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
           );
           return;
         }
-        if (proxied && "access_token" in proxied) {
-          loginRes = await fetch("/api/auth/gpt-session", {
+        if (!grant || !("access_token" in grant)) {
+          setServerError("Сервер входа не ответил. Обновите страницу (Ctrl+F5) и попробуйте снова.");
+          return;
+        }
+
+        let path: string | undefined;
+        let role: UserRole = fastStaffRoleFromEmail(grant.user.email ?? normalizedEmail) ?? "client";
+        try {
+          const loginRes = await fetch("/api/auth/gpt-session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             signal: AbortSignal.timeout(8_000),
-            body: JSON.stringify({ ...proxied, returnUrl: effectiveReturnUrl }),
+            body: JSON.stringify({ ...grant, returnUrl: effectiveReturnUrl }),
           });
-        }
-        if (!loginRes || loginRes.status === 503 || loginRes.status === 504) {
-          try {
-            loginRes = await postLogin("/api/auth/gpt-login", 10_000);
-          } catch {
-            loginRes = loginRes && loginRes.ok ? loginRes : null;
+          const loginBody = (await loginRes.json().catch(() => ({}))) as {
+            error?: string;
+            path?: string;
+            role?: UserRole;
+          };
+          if (loginRes.ok) {
+            if (loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client") {
+              role = loginBody.role;
+            }
+            if (typeof loginBody.path === "string" && loginBody.path.startsWith("/")) {
+              path = loginBody.path;
+            }
           }
-        }
-        if (!loginRes || loginRes.status === 503 || loginRes.status === 504) {
-          loginRes = await postLogin("/api/auth/gpt-login-node", 12_000);
-        }
-
-        const loginBody = (await loginRes.json().catch(() => ({}))) as {
-          error?: string;
-          path?: string;
-          role?: UserRole;
-        };
-
-        if (!loginRes.ok) {
-          setServerError(
-            loginBody.error ??
-              "Не удалось войти в GPT STORE. Попробуйте снова или восстановите пароль.",
-          );
-          return;
+        } catch {
+          /* cookies from supabase-js may already be set */
         }
 
         document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
-        const role: UserRole =
-          loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
-            ? loginBody.role
-            : "client";
-        const target =
-          typeof loginBody.path === "string" && loginBody.path.startsWith("/")
-            ? loginBody.path
-            : resolvePostLoginPath(effectiveReturnUrl, role);
-        window.location.assign(target);
+        const target = path ?? resolvePostLoginPath(effectiveReturnUrl, role);
+        window.location.replace(target);
         return;
       } catch {
-        setServerError("Сервер временно недоступен. Повторите попытку через 10-20 секунд.");
+        setServerError("Сервер временно недоступен. Обновите страницу (Ctrl+F5) и попробуйте снова.");
       }
       return;
     }

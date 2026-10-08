@@ -3,8 +3,9 @@ import type { User } from "@supabase/supabase-js";
 
 import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
 
-export const runtime = "edge";
-export const preferredRegion = ["fra1", "cdg1"];
+export const runtime = "nodejs";
+export const preferredRegion = ["fra1"];
+export const maxDuration = 15;
 
 type Body = {
   access_token?: string;

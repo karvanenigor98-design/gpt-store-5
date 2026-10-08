@@ -5,6 +5,8 @@ import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Вход" };
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default function LoginPage({
   searchParams,
