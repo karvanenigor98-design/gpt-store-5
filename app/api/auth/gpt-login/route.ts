@@ -4,11 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authRateLimitUserMessage, isAuthRateLimitError } from "@/lib/auth/auth-rate-limit";
 import { normalizeAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { clearOppositeAuthSession } from "@/lib/auth/clearOppositeAuthSession";
-import { hasGptStoreAuthUserByEmail } from "@/lib/auth/gptAuthByEmail";
-import { buildGptLoginErrorMessage, suggestGptRegisteredEmail } from "@/lib/auth/gptLoginHints";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
-import { hasSubsStoreAuthUserByEmail } from "@/lib/auth/subsMembershipByEmail";
 import { clearSiteUiLogout } from "@/lib/auth/siteUiSession";
 import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
 import { upsertSiteMembership } from "@/lib/auth/siteMembership";
@@ -88,7 +85,7 @@ export async function POST(request: NextRequest) {
 
   const signedIn = await withTimeout(
     supabase.auth.signInWithPassword({ email, password }),
-    12_000,
+    20_000,
     { data: { user: null, session: null }, error: { message: "timeout" } } as Awaited<
       ReturnType<typeof supabase.auth.signInWithPassword>
     >,
@@ -115,53 +112,10 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
-    const lower = (error?.message ?? "").toLowerCase();
-    const invalidCreds =
-      lower.includes("invalid login") || lower.includes("invalid credentials");
-
-    const [inGpt, inSubs] = await Promise.all([
-      hasGptStoreAuthUserByEmail(email),
-      hasSubsStoreAuthUserByEmail(email),
-    ]);
-
-    if (!inGpt && inSubs) {
-      const res = NextResponse.json(
-        {
-          error:
-            "Этот email зарегистрирован в Spotify Store, а не в GPT STORE. Откройте вход: /login?site=subs-store.",
-          code: "wrong_project",
-        },
-        { status: 401 },
-      );
-      applyCookies(res);
-      return res;
-    }
-
-    if (invalidCreds || !authData.user) {
-      const suggestedEmail = await suggestGptRegisteredEmail(email);
-      const res = NextResponse.json(
-        {
-          error: buildGptLoginErrorMessage({
-            email,
-            inGpt,
-            suggestedEmail,
-          }),
-          code: inGpt ? "invalid_credentials" : "email_not_found",
-          suggestedEmail: suggestedEmail ?? undefined,
-        },
-        { status: 401 },
-      );
-      applyCookies(res);
-      return res;
-    }
-
     const res = NextResponse.json(
       {
-        error:
-          process.env.NODE_ENV === "development"
-            ? `Не удалось войти: ${error?.message ?? "unknown"}`
-            : "Не удалось войти. Попробуйте снова.",
-        code: "auth_error",
+        error: "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+        code: "invalid_credentials",
       },
       { status: 401 },
     );
