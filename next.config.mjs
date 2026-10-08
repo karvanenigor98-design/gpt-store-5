@@ -53,6 +53,20 @@ const nextConfig = {
       { source: "/register", headers: noStore },
     ];
   },
+  async rewrites() {
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+      .trim()
+      .replace(/\/$/, "")
+      .replace(/\/rest\/v1$/i, "")
+      .replace(/\/auth\/v1$/i, "");
+    if (!supabaseUrl) return [];
+    return [
+      {
+        source: "/__sb-auth/:path*",
+        destination: `${supabaseUrl}/:path*`,
+      },
+    ];
+  },
   async redirects() {
     return [
       {

@@ -13,6 +13,34 @@ import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
+async function grantViaAuthProxy(email: string, password: string) {
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+  if (!anon) return null;
+  try {
+    const res = await fetch("/__sb-auth/auth/v1/token?grant_type=password", {
+      method: "POST",
+      headers: {
+        apikey: anon,
+        Authorization: `Bearer ${anon}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({ email, password }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_at?: number;
+      expires_in?: number;
+      user?: { id: string };
+    };
+    if (!res.ok || !json.access_token || !json.refresh_token || !json.user?.id) return null;
+    return json;
+  } catch {
+    return null;
+  }
+}
+
 function detectSite(siteDirect: string, returnUrl: string): "subs-store" | "gpt-store" {
   if (siteDirect === "gpt-store") return "gpt-store";
   if (siteDirect === "subs-store") return "subs-store";
@@ -66,19 +94,40 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const loginOnce = () =>
-          fetch("/api/auth/gpt-login", {
+        const payload = {
+          email: normalizedEmail,
+          password,
+          returnUrl: effectiveReturnUrl,
+        };
+        const postLogin = (url: string, ms: number) =>
+          fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            signal: AbortSignal.timeout(20_000),
-            body: JSON.stringify({
-              email: normalizedEmail,
-              password,
-              returnUrl: effectiveReturnUrl,
-            }),
+            signal: AbortSignal.timeout(ms),
+            body: JSON.stringify(payload),
           });
-        const loginRes = await loginOnce();
+
+        let loginRes: Response | null = null;
+        try {
+          loginRes = await postLogin("/api/auth/gpt-login", 10_000);
+        } catch {
+          loginRes = null;
+        }
+        if (!loginRes || loginRes.status === 503 || loginRes.status === 504) {
+          const proxied = await grantViaAuthProxy(normalizedEmail, password);
+          if (proxied) {
+            loginRes = await fetch("/api/auth/gpt-session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              signal: AbortSignal.timeout(8_000),
+              body: JSON.stringify({ ...proxied, returnUrl: effectiveReturnUrl }),
+            });
+          } else {
+            loginRes = await postLogin("/api/auth/gpt-login-node", 12_000);
+          }
+        }
 
         const loginBody = (await loginRes.json().catch(() => ({}))) as {
           error?: string;

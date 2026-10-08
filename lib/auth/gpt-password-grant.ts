@@ -1,5 +1,3 @@
-import https from "node:https";
-import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
@@ -18,44 +16,29 @@ export type PasswordGrantResult =
       message: string;
     };
 
-function postJson(
-  url: string,
-  headers: Record<string, string>,
-  body: string,
-  timeoutMs: number,
-): Promise<{ status: number; body: string }> {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = https.request(
-      {
-        hostname: u.hostname,
-        path: `${u.pathname}${u.search}`,
-        method: "POST",
-        headers: {
-          ...headers,
-          "Content-Length": String(Buffer.byteLength(body)),
-        },
-        timeout: timeoutMs,
-        family: 4,
-        lookup: (hostname, options, callback) => {
-          dnsLookup(hostname, { family: 4, all: false }, callback);
-        },
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-        res.on("end", () => {
-          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") });
-        });
-      },
-    );
-    req.on("timeout", () => {
-      req.destroy(new Error("timeout"));
-    });
-    req.on("error", reject);
-    req.write(body);
-    req.end();
-  });
+function skipRelay(base: string): boolean {
+  try {
+    const u = new URL(base);
+    const isIp = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(u.hostname);
+    if (u.protocol === "http:" && isIp && u.port === "8787") return true;
+    if (/\.trycloudflare\.com$/i.test(u.hostname)) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function relayTarget(): { base: string; secret: string } | null {
+  const base = (
+    process.env.GPT_AUTH_RELAY_URL?.trim() ||
+    process.env.PALLY_RELAY_URL?.trim() ||
+    ""
+  ).replace(/\/$/, "");
+  if (!base || skipRelay(base)) return null;
+  return {
+    base,
+    secret: (process.env.GPT_AUTH_RELAY_SECRET || process.env.PALLY_RELAY_SECRET || "").trim(),
+  };
 }
 
 function parseGrantBody(status: number, body: string): PasswordGrantResult {
@@ -95,7 +78,36 @@ function parseGrantBody(status: number, body: string): PasswordGrantResult {
   };
 }
 
-async function grantOnce(
+async function postGrant(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<PasswordGrantResult> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: ctrl.signal,
+    });
+    const text = await res.text();
+    return parseGrantBody(res.status, text);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "auth_network";
+    return {
+      ok: false,
+      status: 503,
+      message: /timeout|abort/i.test(msg) ? "timeout" : "auth_network",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function grantDirect(
   email: string,
   password: string,
   apiKey: string,
@@ -105,36 +117,60 @@ async function grantOnce(
   if (!url || !apiKey) {
     return { ok: false, status: 503, message: "Auth не настроен на сервере" };
   }
-  try {
-    const { status, body } = await postJson(
-      `${url}/auth/v1/token?grant_type=password`,
-      {
-        apikey: apiKey,
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      JSON.stringify({ email, password }),
-      timeoutMs,
-    );
-    return parseGrantBody(status, body);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "auth_network";
-    return {
-      ok: false,
-      status: 503,
-      message: msg.includes("timeout") ? "timeout" : "auth_network",
-    };
+  return postGrant(
+    `${url}/auth/v1/token?grant_type=password`,
+    {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    JSON.stringify({ email, password }),
+    timeoutMs,
+  );
+}
+
+async function grantViaRelay(
+  email: string,
+  password: string,
+  apiKey: string,
+  timeoutMs: number,
+): Promise<PasswordGrantResult> {
+  const relay = relayTarget();
+  const supabaseUrl = getGptPublicSupabaseUrl();
+  if (!relay || !supabaseUrl) {
+    return { ok: false, status: 503, message: "auth_network" };
   }
+  return postGrant(
+    `${relay.base}/auth/v1/token?grant_type=password`,
+    {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...(relay.secret ? { "X-Pally-Relay-Secret": relay.secret } : {}),
+      "X-Pally-Target-Base": supabaseUrl,
+    },
+    JSON.stringify({ email, password }),
+    timeoutMs,
+  );
 }
 
 export async function gptPasswordGrant(
   email: string,
   password: string,
-  timeoutMs = 12_000,
+  timeoutMs = 8_000,
 ): Promise<PasswordGrantResult> {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!anon) {
     return { ok: false, status: 503, message: "Auth не настроен на сервере" };
   }
-  return grantOnce(email, password, anon, timeoutMs);
+
+  if (relayTarget()) {
+    const viaRelay = await grantViaRelay(email, password, anon, Math.min(4_000, timeoutMs));
+    if (viaRelay.ok || viaRelay.status === 401 || viaRelay.status === 429) return viaRelay;
+  }
+
+  const first = await grantDirect(email, password, anon, Math.min(5_000, timeoutMs));
+  if (first.ok || first.status === 401 || first.status === 429) return first;
+
+  return grantDirect(email, password, anon, timeoutMs);
 }

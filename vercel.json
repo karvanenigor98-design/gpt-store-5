@@ -4,6 +4,12 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "regions": ["fra1"],
+  "rewrites": [
+    {
+      "source": "/__sb-auth/:path*",
+      "destination": "https://cgamktdrqkxnnmnruvvq.supabase.co/:path*"
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/notification-outbox",

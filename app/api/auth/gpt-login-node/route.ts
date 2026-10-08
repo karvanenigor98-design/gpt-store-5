@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { authRateLimitUserMessage, isAuthRateLimitError } from "@/lib/auth/auth-rate-limit";
 import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
-import { gptPasswordGrant } from "@/lib/auth/gpt-password-grant";
+import { gptPasswordGrantIpv4 } from "@/lib/auth/gpt-password-grant-node";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 
-export const runtime = "edge";
-export const preferredRegion = ["fra1", "cdg1"];
+export const runtime = "nodejs";
 export const maxDuration = 25;
+export const preferredRegion = ["fra1"];
 
 type Body = {
   email?: string;
@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
 
   const email = normalizeEmailForAuth(body.email ?? "");
   const password = typeof body.password === "string" ? body.password : "";
-
   if (!email || password.length < 6) {
     return NextResponse.json(
       { error: "Укажите email и пароль (минимум 6 символов)." },
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const grant = await gptPasswordGrant(email, password, 8_000);
+  const grant = await gptPasswordGrantIpv4(email, password, 12_000);
   if (!grant.ok) {
     if (grant.message === "timeout" || grant.message === "auth_network") {
       return NextResponse.json(
