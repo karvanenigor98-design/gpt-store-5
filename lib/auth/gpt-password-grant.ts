@@ -1,4 +1,5 @@
 import https from "node:https";
+import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
@@ -36,6 +37,9 @@ function postJson(
         },
         timeout: timeoutMs,
         family: 4,
+        lookup: (hostname, options, callback) => {
+          dnsLookup(hostname, { family: 4, all: false }, callback);
+        },
       },
       (res) => {
         const chunks: Buffer[] = [];
