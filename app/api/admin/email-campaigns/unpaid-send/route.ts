@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { NextRequest, NextResponse } from "next/server";
 
@@ -13,9 +14,7 @@ import { buildCustomerOrderUrl } from "@/lib/email/site-urls";
 
 async function requireStaff() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = await resolveServerRole(user);
   if (role !== "admin" && role !== "operator") {

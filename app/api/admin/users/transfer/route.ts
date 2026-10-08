@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { executeTransferStaffAndData } from "@/lib/admin/transferStaffAndData";
 import { isServerAdmin } from "@/lib/auth/server-role";
@@ -7,9 +8,7 @@ import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!(await isServerAdmin(user))) {
     return NextResponse.json({ error: "Доступно только администратору" }, { status: 403 });

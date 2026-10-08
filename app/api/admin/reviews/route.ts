@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -8,9 +9,7 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 async function requireStaff() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

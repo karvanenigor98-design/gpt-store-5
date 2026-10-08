@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { isServerAdmin } from "@/lib/auth/server-role";
 import { insertSubsPromocode, updateSubsPromocode } from "@/lib/admin/subs-discount-db";
@@ -30,9 +31,7 @@ function mapPromoDbError(message: string, subsSite = false): string {
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!(await isServerAdmin(user))) {
     return NextResponse.json({ error: "Только администратор" }, { status: 403 });
   }
@@ -84,9 +83,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!(await isServerAdmin(user))) {
     return NextResponse.json({ error: "Только администратор" }, { status: 403 });
   }
@@ -174,9 +171,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!(await isServerAdmin(user))) {
     return NextResponse.json({ error: "Только администратор" }, { status: 403 });
   }

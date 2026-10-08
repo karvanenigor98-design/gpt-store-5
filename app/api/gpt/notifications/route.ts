@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { getSiteUUID } from "@/lib/admin/getSiteId";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -9,9 +10,7 @@ function diag(status: number, message: string) {
 
 export async function GET() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return diag(401, "Войдите в аккаунт GPT STORE");
   }
@@ -41,9 +40,7 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return diag(401, "Требуется вход");
   }

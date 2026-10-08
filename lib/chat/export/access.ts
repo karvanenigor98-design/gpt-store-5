@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { requireSubsStaffContext } from "@/lib/admin/subs-api-guard";
 import { getSiteUUID } from "@/lib/admin/getSiteId";
@@ -53,9 +54,7 @@ export async function verifyChatExportAccess(params: {
 
 async function verifyGptExportAccess(chatId: string): Promise<ExportAccessContext | NextResponse> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -110,9 +109,7 @@ async function verifySubsExportAccess(chatId: string): Promise<ExportAccessConte
   }
 
   const supabase = await createClient();
-  const {
-    data: { user: gptUser },
-  } = await supabase.auth.getUser();
+  const { user: gptUser } = await readGptCookieUser(supabase);
 
   if (gptUser) {
     const role = await resolveServerRole(gptUser);
@@ -140,9 +137,7 @@ async function verifySubsExportAccess(chatId: string): Promise<ExportAccessConte
     return NextResponse.json({ error: "Не удалось проверить доступ" }, { status: 503 });
   }
 
-  const {
-    data: { user: subsUser },
-  } = await subsAuth.auth.getUser();
+  const { user: subsUser } = await readGptCookieUser(subsAuth);
 
   if (!subsUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 
-import { resolveServerRole } from "@/lib/auth/server-role";
-import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
-import { peekGptProfileRole } from "@/lib/auth/peek-profile-role";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { createClient, tryCreateAdminClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
@@ -29,10 +27,7 @@ export async function requireStaffApi(): Promise<StaffApiContext | NextResponse>
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const fast = fastStaffRoleFromEmail(user.email);
-  const peeked = fast ?? (await peekGptProfileRole(user.id, 1500));
-  const role =
-    peeked === "admin" || peeked === "operator" ? peeked : await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -22,7 +22,6 @@ export {
 } from "@/lib/auth/staff-auth-redirect";
 
 const STAFF_SESSION_MS = 3_000;
-const STAFF_USER_LOOKUP_MS = 4_000;
 const STAFF_ROLE_LOOKUP_MS = 2_500;
 
 async function gptAuthCookiePresent(): Promise<boolean> {
@@ -92,33 +91,10 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
     }
   }
 
-  if (sessionUser && sessionNotExpired(expiresAt)) {
-    return { user: sessionUser, role: await roleFor(sessionUser) };
-  }
-
-  if (sessionUser && fastFromSession) {
-    return { user: sessionUser, role: fastFromSession };
-  }
-
-  // Refresh только если JWT уже мёртв. Иначе getUser гоняется с браузером и сносит сессию.
-  if (!sessionUser || !sessionNotExpired(expiresAt)) {
-    try {
-      const result = await withTimeout(supabase.auth.getUser(), STAFF_USER_LOOKUP_MS, "staff_user_timeout");
-      const user = result.data.user ?? sessionUser;
-      if (user) {
-        return { user, role: await roleFor(user) };
-      }
-    } catch {
-      if (sessionUser) {
-        return { user: sessionUser, role: await roleFor(sessionUser) };
-      }
-      if (cookiePresent) {
-        throw new StaffAuthUnavailableError();
-      }
-    }
-  }
-
   if (sessionUser) {
+    if (fastFromSession && !sessionNotExpired(expiresAt)) {
+      return { user: sessionUser, role: fastFromSession };
+    }
     return { user: sessionUser, role: await roleFor(sessionUser) };
   }
 

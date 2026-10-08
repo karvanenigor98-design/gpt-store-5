@@ -1,3 +1,4 @@
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { HighlightScroll } from "@/components/ui/HighlightScroll";
 import { CustomerOrdersSection } from "@/components/dashboard/CustomerOrdersSection";
 import Link from "next/link";
@@ -54,9 +55,7 @@ export default async function OrdersPage({
     );
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     redirect(`/login?site=${siteSlug}&returnUrl=${encodeURIComponent(returnPath)}`);
   }

@@ -1,4 +1,5 @@
 ﻿import type { Metadata } from "next";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { cookies } from "next/headers";
 import { selectProfileByIdFlexible } from "@/lib/admin/selectProfilesFlexible";
 import { tryCreateAdminClient } from "@/lib/supabase/server";
@@ -20,9 +21,7 @@ export default async function ProfilePage({
   const siteSlug: SiteSlug = rawSite === "subs-store" ? "subs-store" : "gpt-store";
 
   const { browserLike: supabase } = await createSiteSessionClient(siteSlug);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) return null;
 
   let username = "";

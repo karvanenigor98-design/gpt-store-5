@@ -2,7 +2,8 @@ import type { User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { isSuperAdminEmail, normalizeAuthEmail } from "@/lib/auth/superAdmin";
-import { resolveServerRole } from "@/lib/auth/server-role";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
+import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import type { UserRole } from "@/types/database";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
@@ -51,14 +52,12 @@ export async function requireSubsStaffContext(options?: {
   const adminOnly = options?.adminOnly ?? false;
   const skipSiteMembershipCheck = options?.skipSiteMembershipCheck ?? false;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = await resolveServerRole(user);
+  const role = await resolveGptStaffRole(user);
   if (role !== "admin" && role !== "operator") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

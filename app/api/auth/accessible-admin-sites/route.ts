@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
 import { tryCreateAdminClient, tryCreateClient } from "@/lib/supabase/server";
@@ -14,9 +15,7 @@ export async function GET() {
   if (!supabase) {
     return NextResponse.json({ sites: ["gpt-store"] as const });
   }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ sites: ["gpt-store"] as const });
   }

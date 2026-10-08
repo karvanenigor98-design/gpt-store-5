@@ -1,4 +1,5 @@
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/auth/requireAdminPage";
@@ -31,9 +32,7 @@ export default async function AdminUsersPage({
   const offset = (page - 1) * PAGE_SIZE;
 
   const session = await createClient();
-  const {
-    data: { user },
-  } = await session.auth.getUser();
+  const { user } = await readGptCookieUser(session);
 
   type SlimProfile = {
     id: string;

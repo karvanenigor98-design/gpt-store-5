@@ -1,5 +1,6 @@
 ﻿import { createClient, createAdminClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./SettingsForm";
 import { SubsSiteSettingsForm } from "./SubsSiteSettingsForm";
@@ -24,9 +25,7 @@ export default async function AdminSettingsPage({
 
   if (siteSlug === "subs-store") {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await readGptCookieUser(supabase);
     if (!user) {
       redirect("/login");
     }

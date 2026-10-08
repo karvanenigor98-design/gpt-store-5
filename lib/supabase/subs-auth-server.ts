@@ -18,6 +18,7 @@ export async function createSubsAuthServerClient(): Promise<SupabaseClient<Datab
   const cookieStore = await cookies();
   return createServerClient(url, anon, {
     cookieOptions: getAuthCookieOptions(),
+    auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false },
     cookies: {
       getAll() {
         return cookieStore.getAll();

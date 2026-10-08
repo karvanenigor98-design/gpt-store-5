@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { dispatchSiteEmail } from "@/lib/email/dispatch";
 import { buildStaffOrderUrl, buildCustomerOrderUrl } from "@/lib/email/site-urls";
@@ -15,9 +16,7 @@ const TEST_ORDER_ID = "00000000-0000-4000-8000-000000000001";
  */
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

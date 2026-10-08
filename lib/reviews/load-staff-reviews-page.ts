@@ -1,4 +1,5 @@
 import { listAccessibleAdminSiteSlugs } from "@/lib/admin/subs-api-guard";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import {
   loadGptAdminReviews,
@@ -39,9 +40,7 @@ export async function loadStaffReviewsPageData(params: {
 
   if (siteSlug === "subs-store") {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await readGptCookieUser(supabase);
     if (!user) {
       return {
         siteSlug,

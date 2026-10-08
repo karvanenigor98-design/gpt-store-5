@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { gptOrderStatusLabelRu } from "@/lib/admin/gpt-order-status-labels";
@@ -127,9 +128,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Требуется вход" }, { status: 401 });
   }

@@ -327,6 +327,7 @@ export async function middleware(request: NextRequest) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookieOptions: getAuthCookieOptions(),
+          auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false },
           cookies: cookieApi,
         },
       )
@@ -336,6 +337,7 @@ export async function middleware(request: NextRequest) {
     isSubsPublicAuthConfigured() ?
       createServerClient(getSubsPublicSupabaseUrl(), getSubsPublicSupabaseAnonKey(), {
         cookieOptions: getAuthCookieOptions(),
+        auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false },
         cookies: cookieApi,
       })
     : null;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { updateProfileFlexible } from "@/lib/admin/updateProfileFlexible";
 import { isServerAdmin } from "@/lib/auth/server-role";
@@ -16,9 +17,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!(await isServerAdmin(user))) {
     return NextResponse.json({ error: "Только администратор" }, { status: 403 });
   }

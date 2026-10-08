@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { updateProfileFlexible } from "@/lib/admin/updateProfileFlexible";
 import {
@@ -22,9 +23,7 @@ function adminDbForSite(site: "gpt-store" | "subs-store") {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await readGptCookieUser(supabase);
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (!(await isServerAdmin(user))) {

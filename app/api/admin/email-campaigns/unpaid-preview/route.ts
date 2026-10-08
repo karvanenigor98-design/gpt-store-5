@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { previewUnpaidOrderCampaign } from "@/lib/email/unpaid-campaign";
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -9,9 +10,7 @@ export const dynamic = "force-dynamic";
 
 async function requireStaff() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = await resolveServerRole(user);
   if (role !== "admin" && role !== "operator") {

@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { staffPanelHome } from "@/lib/auth/staff-access";
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -35,9 +36,7 @@ export async function resolveDashboardStaffContext(
     return { role: "client", panelHref: null };
   }
 
-  const {
-    data: { user: gptUser },
-  } = await gpt.auth.getUser();
+  const { user: gptUser } = await readGptCookieUser(gpt);
 
   if (!gptUser) {
     return { role: "client", panelHref: null };

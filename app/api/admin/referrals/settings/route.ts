@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { resolveAdminSiteSlug } from "@/lib/admin/siteFilter";
 import { getReferralSettings, referralDbForSite, updateReferralSettings } from "@/lib/referrals/db";
@@ -7,9 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = await resolveServerRole(user);
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -24,9 +23,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = await resolveServerRole(user);
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });

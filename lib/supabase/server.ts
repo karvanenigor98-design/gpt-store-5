@@ -39,6 +39,7 @@ export async function tryCreateClient(): Promise<SupabaseClient<Database> | null
     const cookieStore = await cookies();
     return createServerClient(creds.url, creds.anon, {
       cookieOptions: getAuthCookieOptions(),
+      auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -70,6 +71,7 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
   return createServerClient(creds.url, creds.anon, {
     cookieOptions: getAuthCookieOptions(),
+    auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false },
     cookies: {
       getAll() {
         return cookieStore.getAll();

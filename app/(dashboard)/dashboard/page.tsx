@@ -1,4 +1,5 @@
-﻿import { tryCreateAdminClient } from "@/lib/supabase/server";
+﻿import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
+import { tryCreateAdminClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { DashboardClient } from "./DashboardClient";
 import { getSiteBySlug } from "@/lib/sites";
@@ -32,9 +33,7 @@ export default async function DashboardPage({
   } catch {
     return null;
   }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
 
   if (!user) return null;
 

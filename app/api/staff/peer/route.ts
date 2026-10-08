@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
 import { resolveStaffChatPeer } from "@/lib/auth/staffPeer";
 import { resolveServerRole } from "@/lib/auth/server-role";
@@ -11,9 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
   if (!user) {
     return NextResponse.json({ error: "Требуется вход" }, { status: 401 });
   }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { resolveCustomerSiteSlug } from "@/lib/auth/resolveCustomerSiteSlug";
 
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { TokenSafetyBlock } from "@/components/ui/TokenSafetyBlock";
 import { resolveCabinetServerRole } from "@/lib/auth/server-role";
@@ -40,9 +41,7 @@ export default async function DashboardChatPage({
   const site = getSiteBySlug(siteSlug);
 
   const { browserLike: supabase } = await createSiteSessionClient(siteSlug);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await readGptCookieUser(supabase);
 
   const chatReturnUrl = encodeURIComponent(`/dashboard/chat?site=${siteSlug}`);
   if (!user) {

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect";
@@ -75,9 +76,7 @@ export default async function DashboardLayout({
   const supabase = bundle.browserLike;
   let user;
   try {
-    ({
-      data: { user },
-    } = await supabase.auth.getUser());
+    ({ user } = await readGptCookieUser(supabase));
   } catch {
     redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=auth_session_error`);
   }

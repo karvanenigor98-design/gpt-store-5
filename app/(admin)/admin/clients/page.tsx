@@ -1,10 +1,9 @@
 import Link from "next/link";
+import { loadGptStaffAuth } from "@/lib/auth/staff-access";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createSubsStoreAdminClient } from "@/lib/supabase/subs-store-admin";
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
 import { resolveRoleByEmail } from "@/lib/auth/resolveRole";
-import { resolveServerRole } from "@/lib/auth/server-role";
 import { effectiveRoleFromProfile } from "@/lib/auth/superAdmin";
 import { redirect } from "next/navigation";
 import { MessageCircle } from "lucide-react";
@@ -228,12 +227,9 @@ export default async function AdminClientsPage({
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const supabaseUser = await createClient();
-  const {
-    data: { user },
-  } = await supabaseUser.auth.getUser();
-  const role = await resolveServerRole(user);
-  if (role !== "admin" && role !== "operator") {
+  const auth = await loadGptStaffAuth();
+  const role = auth.role;
+  if (!auth.user || (role !== "admin" && role !== "operator")) {
     redirect("/dashboard");
   }
 
