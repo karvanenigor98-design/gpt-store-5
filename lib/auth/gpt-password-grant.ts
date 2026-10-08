@@ -1,5 +1,4 @@
 import https from "node:https";
-import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
@@ -37,9 +36,6 @@ function postJson(
         },
         timeout: timeoutMs,
         family: 4,
-        lookup: (hostname, options, callback) => {
-          dnsLookup(hostname, { ...options, family: 4, all: false }, callback);
-        },
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -58,57 +54,65 @@ function postJson(
   });
 }
 
-export async function gptPasswordGrant(
+function parseGrantBody(status: number, body: string): PasswordGrantResult {
+  let json: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+    expires_in?: number;
+    user?: User;
+    error?: string;
+    error_description?: string;
+    msg?: string;
+    message?: string;
+  } = {};
+  try {
+    json = JSON.parse(body || "{}") as typeof json;
+  } catch {
+    return { ok: false, status: status || 503, message: "auth_parse" };
+  }
+  if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token || !json.user) {
+    const message =
+      json.error_description || json.msg || json.message || json.error || `auth_${status}`;
+    return { ok: false, status: status || 401, message: String(message) };
+  }
+  const expiresAt =
+    typeof json.expires_at === "number"
+      ? json.expires_at
+      : typeof json.expires_in === "number"
+        ? Math.floor(Date.now() / 1000) + json.expires_in
+        : undefined;
+  return {
+    ok: true,
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    user: json.user,
+    expiresAt,
+  };
+}
+
+async function grantOnce(
   email: string,
   password: string,
-  timeoutMs = 10_000,
+  apiKey: string,
+  timeoutMs: number,
 ): Promise<PasswordGrantResult> {
   const url = getGptPublicSupabaseUrl();
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  if (!url || !anon) {
+  if (!url || !apiKey) {
     return { ok: false, status: 503, message: "Auth не настроен на сервере" };
   }
-
   try {
     const { status, body } = await postJson(
       `${url}/auth/v1/token?grant_type=password`,
       {
-        apikey: anon,
-        Authorization: `Bearer ${anon}`,
+        apikey: apiKey,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       JSON.stringify({ email, password }),
       timeoutMs,
     );
-    const json = JSON.parse(body || "{}") as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_at?: number;
-      expires_in?: number;
-      user?: User;
-      error?: string;
-      error_description?: string;
-      msg?: string;
-      message?: string;
-    };
-    if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token || !json.user) {
-      const message =
-        json.error_description || json.msg || json.message || json.error || `auth_${status}`;
-      return { ok: false, status: status || 401, message: String(message) };
-    }
-    const expiresAt =
-      typeof json.expires_at === "number"
-        ? json.expires_at
-        : typeof json.expires_in === "number"
-          ? Math.floor(Date.now() / 1000) + json.expires_in
-          : undefined;
-    return {
-      ok: true,
-      accessToken: json.access_token,
-      refreshToken: json.refresh_token,
-      user: json.user,
-      expiresAt,
-    };
+    return parseGrantBody(status, body);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "auth_network";
     return {
@@ -117,4 +121,19 @@ export async function gptPasswordGrant(
       message: msg.includes("timeout") ? "timeout" : "auth_network",
     };
   }
+}
+
+export async function gptPasswordGrant(
+  email: string,
+  password: string,
+  timeoutMs = 12_000,
+): Promise<PasswordGrantResult> {
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  const first = await grantOnce(email, password, anon || service, timeoutMs);
+  if (first.ok) return first;
+  if (first.message !== "timeout" && first.message !== "auth_network") return first;
+  const key = service || anon;
+  if (!key) return first;
+  return grantOnce(email, password, key, timeoutMs);
 }
