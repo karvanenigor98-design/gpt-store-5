@@ -7,7 +7,7 @@ import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 
 export const runtime = "nodejs";
 export const preferredRegion = ["fra1"];
-export const maxDuration = 12;
+export const maxDuration = 25;
 
 type Body = {
   email?: string;
@@ -33,11 +33,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const grant = await gptPasswordGrantIpv4(email, password, 8_000);
+  const grant = await gptPasswordGrantIpv4(email, password, 18_000);
   if (!grant.ok) {
+    console.error("gpt-login grant failed", grant.status, grant.message);
     if (grant.message === "timeout" || grant.message === "auth_network") {
       return NextResponse.json(
-        { error: "Сервер входа не ответил. Повторите попытку.", code: "auth_timeout" },
+        {
+          error: "Сервер входа не ответил. Повторите попытку.",
+          code: "auth_timeout",
+          detail: grant.message,
+        },
         { status: 503 },
       );
     }
