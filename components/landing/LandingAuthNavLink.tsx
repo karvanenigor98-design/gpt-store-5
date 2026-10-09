@@ -88,20 +88,25 @@ export function LandingAuthNavLink({
 
   const showCabinet = loggedIn && sessionChecked;
   const label = showCabinet ? "Кабинет" : "Войти";
-  const href = showCabinet ? cabinetHref : loginHref;
+  /** Always /login + returnUrl. Next Link→/dashboard hangs on RSC; full load lets middleware send staff to /admin|/operator. */
+  const href = loginHref;
 
   return (
-    <Link
+    <a
       href={href}
-      prefetch={false}
       className={className}
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.location.assign(href);
+      }}
     >
       <Icon size={14} />
       {label}
-    </Link>
+    </a>
   );
 }
 
@@ -115,14 +120,17 @@ export function LandingAuthNavLinkFallback({
 }: LandingAuthNavLinkProps) {
   const loginHref = buildLandingAuthLoginHref(siteSlug);
   return (
-    <Link
+    <a
       href={loginHref}
-      prefetch={false}
       className={className}
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.assign(loginHref);
+      }}
     >
       <User size={14} />
       Войти
