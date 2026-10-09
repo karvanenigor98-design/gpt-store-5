@@ -66,28 +66,10 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        let anon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
-        if (!anon) {
-          const pubRes = await fetch("/api/auth/gpt-public", {
-            cache: "no-store",
-            signal: AbortSignal.timeout(4_000),
-          });
-          const pub = (await pubRes.json().catch(() => ({}))) as { anon?: string };
-          anon = pub.anon?.trim() ?? "";
-        }
-        if (!anon) {
-          setServerError("Сервер входа не настроен. Обновите страницу и попробуйте снова.");
-          return;
-        }
-
-        const grantRes = await fetch("/__sb-auth/auth/v1/token?grant_type=password", {
+        const grantRes = await fetch("/api/auth/gpt-grant", {
           method: "POST",
-          headers: {
-            apikey: anon,
-            Authorization: `Bearer ${anon}`,
-            "Content-Type": "application/json",
-          },
-          signal: AbortSignal.timeout(8_000),
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(12_000),
           body: JSON.stringify({ email: normalizedEmail, password }),
         });
         const grantJson = (await grantRes.json().catch(() => ({}))) as {
@@ -99,6 +81,7 @@ export function LoginForm() {
           error_description?: string;
           msg?: string;
           error?: string;
+          code?: string;
         };
         if (grantRes.status === 400 || grantRes.status === 401 || grantRes.status === 429) {
           setServerError(
