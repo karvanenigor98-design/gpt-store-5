@@ -14,7 +14,6 @@ import {
   type CustomerOrderView,
 } from "@/lib/dashboard/customer-order-view";
 import { coerceOrderStatus } from "@/lib/dashboard/order-status-tracker";
-import { withTimeout } from "@/lib/with-timeout";
 
 function normalizeEmail(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
@@ -172,10 +171,10 @@ export async function loadCustomerOrdersForUser(params: {
   if (siteSlug === "subs-store") {
     const supabase =
       params.sessionClient ?? (await createSiteSessionClient(siteSlug)).browserLike;
-    return withTimeout(loadSubsCustomerOrders(supabase, userId, userEmail), 4_000, []);
+    return loadSubsCustomerOrders(supabase, userId, userEmail);
   }
 
-  return withTimeout(loadGptCustomerOrders(userId, userEmail), 4_000, []);
+  return loadGptCustomerOrders(userId, userEmail);
 }
 
 export async function loadCustomerOrdersWithFocus(params: {

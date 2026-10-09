@@ -255,51 +255,7 @@ export function useStaffNotifications(params: {
     };
   }, [reload, markingAll]);
 
-  useEffect(() => {
-    const scheduleReload = () => {
-      if (markingAllRef.current) return;
-      debouncedReload();
-    };
-
-    const channels: Array<{ client: unknown; channel: unknown }> = [];
-    if (gptSupabase && accessibleSites.includes("gpt-store")) {
-      try {
-        const gptChannel = gptSupabase
-          .channel(`staff-notifications-gpt-${staffRoot}-${channelSuffix}`)
-          .on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table: "notifications" },
-            scheduleReload,
-          )
-          .subscribe();
-        channels.push({ client: gptSupabase, channel: gptChannel });
-      } catch {
-        /* noop */
-      }
-    }
-    if (subsSupabase && accessibleSites.includes("subs-store")) {
-      try {
-        const subsChannel = subsSupabase
-          .channel(`staff-notifications-subs-${staffRoot}-${channelSuffix}`)
-          .on(
-            "postgres_changes",
-            { event: "INSERT", schema: "public", table: "notifications" },
-            scheduleReload,
-          )
-          .subscribe();
-        channels.push({ client: subsSupabase, channel: subsChannel });
-      } catch {
-        /* noop */
-      }
-    }
-    return () => {
-      debouncedReload.cancel();
-      for (const item of channels) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        void (item.client as any).removeChannel(item.channel as any);
-      }
-    };
-  }, [accessibleSitesKey, gptSupabase, subsSupabase, staffRoot, debouncedReload, channelSuffix]);
+  /* Realtime supabase.co из РФ не используем — poll выше. */
 
   const unread = serverUnread;
 

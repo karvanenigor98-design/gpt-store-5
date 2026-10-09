@@ -57,7 +57,7 @@ export function OperatorSidebar() {
             <Link
               key={`m-${pathOnly}`}
               href={href}
-              prefetch={pathOnly === "/operator/orders" || pathOnly === "/operator/reviews" ? false : undefined}
+              prefetch={false}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
                 isActive ? "font-medium" : "text-gray-600",
@@ -97,7 +97,7 @@ export function OperatorSidebar() {
               <Link
                 key={pathOnly}
                 href={href}
-                prefetch={pathOnly === "/operator/orders" || pathOnly === "/operator/reviews" ? false : undefined}
+                prefetch={false}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive

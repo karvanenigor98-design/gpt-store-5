@@ -90,7 +90,7 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
 }
 
 /** Административный клиент (обходит RLS) — только на сервере. */
-const ADMIN_FETCH_TIMEOUT_MS = 4_000;
+const ADMIN_FETCH_TIMEOUT_MS = 20_000;
 
 function fetchWithTimeout(
   input: RequestInfo | URL,

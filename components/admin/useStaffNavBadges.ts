@@ -1,9 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { tryCreateClient } from "@/lib/supabase/client";
-import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
-import { debounceCallback } from "@/lib/admin/debounce-callback";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getOrdersLastSeenAt } from "@/lib/admin/orders-last-seen";
 import { STAFF_NAV_BADGES_REFRESH } from "@/lib/admin/staff-nav-badges-client";
 
@@ -17,11 +14,9 @@ export type StaffNavBadges = {
 const EMPTY: StaffNavBadges = { notifications: 0, chat: 0, orders: 0, reviews: 0 };
 
 const POLL_MS = 60_000;
-const REALTIME_DEBOUNCE_MS = 800;
 
 export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNavBadges {
   const [badges, setBadges] = useState<StaffNavBadges>(EMPTY);
-  const supabase = useMemo(() => tryCreateClient(), []);
   const inFlightRef = useRef(false);
 
   const reload = useCallback(async () => {
@@ -50,13 +45,6 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
     }
   }, [siteSlug]);
 
-  const debouncedReload = useMemo(
-    () => debounceCallback(() => void reload(), REALTIME_DEBOUNCE_MS),
-    [reload],
-  );
-
-  useEffect(() => () => debouncedReload.cancel(), [debouncedReload]);
-
   useEffect(() => {
     void reload();
     const onRefresh = () => void reload();
@@ -75,49 +63,7 @@ export function useStaffNavBadges(siteSlug: "gpt-store" | "subs-store"): StaffNa
     };
   }, [reload]);
 
-  useEffect(() => {
-    if (siteSlug === "subs-store") {
-      const subs = tryCreateSubsBrowserClient();
-      if (!subs) return;
-
-      // Notifications realtime lives in useStaffNotifications (calls refreshStaffNavBadges).
-      const channel = subs
-        .channel("staff-nav-badges-subs")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "orders" },
-          () => debouncedReload(),
-        )
-        .subscribe();
-
-      return () => {
-        debouncedReload.cancel();
-        void subs.removeChannel(channel);
-      };
-    }
-
-    if (!supabase) return;
-
-    // Notifications channel owned by useStaffNotifications to avoid duplicate subscribers.
-    const channel = supabase
-      .channel(`staff-nav-badges-${siteSlug}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages" },
-        () => debouncedReload(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "orders" },
-        () => debouncedReload(),
-      )
-      .subscribe();
-
-    return () => {
-      debouncedReload.cancel();
-      void supabase.removeChannel(channel);
-    };
-  }, [siteSlug, supabase, debouncedReload]);
+  /* Realtime supabase.co из РФ вешает UI — badges через poll /api. */
 
   return badges;
 }
