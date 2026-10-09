@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { User } from "lucide-react";
 
@@ -69,7 +68,6 @@ export function LandingAuthNavLink({
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [sessionChecked, setSessionChecked] = useState(initialLoggedIn);
 
-  const cabinetHref = cabinetHrefFor(siteSlug);
   const loginHref = buildLandingAuthLoginHref(siteSlug);
 
   const refreshSession = useCallback(async () => {
@@ -134,6 +132,6 @@ export function LandingAuthNavLinkFallback({
     >
       <User size={14} />
       Войти
-    </Link>
+    </a>
   );
 }
