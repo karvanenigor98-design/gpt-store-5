@@ -118,7 +118,7 @@ async function grantViaAuthProxy(email: string, password: string): Promise<Proxy
     pub.anon,
     email,
     password,
-    18_000,
+    35_000,
   );
 }
 
@@ -130,7 +130,7 @@ async function grantViaDirectGoTrue(email: string, password: string): Promise<Pr
     pub.anon,
     email,
     password,
-    15_000,
+    35_000,
   );
 }
 
@@ -141,7 +141,7 @@ async function grantViaBrowser(email: string, password: string): Promise<ProxyGr
     const result = await Promise.race([
       sb.auth.signInWithPassword({ email, password }),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("timeout")), 8_000);
+        setTimeout(() => reject(new Error("timeout")), 35_000);
       }),
     ]);
     if (result.error) {
@@ -184,8 +184,44 @@ async function raceGptGrants(email: string, password: string): Promise<ProxyGran
     window.setTimeout(() => {
       left = 0;
       resolve(rejected ? { rejected: true } : null);
-    }, 20_000);
+    }, 40_000);
   });
+}
+
+async function persistGptSession(
+  grant: Extract<ProxyGrant, { access_token: string }>,
+  returnUrl: string,
+): Promise<{ path?: string; role?: UserRole } | null> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const loginRes = await fetch("/api/auth/gpt-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        signal: AbortSignal.timeout(12_000),
+        body: JSON.stringify({ ...grant, returnUrl }),
+      });
+      const loginBody = (await loginRes.json().catch(() => ({}))) as {
+        path?: string;
+        role?: UserRole;
+      };
+      if (loginRes.ok) {
+        return {
+          path:
+            typeof loginBody.path === "string" && loginBody.path.startsWith("/")
+              ? loginBody.path
+              : undefined,
+          role:
+            loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
+              ? loginBody.role
+              : undefined,
+        };
+      }
+    } catch {
+      /* retry */
+    }
+  }
+  return null;
 }
 
 function detectSite(siteDirect: string, returnUrl: string): "subs-store" | "gpt-store" {
@@ -250,39 +286,22 @@ export function LoginForm() {
         }
 
         if (!grant || !("access_token" in grant)) {
-          setServerError("Сервер входа не ответил. Подождите 5 секунд и нажмите Войти ещё раз.");
+          setServerError(
+            "Сервер входа отвечает 15–25 секунд из РФ. Не закрывайте вкладку и нажмите Войти ещё раз.",
+          );
           return;
         }
 
-        let path: string | undefined;
         let role: UserRole = fastStaffRoleFromEmail(grant.user.email ?? normalizedEmail) ?? "client";
-        try {
-          const loginRes = await fetch("/api/auth/gpt-session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            signal: AbortSignal.timeout(8_000),
-            body: JSON.stringify({ ...grant, returnUrl: effectiveReturnUrl }),
-          });
-          const loginBody = (await loginRes.json().catch(() => ({}))) as {
-            error?: string;
-            path?: string;
-            role?: UserRole;
-          };
-          if (loginRes.ok) {
-            if (loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client") {
-              role = loginBody.role;
-            }
-            if (typeof loginBody.path === "string" && loginBody.path.startsWith("/")) {
-              path = loginBody.path;
-            }
-          }
-        } catch {
-          /* cookies from supabase-js may already be set */
+        const persisted = await persistGptSession(grant, effectiveReturnUrl);
+        if (!persisted) {
+          setServerError("Пароль принят, но cookie сессии не записалась. Нажмите Войти ещё раз.");
+          return;
         }
+        if (persisted.role) role = persisted.role;
 
         document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
-        const target = path ?? resolvePostLoginPath(effectiveReturnUrl, role);
+        const target = persisted.path ?? resolvePostLoginPath(effectiveReturnUrl, role);
         window.location.replace(target);
         return;
       } catch {
@@ -477,7 +496,11 @@ export function LoginForm() {
         style={{ backgroundColor: accentColor, boxShadow: `0 4px 14px ${accentColor}40` }}
       >
         {isSubmitting && <Loader2 size={15} className="animate-spin" />}
-        {checkoutMessage && !isSubsStore ? "Войти и перейти к оплате" : "Войти"}
+        {isSubmitting
+          ? "Входим, подождите до 30 сек…"
+          : checkoutMessage && !isSubsStore
+            ? "Войти и перейти к оплате"
+            : "Войти"}
       </button>
 
       <p className={cn("text-center text-sm", isSubsStore ? "text-gray-400" : "text-gray-500")}>
