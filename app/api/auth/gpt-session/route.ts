@@ -26,7 +26,28 @@ export async function POST(request: NextRequest) {
 
   const access = typeof body.access_token === "string" ? body.access_token : "";
   const refresh = typeof body.refresh_token === "string" ? body.refresh_token : "";
-  const user = body.user;
+  let user = body.user;
+  if ((!user?.id || user.id.length < 8) && access.split(".").length >= 3) {
+    try {
+      const payload = JSON.parse(
+        Buffer.from(access.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
+          "utf8",
+        ),
+      ) as { sub?: string; email?: string };
+      if (payload.sub) {
+        user = {
+          id: payload.sub,
+          email: payload.email || user?.email || "",
+          aud: "authenticated",
+          app_metadata: {},
+          user_metadata: {},
+          created_at: "",
+        } as User;
+      }
+    } catch {
+      /* keep body.user */
+    }
+  }
   if (!access || !refresh || !user?.id || access.split(".").length < 3) {
     return NextResponse.json({ error: "Нет сессии" }, { status: 400 });
   }

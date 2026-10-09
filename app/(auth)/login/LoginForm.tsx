@@ -66,27 +66,66 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const loginRes = await fetch("/api/auth/gpt-login", {
+        const pubRes = await fetch("/api/auth/gpt-public", {
+          cache: "no-store",
+          signal: AbortSignal.timeout(5_000),
+        });
+        const pub = (await pubRes.json().catch(() => ({}))) as { anon?: string };
+        const anon = pub.anon?.trim() ?? "";
+        if (!anon) {
+          setServerError("Сервер входа не настроен. Обновите страницу и попробуйте снова.");
+          return;
+        }
+
+        const grantRes = await fetch("/__sb-auth/auth/v1/token?grant_type=password", {
+          method: "POST",
+          headers: {
+            apikey: anon,
+            Authorization: `Bearer ${anon}`,
+            "Content-Type": "application/json",
+          },
+          signal: AbortSignal.timeout(20_000),
+          body: JSON.stringify({ email: normalizedEmail, password }),
+        });
+        const grantJson = (await grantRes.json().catch(() => ({}))) as {
+          access_token?: string;
+          refresh_token?: string;
+          expires_at?: number;
+          expires_in?: number;
+          user?: { id: string; email?: string | null };
+          error_description?: string;
+          msg?: string;
+          error?: string;
+        };
+        if (grantRes.status === 400 || grantRes.status === 401 || grantRes.status === 429) {
+          setServerError(
+            "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+          );
+          return;
+        }
+        if (!grantRes.ok || !grantJson.access_token || !grantJson.refresh_token) {
+          setServerError("Сервер входа не ответил. Повторите попытку.");
+          return;
+        }
+
+        const sessionRes = await fetch("/api/auth/gpt-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(12_000),
           body: JSON.stringify({
-            email: normalizedEmail,
-            password,
+            ...grantJson,
+            user: grantJson.user ?? { id: "", email: normalizedEmail },
             returnUrl: effectiveReturnUrl,
           }),
         });
-        const loginBody = (await loginRes.json().catch(() => ({}))) as {
+        const loginBody = (await sessionRes.json().catch(() => ({}))) as {
           error?: string;
           path?: string;
           role?: UserRole;
         };
-        if (!loginRes.ok) {
-          setServerError(
-            loginBody.error ??
-              "Не удалось войти. Проверьте email и пароль или восстановите пароль.",
-          );
+        if (!sessionRes.ok) {
+          setServerError(loginBody.error ?? "Не удалось записать сессию. Повторите вход.");
           return;
         }
         document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
