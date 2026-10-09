@@ -55,18 +55,46 @@ async function loadGptPublicAuth(): Promise<{ url: string; anon: string } | null
   }
 }
 
-async function grantViaAuthProxy(email: string, password: string, signal: AbortSignal): Promise<ProxyGrant | null> {
-  const pub = await loadGptPublicAuth();
-  if (!pub) return null;
+function parseGrantResponse(
+  status: number,
+  json: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+    expires_in?: number;
+    user?: { id: string; email?: string | null };
+  },
+  email: string,
+): ProxyGrant | null {
+  if (status === 401 || status === 400 || status === 429) return { rejected: true };
+  if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token) return null;
+  const user = json.user?.id ? json.user : userFromAccessToken(json.access_token, email);
+  if (!user?.id) return null;
+  return {
+    access_token: json.access_token,
+    refresh_token: json.refresh_token,
+    expires_at: json.expires_at,
+    expires_in: json.expires_in,
+    user,
+  };
+}
+
+async function postPasswordGrant(
+  url: string,
+  anon: string,
+  email: string,
+  password: string,
+  timeoutMs: number,
+): Promise<ProxyGrant | null> {
   try {
-    const res = await fetch("/__sb-auth/auth/v1/token?grant_type=password", {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
-        apikey: pub.anon,
-        Authorization: `Bearer ${pub.anon}`,
+        apikey: anon,
+        Authorization: `Bearer ${anon}`,
         "Content-Type": "application/json",
       },
-      signal,
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({ email, password }),
     });
     const json = (await res.json().catch(() => ({}))) as {
@@ -76,20 +104,34 @@ async function grantViaAuthProxy(email: string, password: string, signal: AbortS
       expires_in?: number;
       user?: { id: string; email?: string | null };
     };
-    if (res.status === 401 || res.status === 400 || res.status === 429) return { rejected: true };
-    if (!res.ok || !json.access_token || !json.refresh_token) return null;
-    const user = json.user?.id ? json.user : userFromAccessToken(json.access_token, email);
-    if (!user?.id) return null;
-    return {
-      access_token: json.access_token,
-      refresh_token: json.refresh_token,
-      expires_at: json.expires_at,
-      expires_in: json.expires_in,
-      user,
-    };
+    return parseGrantResponse(res.status, json, email);
   } catch {
     return null;
   }
+}
+
+async function grantViaAuthProxy(email: string, password: string): Promise<ProxyGrant | null> {
+  const pub = await loadGptPublicAuth();
+  if (!pub) return null;
+  return postPasswordGrant(
+    "/__sb-auth/auth/v1/token?grant_type=password",
+    pub.anon,
+    email,
+    password,
+    18_000,
+  );
+}
+
+async function grantViaDirectGoTrue(email: string, password: string): Promise<ProxyGrant | null> {
+  const pub = await loadGptPublicAuth();
+  if (!pub) return null;
+  return postPasswordGrant(
+    `${pub.url}/auth/v1/token?grant_type=password`,
+    pub.anon,
+    email,
+    password,
+    15_000,
+  );
 }
 
 async function grantViaBrowser(email: string, password: string): Promise<ProxyGrant | null> {
@@ -124,16 +166,26 @@ async function grantViaBrowser(email: string, password: string): Promise<ProxyGr
 }
 
 async function raceGptGrants(email: string, password: string): Promise<ProxyGrant | null> {
-  const ctrl = new AbortController();
-  const timer = window.setTimeout(() => ctrl.abort(), 25_000);
-  try {
-    const viaProxy = await grantViaAuthProxy(email, password, ctrl.signal);
-    if (viaProxy && "access_token" in viaProxy) return viaProxy;
-    if (viaProxy && "rejected" in viaProxy) return viaProxy;
-    return grantViaBrowser(email, password);
-  } finally {
-    window.clearTimeout(timer);
-  }
+  return new Promise((resolve) => {
+    let left = 3;
+    let rejected = false;
+    const done = (value: ProxyGrant | null) => {
+      if (value && "access_token" in value) {
+        resolve(value);
+        return;
+      }
+      if (value && "rejected" in value) rejected = true;
+      left -= 1;
+      if (left <= 0) resolve(rejected ? { rejected: true } : null);
+    };
+    void grantViaAuthProxy(email, password).then(done, () => done(null));
+    void grantViaDirectGoTrue(email, password).then(done, () => done(null));
+    void grantViaBrowser(email, password).then(done, () => done(null));
+    window.setTimeout(() => {
+      left = 0;
+      resolve(rejected ? { rejected: true } : null);
+    }, 20_000);
+  });
 }
 
 function detectSite(siteDirect: string, returnUrl: string): "subs-store" | "gpt-store" {
