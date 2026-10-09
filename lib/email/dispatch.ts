@@ -289,6 +289,15 @@ export async function dispatchSiteEmail(params: DispatchEmailParams): Promise<{
   });
 
   if (queued.queued) {
+    // Duplicate of an already-sent outbox row never re-runs the worker — close the new log.
+    if (queued.duplicate && queued.existingStatus === "sent") {
+      await updateLogStatus(logId, "sent");
+      return { sent: true, skipped: false, reason: "outbox_duplicate_already_sent" };
+    }
+    if (queued.duplicate && queued.existingStatus === "skipped") {
+      await updateLogStatus(logId, "skipped", "outbox_duplicate_skipped");
+      return { sent: false, skipped: true, reason: "outbox_duplicate_skipped" };
+    }
     // Worker обновит email_notification_logs; pending остаётся до delivery.
     return { sent: true, skipped: false, reason: queued.duplicate ? "outbox_duplicate" : "outbox_queued" };
   }

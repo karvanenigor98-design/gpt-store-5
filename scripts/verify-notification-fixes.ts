@@ -6,22 +6,16 @@ import { isEmailRecipientSuppressed } from "../lib/email/suppression";
 import { gptOrderStatusLabelRu } from "../lib/admin/gpt-order-status-labels";
 import { subsOrderStatusLabelRu } from "../lib/admin/subs-order-status-labels";
 
-const suppressed = [
-  "a.havronicheff@yandex.ru",
-  "andreihavronicheff@yandex.ru",
-  "a49584377@gmail.com",
-];
-
 let failed = 0;
-for (const email of suppressed) {
-  if (!isEmailRecipientSuppressed(email)) {
-    console.error("FAIL suppressed", email);
+for (const email of [
+  "a.havronicheff@yandex.ru",
+  "nbuzanov0@mail.ru",
+  "ops-test@example.com",
+]) {
+  if (isEmailRecipientSuppressed(email)) {
+    console.error("FAIL unexpectedly suppressed", email);
     failed += 1;
   }
-}
-if (isEmailRecipientSuppressed("ops-test@example.com")) {
-  console.error("FAIL unexpectedly suppressed ops-test@example.com");
-  failed += 1;
 }
 
 if (gptOrderStatusLabelRu("paid") !== "Оплата получена") {

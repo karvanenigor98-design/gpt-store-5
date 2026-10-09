@@ -8,6 +8,7 @@ import {
 type EnqueueResult = {
   queued: boolean;
   duplicate: boolean;
+  existingStatus?: string;
   error?: string;
 };
 
@@ -127,8 +128,31 @@ async function enqueue(
     }
     if (error.code === "23505") {
       // Duplicate still means a row exists — nudge worker in case prior send stalled.
+      let existingStatus: string | undefined;
+      try {
+        const lookup = createAdminClient() as unknown as {
+          from: (table: string) => {
+            select: (cols: string) => {
+              eq: (
+                col: string,
+                val: string,
+              ) => {
+                maybeSingle: () => Promise<{ data: { status?: string } | null }>;
+              };
+            };
+          };
+        };
+        const existing = await lookup
+          .from("notification_outbox")
+          .select("status")
+          .eq("dedupe_key", dedupeKey)
+          .maybeSingle();
+        existingStatus = existing.data?.status;
+      } catch {
+        /* ignore */
+      }
       kickNotificationOutbox(5);
-      return { queued: true, duplicate: true };
+      return { queued: true, duplicate: true, existingStatus };
     }
     return { queued: false, duplicate: false, error: safeError(error.message) };
   } catch (error) {
