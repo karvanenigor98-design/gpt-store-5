@@ -18,10 +18,12 @@ export default function GlobalError({
           {error?.digest ? <p className="text-xs text-gray-400">Код ошибки: {error.digest}</p> : null}
           <button
             type="button"
-            onClick={() => reset()}
+            onClick={() => {
+              window.location.replace("/");
+            }}
             className="rounded-xl bg-[#10a37f] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
-            Обновить
+            На главную
           </button>
         </main>
       </body>

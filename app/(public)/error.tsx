@@ -1,17 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
+
+import { hardOpenHome, reloadOnceForStaleChunk } from "@/lib/chunk-error-reload";
 
 export default function PublicError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   useEffect(() => {
     console.error("[gpt-landing]", error);
+    reloadOnceForStaleChunk(error);
   }, [error]);
 
   return (
@@ -28,14 +29,11 @@ export default function PublicError({
       <div className="flex flex-col items-center gap-3">
         <button
           type="button"
-          onClick={() => reset()}
+          onClick={() => hardOpenHome()}
           className="rounded-xl bg-[#10a37f] px-5 py-2.5 text-sm font-semibold text-white"
         >
-          Повторить
-        </button>
-        <Link href="/" className="text-sm text-[#10a37f] hover:underline">
           На главную
-        </Link>
+        </button>
       </div>
     </div>
   );
