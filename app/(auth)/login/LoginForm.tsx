@@ -66,9 +66,27 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const grantRes = await fetch("/api/auth/gpt-grant", {
+        let anon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+        if (!anon) {
+          const pubRes = await fetch("/api/auth/gpt-public", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(4_000),
+          });
+          const pub = (await pubRes.json().catch(() => ({}))) as { anon?: string };
+          anon = pub.anon?.trim() ?? "";
+        }
+        if (!anon) {
+          setServerError("Сервер входа не настроен. Обновите страницу и попробуйте снова.");
+          return;
+        }
+
+        const grantRes = await fetch("/__sb-auth/auth/v1/token?grant_type=password", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            apikey: anon,
+            Authorization: `Bearer ${anon}`,
+            "Content-Type": "application/json",
+          },
           signal: AbortSignal.timeout(12_000),
           body: JSON.stringify({ email: normalizedEmail, password }),
         });
