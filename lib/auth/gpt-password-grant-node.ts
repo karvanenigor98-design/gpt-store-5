@@ -1,31 +1,118 @@
 import https from "node:https";
-import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
-import { gptPasswordGrant, type PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
+import type { PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
-function postJson(
-  url: string,
-  headers: Record<string, string>,
+/** Cloudflare Anycast for this project — used if DoH fails. RU recursive DNS poisons supabase.co. */
+const FALLBACK_IPV4 = ["104.18.38.10", "172.64.149.246"];
+
+function userFromAccessToken(access: string, email: string): User | null {
+  const parts = access.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const json = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = json + "=".repeat((4 - (json.length % 4)) % 4);
+    const payload = JSON.parse(Buffer.from(pad, "base64").toString("utf8")) as {
+      sub?: string;
+      email?: string;
+    };
+    if (!payload.sub) return null;
+    return {
+      id: payload.sub,
+      email: payload.email || email,
+      aud: "authenticated",
+      app_metadata: {},
+      user_metadata: {},
+      created_at: "",
+    } as User;
+  } catch {
+    return null;
+  }
+}
+
+function parseGrant(status: number, body: string, email: string): PasswordGrantResult {
+  let json: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+    expires_in?: number;
+    user?: User;
+    error?: string;
+    error_description?: string;
+    msg?: string;
+    message?: string;
+  } = {};
+  try {
+    json = JSON.parse(body || "{}") as typeof json;
+  } catch {
+    return { ok: false, status: status || 503, message: "auth_parse" };
+  }
+  const access = json.access_token ?? "";
+  const refresh = json.refresh_token ?? "";
+  const user = json.user?.id ? json.user : userFromAccessToken(access, email);
+  if (status < 200 || status >= 300 || !access || !refresh || !user?.id) {
+    const message =
+      json.error_description || json.msg || json.message || json.error || `auth_${status}`;
+    return { ok: false, status: status || 401, message: String(message) };
+  }
+  const expiresAt =
+    typeof json.expires_at === "number"
+      ? json.expires_at
+      : typeof json.expires_in === "number"
+        ? Math.floor(Date.now() / 1000) + json.expires_in
+        : undefined;
+  return {
+    ok: true,
+    accessToken: access,
+    refreshToken: refresh,
+    user,
+    expiresAt,
+  };
+}
+
+async function resolveGoTrueIpv4(servername: string): Promise<string[]> {
+  try {
+    const res = await fetch(`https://1.1.1.1/dns-query?name=${servername}&type=A`, {
+      headers: { accept: "application/dns-json" },
+      signal: AbortSignal.timeout(2_000),
+    });
+    const json = (await res.json()) as { Answer?: { type: number; data: string }[] };
+    const ips = (json.Answer ?? [])
+      .filter((a) => a.type === 1 && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(a.data))
+      .map((a) => a.data)
+      .filter((ip) => !ip.startsWith("8.47.") && !ip.startsWith("8.6."));
+    if (ips.length) return ips;
+  } catch {
+    /* hardcoded anycast */
+  }
+  return FALLBACK_IPV4;
+}
+
+function postGrantToIp(
+  ip: string,
+  servername: string,
+  apiKey: string,
   body: string,
   timeoutMs: number,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
-    const u = new URL(url);
     const req = https.request(
       {
-        hostname: u.hostname,
-        path: `${u.pathname}${u.search}`,
+        hostname: ip,
+        servername,
+        setHost: false,
+        port: 443,
+        path: "/auth/v1/token?grant_type=password",
         method: "POST",
-        headers: {
-          ...headers,
-          "Content-Length": String(Buffer.byteLength(body)),
-        },
-        timeout: timeoutMs,
         family: 4,
-        lookup: (hostname, _options, callback) => {
-          dnsLookup(hostname, { family: 4, all: false }, callback);
+        timeout: timeoutMs,
+        headers: {
+          Host: servername,
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Content-Length": String(Buffer.byteLength(body)),
         },
       },
       (res) => {
@@ -36,79 +123,44 @@ function postJson(
         });
       },
     );
-    req.on("timeout", () => {
-      req.destroy(new Error("timeout"));
-    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
     req.on("error", reject);
     req.write(body);
     req.end();
   });
 }
 
+/**
+ * Password grant from Vercel Node: DoH → Cloudflare IPv4 + SNI.
+ * Never uses undici fetch to supabase.co (hangs) and never trusts RU DNS.
+ */
 export async function gptPasswordGrantIpv4(
   email: string,
   password: string,
-  timeoutMs = 12_000,
+  timeoutMs = 8_000,
 ): Promise<PasswordGrantResult> {
-  const viaSite = await gptPasswordGrant(email, password, Math.min(6_000, timeoutMs));
-  if (viaSite.ok || viaSite.status === 401 || viaSite.status === 429) return viaSite;
-
-  const url = getGptPublicSupabaseUrl();
+  const base = getGptPublicSupabaseUrl();
   const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  if (!url || !apiKey) {
+  if (!base || !apiKey) {
     return { ok: false, status: 503, message: "Auth не настроен на сервере" };
   }
-  try {
-    const { status, body } = await postJson(
-      `${url}/auth/v1/token?grant_type=password`,
-      {
-        apikey: apiKey,
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      JSON.stringify({ email, password }),
-      timeoutMs,
-    );
-    let json: {
-      access_token?: string;
-      refresh_token?: string;
-      expires_at?: number;
-      expires_in?: number;
-      user?: User;
-      error?: string;
-      error_description?: string;
-      msg?: string;
-      message?: string;
-    } = {};
+  const servername = new URL(base).hostname;
+  const body = JSON.stringify({ email, password });
+  const ips = await resolveGoTrueIpv4(servername);
+  let last: PasswordGrantResult = { ok: false, status: 503, message: "auth_network" };
+  for (const ip of ips.slice(0, 2)) {
     try {
-      json = JSON.parse(body || "{}") as typeof json;
-    } catch {
-      return { ok: false, status: 503, message: "auth_parse" };
+      const { status, body: text } = await postGrantToIp(ip, servername, apiKey, body, timeoutMs);
+      last = parseGrant(status, text, email);
+      if (last.ok || last.status === 401 || last.status === 400 || last.status === 429) return last;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "auth_network";
+      last = {
+        ok: false,
+        status: 503,
+        message: msg.includes("timeout") ? "timeout" : "auth_network",
+      };
     }
-    if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token || !json.user) {
-      const message =
-        json.error_description || json.msg || json.message || json.error || `auth_${status}`;
-      return { ok: false, status: status || 401, message: String(message) };
-    }
-    const expiresAt =
-      typeof json.expires_at === "number"
-        ? json.expires_at
-        : typeof json.expires_in === "number"
-          ? Math.floor(Date.now() / 1000) + json.expires_in
-          : undefined;
-    return {
-      ok: true,
-      accessToken: json.access_token,
-      refreshToken: json.refresh_token,
-      user: json.user,
-      expiresAt,
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "auth_network";
-    return {
-      ok: false,
-      status: 503,
-      message: msg.includes("timeout") ? "timeout" : "auth_network",
-    };
   }
+  return last;
 }

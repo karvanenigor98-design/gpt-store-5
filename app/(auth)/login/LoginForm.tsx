@@ -5,224 +5,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
-import { tryCreateClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
-
-type ProxyGrant =
-  | {
-      access_token: string;
-      refresh_token: string;
-      expires_at?: number;
-      expires_in?: number;
-      user: { id: string; email?: string | null };
-    }
-  | { rejected: true };
-
-function userFromAccessToken(access: string, email: string): { id: string; email: string } | null {
-  const parts = access.split(".");
-  if (parts.length < 2) return null;
-  try {
-    const json = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const pad = json + "=".repeat((4 - (json.length % 4)) % 4);
-    const payload = JSON.parse(atob(pad)) as { sub?: string; email?: string };
-    if (!payload.sub) return null;
-    return { id: payload.sub, email: payload.email || email };
-  } catch {
-    return null;
-  }
-}
-
-async function loadGptPublicAuth(): Promise<{ url: string; anon: string } | null> {
-  const bundledUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
-  const bundledAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  if (bundledUrl && bundledAnon) return { url: bundledUrl.replace(/\/$/, ""), anon: bundledAnon };
-  try {
-    const res = await fetch("/api/auth/gpt-public", { cache: "no-store", signal: AbortSignal.timeout(5_000) });
-    const json = (await res.json().catch(() => ({}))) as { url?: string; anon?: string };
-    const url = (json.url ?? "").replace(/\/$/, "");
-    const anon = json.anon?.trim() ?? "";
-    if (!url || !anon) return null;
-    return { url, anon };
-  } catch {
-    return null;
-  }
-}
-
-function parseGrantResponse(
-  status: number,
-  json: {
-    access_token?: string;
-    refresh_token?: string;
-    expires_at?: number;
-    expires_in?: number;
-    user?: { id: string; email?: string | null };
-  },
-  email: string,
-): ProxyGrant | null {
-  if (status === 401 || status === 400 || status === 429) return { rejected: true };
-  if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token) return null;
-  const user = json.user?.id ? json.user : userFromAccessToken(json.access_token, email);
-  if (!user?.id) return null;
-  return {
-    access_token: json.access_token,
-    refresh_token: json.refresh_token,
-    expires_at: json.expires_at,
-    expires_in: json.expires_in,
-    user,
-  };
-}
-
-async function postPasswordGrant(
-  url: string,
-  anon: string,
-  email: string,
-  password: string,
-  timeoutMs: number,
-): Promise<ProxyGrant | null> {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        apikey: anon,
-        Authorization: `Bearer ${anon}`,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(timeoutMs),
-      body: JSON.stringify({ email, password }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_at?: number;
-      expires_in?: number;
-      user?: { id: string; email?: string | null };
-    };
-    return parseGrantResponse(res.status, json, email);
-  } catch {
-    return null;
-  }
-}
-
-async function grantViaAuthProxy(email: string, password: string): Promise<ProxyGrant | null> {
-  const pub = await loadGptPublicAuth();
-  if (!pub) return null;
-  return postPasswordGrant(
-    "/__sb-auth/auth/v1/token?grant_type=password",
-    pub.anon,
-    email,
-    password,
-    35_000,
-  );
-}
-
-async function grantViaDirectGoTrue(email: string, password: string): Promise<ProxyGrant | null> {
-  const pub = await loadGptPublicAuth();
-  if (!pub) return null;
-  return postPasswordGrant(
-    `${pub.url}/auth/v1/token?grant_type=password`,
-    pub.anon,
-    email,
-    password,
-    35_000,
-  );
-}
-
-async function grantViaBrowser(email: string, password: string): Promise<ProxyGrant | null> {
-  const sb = tryCreateClient();
-  if (!sb) return null;
-  try {
-    const result = await Promise.race([
-      sb.auth.signInWithPassword({ email, password }),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("timeout")), 35_000);
-      }),
-    ]);
-    if (result.error) {
-      const msg = result.error.message || "";
-      if (/invalid|credentials|password|email/i.test(msg)) return { rejected: true };
-      return null;
-    }
-    const session = result.data.session;
-    if (!session?.access_token || !session.refresh_token) return null;
-    const user = session.user?.id ? session.user : userFromAccessToken(session.access_token, email);
-    if (!user?.id) return null;
-    return {
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-      expires_at: session.expires_at,
-      expires_in: session.expires_in,
-      user,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function raceGptGrants(email: string, password: string): Promise<ProxyGrant | null> {
-  return new Promise((resolve) => {
-    let left = 3;
-    let rejected = false;
-    const done = (value: ProxyGrant | null) => {
-      if (value && "access_token" in value) {
-        resolve(value);
-        return;
-      }
-      if (value && "rejected" in value) rejected = true;
-      left -= 1;
-      if (left <= 0) resolve(rejected ? { rejected: true } : null);
-    };
-    void grantViaAuthProxy(email, password).then(done, () => done(null));
-    void grantViaDirectGoTrue(email, password).then(done, () => done(null));
-    void grantViaBrowser(email, password).then(done, () => done(null));
-    window.setTimeout(() => {
-      left = 0;
-      resolve(rejected ? { rejected: true } : null);
-    }, 40_000);
-  });
-}
-
-async function persistGptSession(
-  grant: Extract<ProxyGrant, { access_token: string }>,
-  returnUrl: string,
-): Promise<{ path?: string; role?: UserRole } | null> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const loginRes = await fetch("/api/auth/gpt-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        signal: AbortSignal.timeout(12_000),
-        body: JSON.stringify({ ...grant, returnUrl }),
-      });
-      const loginBody = (await loginRes.json().catch(() => ({}))) as {
-        path?: string;
-        role?: UserRole;
-      };
-      if (loginRes.ok) {
-        return {
-          path:
-            typeof loginBody.path === "string" && loginBody.path.startsWith("/")
-              ? loginBody.path
-              : undefined,
-          role:
-            loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
-              ? loginBody.role
-              : undefined,
-        };
-      }
-    } catch {
-      /* retry */
-    }
-  }
-  return null;
-}
 
 function detectSite(siteDirect: string, returnUrl: string): "subs-store" | "gpt-store" {
   if (siteDirect === "gpt-store") return "gpt-store";
@@ -277,31 +66,38 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        let grant = await raceGptGrants(normalizedEmail, password);
-        if (grant && "rejected" in grant) {
+        const loginRes = await fetch("/api/auth/gpt-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          signal: AbortSignal.timeout(12_000),
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password,
+            returnUrl: effectiveReturnUrl,
+          }),
+        });
+        const loginBody = (await loginRes.json().catch(() => ({}))) as {
+          error?: string;
+          path?: string;
+          role?: UserRole;
+        };
+        if (!loginRes.ok) {
           setServerError(
-            "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+            loginBody.error ??
+              "Не удалось войти. Проверьте email и пароль или восстановите пароль.",
           );
           return;
         }
-
-        if (!grant || !("access_token" in grant)) {
-          setServerError(
-            "Сервер входа отвечает 15–25 секунд из РФ. Не закрывайте вкладку и нажмите Войти ещё раз.",
-          );
-          return;
-        }
-
-        let role: UserRole = fastStaffRoleFromEmail(grant.user.email ?? normalizedEmail) ?? "client";
-        const persisted = await persistGptSession(grant, effectiveReturnUrl);
-        if (!persisted) {
-          setServerError("Пароль принят, но cookie сессии не записалась. Нажмите Войти ещё раз.");
-          return;
-        }
-        if (persisted.role) role = persisted.role;
-
         document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
-        const target = persisted.path ?? resolvePostLoginPath(effectiveReturnUrl, role);
+        const role: UserRole =
+          loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
+            ? loginBody.role
+            : "client";
+        const target =
+          typeof loginBody.path === "string" && loginBody.path.startsWith("/")
+            ? loginBody.path
+            : resolvePostLoginPath(effectiveReturnUrl, role);
         window.location.replace(target);
         return;
       } catch {
@@ -497,7 +293,7 @@ export function LoginForm() {
       >
         {isSubmitting && <Loader2 size={15} className="animate-spin" />}
         {isSubmitting
-          ? "Входим, подождите до 30 сек…"
+          ? "Входим…"
           : checkoutMessage && !isSubsStore
             ? "Войти и перейти к оплате"
             : "Войти"}
