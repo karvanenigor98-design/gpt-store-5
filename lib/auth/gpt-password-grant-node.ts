@@ -71,21 +71,7 @@ function parseGrant(status: number, body: string, email: string): PasswordGrantR
   };
 }
 
-async function resolveGoTrueIpv4(servername: string): Promise<string[]> {
-  try {
-    const res = await fetch(`https://1.1.1.1/dns-query?name=${servername}&type=A`, {
-      headers: { accept: "application/dns-json" },
-      signal: AbortSignal.timeout(2_000),
-    });
-    const json = (await res.json()) as { Answer?: { type: number; data: string }[] };
-    const ips = (json.Answer ?? [])
-      .filter((a) => a.type === 1 && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(a.data))
-      .map((a) => a.data)
-      .filter((ip) => !ip.startsWith("8.47.") && !ip.startsWith("8.6."));
-    if (ips.length) return ips;
-  } catch {
-    /* hardcoded anycast */
-  }
+async function resolveGoTrueIpv4(_servername: string): Promise<string[]> {
   return FALLBACK_IPV4;
 }
 
@@ -147,20 +133,30 @@ export async function gptPasswordGrantIpv4(
   const servername = new URL(base).hostname;
   const body = JSON.stringify({ email, password });
   const ips = await resolveGoTrueIpv4(servername);
-  let last: PasswordGrantResult = { ok: false, status: 503, message: "auth_network" };
-  for (const ip of ips.slice(0, 2)) {
-    try {
-      const { status, body: text } = await postGrantToIp(ip, servername, apiKey, body, timeoutMs);
-      last = parseGrant(status, text, email);
-      if (last.ok || last.status === 401 || last.status === 400 || last.status === 429) return last;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "auth_network";
-      last = {
-        ok: false,
-        status: 503,
-        message: msg.includes("timeout") ? "timeout" : "auth_network",
-      };
+  return await new Promise<PasswordGrantResult>((resolve) => {
+    let pending = Math.min(2, ips.length);
+    let last: PasswordGrantResult = { ok: false, status: 503, message: "auth_network" };
+    const done = (result: PasswordGrantResult) => {
+      last = result;
+      if (result.ok || result.status === 401 || result.status === 400 || result.status === 429) {
+        resolve(result);
+        pending = 0;
+        return;
+      }
+      pending -= 1;
+      if (pending <= 0) resolve(last);
+    };
+    for (const ip of ips.slice(0, 2)) {
+      void postGrantToIp(ip, servername, apiKey, body, timeoutMs)
+        .then(({ status, body: text }) => done(parseGrant(status, text, email)))
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : "auth_network";
+          done({
+            ok: false,
+            status: 503,
+            message: msg.includes("timeout") ? "timeout" : "auth_network",
+          });
+        });
     }
-  }
-  return last;
+  });
 }
