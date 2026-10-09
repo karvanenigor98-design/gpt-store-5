@@ -3,7 +3,8 @@ import type { User } from "@supabase/supabase-js";
 
 import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+export const maxDuration = 10;
 
 type Body = {
   access_token?: string;
