@@ -66,12 +66,15 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        const pubRes = await fetch("/api/auth/gpt-public", {
-          cache: "no-store",
-          signal: AbortSignal.timeout(5_000),
-        });
-        const pub = (await pubRes.json().catch(() => ({}))) as { anon?: string };
-        const anon = pub.anon?.trim() ?? "";
+        let anon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+        if (!anon) {
+          const pubRes = await fetch("/api/auth/gpt-public", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(4_000),
+          });
+          const pub = (await pubRes.json().catch(() => ({}))) as { anon?: string };
+          anon = pub.anon?.trim() ?? "";
+        }
         if (!anon) {
           setServerError("Сервер входа не настроен. Обновите страницу и попробуйте снова.");
           return;
@@ -84,7 +87,7 @@ export function LoginForm() {
             Authorization: `Bearer ${anon}`,
             "Content-Type": "application/json",
           },
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(8_000),
           body: JSON.stringify({ email: normalizedEmail, password }),
         });
         const grantJson = (await grantRes.json().catch(() => ({}))) as {
@@ -112,7 +115,7 @@ export function LoginForm() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          signal: AbortSignal.timeout(12_000),
+          signal: AbortSignal.timeout(8_000),
           body: JSON.stringify({
             ...grantJson,
             user: grantJson.user ?? { id: "", email: normalizedEmail },

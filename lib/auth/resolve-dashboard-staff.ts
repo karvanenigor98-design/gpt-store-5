@@ -1,11 +1,8 @@
 import type { User } from "@supabase/supabase-js";
-import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 
+import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { staffPanelHome } from "@/lib/auth/staff-access";
-import { resolveServerRole } from "@/lib/auth/server-role";
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
-import { syncProfileRoleForUser } from "@/lib/auth/syncProfileRole";
-import { tryCreateClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
 
 export type DashboardStaffContext = {
@@ -13,41 +10,11 @@ export type DashboardStaffContext = {
   panelHref: "/admin" | "/operator" | null;
 };
 
-/**
- * Синхронизирует роль в GPT profiles и возвращает ссылку на staff-панель (если есть).
- * Для subs-store дополнительно проверяет GPT-сессию (админка всегда на GPT Auth).
- */
+/** Роль только из email/env — без profiles/GoTrue на каждый клик по кабинету. */
 export async function resolveDashboardStaffContext(
-  siteSlug: SiteSlug,
+  _siteSlug: SiteSlug,
   sessionUser: User,
 ): Promise<DashboardStaffContext> {
-  if (siteSlug === "gpt-store") {
-    let role: UserRole = "client";
-    try {
-      role = await syncProfileRoleForUser(sessionUser.id, sessionUser.email ?? null);
-    } catch {
-      role = await resolveServerRole(sessionUser);
-    }
-    return { role, panelHref: staffPanelHome(role) };
-  }
-
-  const gpt = await tryCreateClient();
-  if (!gpt) {
-    return { role: "client", panelHref: null };
-  }
-
-  const { user: gptUser } = await readGptCookieUser(gpt);
-
-  if (!gptUser) {
-    return { role: "client", panelHref: null };
-  }
-
-  let role: UserRole = "client";
-  try {
-    role = await syncProfileRoleForUser(gptUser.id, gptUser.email ?? null);
-  } catch {
-    role = await resolveServerRole(gptUser);
-  }
-
+  const role: UserRole = fastStaffRoleFromEmail(sessionUser.email) ?? "client";
   return { role, panelHref: staffPanelHome(role) };
 }

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
+import { readGptAuthUserFromCookies } from "@/lib/auth/read-gpt-jwt-from-cookies";
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect";
@@ -66,17 +67,13 @@ export default async function DashboardLayout({
       : `/dashboard?site=${siteSlug}`;
   const returnUrl = encodeURIComponent(returnPath);
 
-  let bundle;
-  try {
-    bundle = await createSiteSessionClient(siteSlug);
-  } catch {
-    redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=supabase_env_missing`);
-  }
-
-  const supabase = bundle.browserLike;
   let user;
   try {
-    ({ user } = await readGptCookieUser(supabase));
+    ({ user } = await readGptAuthUserFromCookies());
+    if (!user) {
+      const bundle = await createSiteSessionClient(siteSlug);
+      ({ user } = await readGptCookieUser(bundle.browserLike));
+    }
   } catch {
     redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=auth_session_error`);
   }
@@ -85,10 +82,11 @@ export default async function DashboardLayout({
     redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}`);
   }
 
-  // Check site membership: if user has memberships but not for this site, redirect to login
-  const hasAccess = await hasSiteMembership(user.id, user.email, siteSlug);
-  if (!hasAccess) {
-    redirect(`/login?site=${siteSlug}&returnUrl=${returnUrl}&reason=no_membership`);
+  if (siteSlug !== "gpt-store" && siteSlug !== "subs-store") {
+    const hasAccess = await hasSiteMembership(user.id, user.email, siteSlug);
+    if (!hasAccess) {
+      redirect(`/login?site=${siteSlug}&returnUrl=${returnUrl}&reason=no_membership`);
+    }
   }
 
   // Resolve site definition for server-side components (статический импорт — меньше гонок webpack в dev на Windows)

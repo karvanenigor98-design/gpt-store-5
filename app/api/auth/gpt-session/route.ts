@@ -3,9 +3,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
 
-export const runtime = "nodejs";
-export const preferredRegion = ["fra1"];
-export const maxDuration = 15;
+export const runtime = "edge";
 
 type Body = {
   access_token?: string;
@@ -29,11 +27,12 @@ export async function POST(request: NextRequest) {
   let user = body.user;
   if ((!user?.id || user.id.length < 8) && access.split(".").length >= 3) {
     try {
-      const payload = JSON.parse(
-        Buffer.from(access.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
-          "utf8",
-        ),
-      ) as { sub?: string; email?: string };
+      const b64 = access.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const json =
+        typeof atob === "function"
+          ? atob(b64)
+          : Buffer.from(b64, "base64").toString("utf8");
+      const payload = JSON.parse(json) as { sub?: string; email?: string };
       if (payload.sub) {
         user = {
           id: payload.sub,

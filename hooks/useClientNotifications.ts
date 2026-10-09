@@ -6,8 +6,6 @@ import {
   buildClientNotificationHref,
 } from "@/lib/dashboard/client-notification-navigation";
 import { playNotificationPing } from "@/lib/admin/notification-sound";
-import { tryCreateClient } from "@/lib/supabase/client";
-import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 
 export type ClientNotificationItem = {
   id: string;
@@ -95,33 +93,7 @@ export function useClientNotifications(siteSlug: SiteSlug) {
     return () => window.clearInterval(t);
   }, [load]);
 
-  useEffect(() => {
-    const supabase = siteSlug === "subs-store" ? tryCreateSubsBrowserClient() : tryCreateClient();
-    if (!supabase) return;
-
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    try {
-      channel = supabase
-        .channel(`client-notifications-${siteSlug}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications" },
-          () => void load(),
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "notifications" },
-          () => void load(),
-        )
-        .subscribe();
-    } catch {
-      return;
-    }
-
-    return () => {
-      if (channel) void supabase.removeChannel(channel);
-    };
-  }, [siteSlug, load]);
+  /* Realtime на supabase.co из РФ зависает — только poll /api. */
 
   const displayItems = useMemo(
     () => [...items].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),

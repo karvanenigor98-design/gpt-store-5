@@ -47,10 +47,11 @@ export function DashboardNav({ defaultSiteSlug, staffPanelHref }: NavProps) {
   return (
     <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
       {staffPanelHref ? (
-        <Link
-          href={staffPanelHref}
-          className="mb-2 flex items-center gap-2.5 rounded-lg border border-[#10a37f]/40 bg-[#10a37f]/15 px-3 py-2.5 text-sm font-semibold text-[#6ee7b7] transition-colors hover:bg-[#10a37f]/25"
-        >
+          <Link
+            href={staffPanelHref}
+            prefetch={false}
+            className="mb-2 flex items-center gap-2.5 rounded-lg border border-[#10a37f]/40 bg-[#10a37f]/15 px-3 py-2.5 text-sm font-semibold text-[#6ee7b7] transition-colors hover:bg-[#10a37f]/25"
+          >
           <Shield size={16} className="text-[#10a37f]" />
           Админ-панель
         </Link>
@@ -64,6 +65,7 @@ export function DashboardNav({ defaultSiteSlug, staffPanelHref }: NavProps) {
           <Link
             key={item.base}
             href={href}
+            prefetch={false}
             style={isActive ? { color: activeColor, borderLeftColor: activeColor } : undefined}
             className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 border-l-2 ${
               isActive
@@ -129,6 +131,7 @@ export function DashboardMobileNav({ defaultSiteSlug, staffPanelHref }: NavProps
           <Link
             key={item.base}
             href={href}
+            prefetch={false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'flex min-h-[54px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 py-1.5 text-[10px] leading-tight transition-colors',
