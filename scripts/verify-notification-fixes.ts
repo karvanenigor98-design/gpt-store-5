@@ -7,11 +7,13 @@ import { gptOrderStatusLabelRu } from "../lib/admin/gpt-order-status-labels";
 import { subsOrderStatusLabelRu } from "../lib/admin/subs-order-status-labels";
 
 let failed = 0;
-for (const email of [
-  "a.havronicheff@yandex.ru",
-  "nbuzanov0@mail.ru",
-  "ops-test@example.com",
-]) {
+for (const email of ["karvanenigor98@gmail.com", "nbuzanov@mail.ru"]) {
+  if (!isEmailRecipientSuppressed(email)) {
+    console.error("FAIL expected suppressed", email);
+    failed += 1;
+  }
+}
+for (const email of ["a.havronicheff@yandex.ru", "nbuzanov0@mail.ru", "ops-test@example.com"]) {
   if (isEmailRecipientSuppressed(email)) {
     console.error("FAIL unexpectedly suppressed", email);
     failed += 1;

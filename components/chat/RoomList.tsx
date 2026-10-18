@@ -49,7 +49,11 @@ export function RoomList({
       ? `/api/admin/subs-store/chat/rooms?list=1${q}`
       : `/api/chat/rooms?list=1${q}${siteSlug ? `&site=${encodeURIComponent(siteSlug)}` : ""}`;
     try {
-      const res = await fetch(url, { credentials: "include", cache: "no-store" });
+      let res = await fetch(url, { credentials: "include", cache: "no-store" });
+      if (!res.ok) {
+        await new Promise((r) => window.setTimeout(r, 700));
+        res = await fetch(url, { credentials: "include", cache: "no-store" });
+      }
       if (res.ok) {
         const data = (await res.json()) as ChatRoomListItem[];
         setRooms(Array.isArray(data) ? data : []);

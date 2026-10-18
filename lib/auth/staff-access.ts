@@ -60,7 +60,7 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
       throw new StaffAuthUnavailableError("Supabase client unavailable");
     }
     try {
-      const cookieSession = await withTimeout(readGptCookieUser(supabase), 5_000, "staff_session_timeout");
+      const cookieSession = await withTimeout(readGptCookieUser(supabase), 12_000, "staff_session_timeout");
       sessionUser = cookieSession.user;
     } catch {
       sessionUser = null;

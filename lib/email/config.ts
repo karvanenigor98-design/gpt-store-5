@@ -112,7 +112,10 @@ export function hasResendFromReady(): boolean {
   const raw = env("RESEND_FROM_EMAIL");
   if (!raw) return false;
   const emailOnly = extractEmailAddress(raw);
-  return Boolean(emailOnly.includes("@") && !isUnverifiableResendFrom(emailOnly));
+  if (!emailOnly.includes("@") || isUnverifiableResendFrom(emailOnly)) return false;
+  // onboarding@resend.dev is sandbox: only the Resend account owner can receive mail.
+  if (emailOnly.toLowerCase().endsWith("@resend.dev")) return false;
+  return true;
 }
 
 /** From for Resend only — never SMTP_FROM (Mail.ru mailbox). */

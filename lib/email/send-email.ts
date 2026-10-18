@@ -48,6 +48,12 @@ function isTransientSmtpError(message: string): boolean {
   );
 }
 
+function isPermanentUndeliverable(message: string): boolean {
+  return /user is terminated|user not found|invalid mailbox|mailbox unavailable|account disabled|does not exist/i.test(
+    message,
+  );
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -213,6 +219,10 @@ export async function sendTransactionalEmail(
     if (!result.skipped && result.error) {
       errors.push(`${provider}: ${result.error}`);
       console.warn(`[Email] ${provider} failed for ${to.trim()}: ${result.error}`);
+      if (isPermanentUndeliverable(result.error)) {
+        lastEmailError = result.error;
+        return { ok: false, skipped: true, provider: result.provider, error: result.error };
+      }
     }
   }
 
@@ -242,22 +252,11 @@ export async function sendTransactionalEmailMany(
   return Promise.all(unique.map((email) => sendTransactionalEmail(email, subject, text, html)));
 }
 
-/** Уведомить админа об ошибке email (без рекурсии при сбое). */
+/** Ошибки доставки только в лог — не слать сырой SMTP/Resend dump на почту staff. */
 export async function notifyAdminEmailFailure(context: string, detail: string): Promise<void> {
-  const adminEmail = process.env.ADMIN_EMAIL?.trim();
-  if (!adminEmail) return;
-
-  const subject = `⚠️ Ошибка отправки email — ${context}`;
-  const text = `Не удалось отправить email.\n\nКонтекст: ${context}\nДетали: ${detail.slice(0, 500)}\n\nСобытие сохранено в notifications.`;
-
-  for (const provider of providersToTry()) {
-    const from =
-      provider === "smtp" ? resolveSmtpFromAddress() : resolveResendFromAddress();
-    if (provider === "resend" && !from) continue;
-    const result =
-      provider === "smtp"
-        ? await sendViaSmtp(adminEmail, subject, text, undefined, from)
-        : await sendViaResend(adminEmail, subject, text, undefined, from ?? undefined);
-    if (result.ok) return;
-  }
+  console.error(
+    "[Email] delivery failed:",
+    context,
+    detail.slice(0, 300).replace(/password|secret|key/gi, "[redacted]"),
+  );
 }
