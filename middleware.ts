@@ -6,6 +6,7 @@ import {
   isLinkPreviewBot,
 } from "@/lib/brand/spotify-link-preview-html";
 import { requestHasSupabaseAuthCookie } from "@/lib/auth/has-supabase-auth-cookie";
+import { readGptAuthUserFromCookieList } from "@/lib/auth/parse-gpt-auth-cookie";
 import { resolveStaffAwayFromClientCabinet } from "@/lib/auth/staff-cabinet-access";
 import { resolveStaffAuthRedirect } from "@/lib/auth/staff-auth-redirect";
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
@@ -21,7 +22,6 @@ import {
   isSubsPublicAuthConfigured,
 } from "@/lib/supabase/subs-auth-env";
 import { getAuthCookieOptions } from "@/lib/supabase/auth-cookie-options";
-import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 import {
   isGptDevPort,
   isSubsDevPort,
@@ -70,10 +70,6 @@ function maybeRewriteBrandIcon(request: NextRequest): NextResponse | null {
         ? `${base}/icon.svg`
         : `${base}/apple-touch-icon.png`;
   return NextResponse.rewrite(new URL(target, request.url));
-}
-
-function isGptPublicAuthConfigured(): boolean {
-  return Boolean(getGptPublicSupabaseUrl() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
 }
 
 /** Public marketing/checkout pages — no Supabase round-trip on every click. */
@@ -321,19 +317,6 @@ export async function middleware(request: NextRequest) {
     },
   };
 
-  const gptSb =
-    isGptPublicAuthConfigured() ?
-      createServerClient(
-        getGptPublicSupabaseUrl(),
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookieOptions: getAuthCookieOptions(),
-          auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false },
-          cookies: cookieApi,
-        },
-      )
-    : null;
-
   const subsSb =
     isSubsPublicAuthConfigured() ?
       createServerClient(getSubsPublicSupabaseUrl(), getSubsPublicSupabaseAnonKey(), {
@@ -344,10 +327,12 @@ export async function middleware(request: NextRequest) {
     : null;
 
   const staffPath = path.startsWith("/admin") || path.startsWith("/operator");
-  const staffCookiePresent =
-    staffPath &&
+  const gptCookiesPresent =
     requestHasSupabaseAuthCookie(incoming.cookies) &&
     !isSiteUiLoggedOut("gpt-store", incoming.cookies);
+  const gptFromJwt = gptCookiesPresent
+    ? readGptAuthUserFromCookieList(incoming.cookies.getAll())
+    : { user: null as null };
 
   const needsSubsAuth =
     !staffPath &&
@@ -357,10 +342,13 @@ export async function middleware(request: NextRequest) {
       path.startsWith("/cabinet") ||
       cookieSiteEarly === "subs-store");
 
-  const [gptLookup, subsLookup] = await Promise.all([
-    staffCookiePresent
-      ? Promise.resolve({ user: null, timedOut: true } satisfies UserLookup)
-      : getUserWithTimeout(gptSb, AUTH_LOOKUP_MS),
+  const gptLookup: UserLookup = gptFromJwt.user
+    ? { user: gptFromJwt.user, timedOut: false }
+    : gptCookiesPresent
+      ? { user: null, timedOut: true }
+      : { user: null, timedOut: false };
+
+  const [subsLookup] = await Promise.all([
     needsSubsAuth
       ? getUserWithTimeout(subsSb, AUTH_LOOKUP_MS)
       : Promise.resolve({ user: null, timedOut: false } satisfies { user: null; timedOut: boolean }),
@@ -389,13 +377,13 @@ export async function middleware(request: NextRequest) {
 
   applyCurrentSiteCookie(supabaseResponse, path, siteQuery, host, request, cookieSiteEarly, devPort);
 
-  const staffAuthLookupPending =
-    staffPath &&
+  const staffAuthLookupPending = staffPath && gptLookup.timedOut && gptCookiesPresent;
+  const gptAuthLookupPending =
+    (path.startsWith("/dashboard") || path.startsWith("/cabinet")) &&
     gptLookup.timedOut &&
-    requestHasSupabaseAuthCookie(incoming.cookies) &&
-    !isSiteUiLoggedOut("gpt-store", incoming.cookies);
+    gptCookiesPresent;
 
-  if (isProtected && !sessionUiActive && !staffAuthLookupPending) {
+  if (isProtected && !sessionUiActive && !staffAuthLookupPending && !gptAuthLookupPending) {
     const url = request.nextUrl.clone();
     const fullPath = path + (request.nextUrl.search || "");
     const loginSite = resolveAuthSiteContext({

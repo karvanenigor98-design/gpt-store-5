@@ -1,14 +1,11 @@
-import dns from "node:dns";
 import https from "node:https";
-import { lookup as dnsLookup } from "node:dns";
 import type { User } from "@supabase/supabase-js";
 
 import type { PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
-
-const FALLBACK_IPV4 = ["104.18.38.10", "172.64.149.246"];
+const VPS_IP = process.env.GPT_AUTH_VPS_IP?.trim() || "5.129.221.84";
+const SITE_HOST = "gptplus-store.ru";
 
 function userFromAccessToken(access: string, email: string): User | null {
   const parts = access.split(".");
@@ -74,16 +71,15 @@ function parseGrant(status: number, body: string, email: string): PasswordGrantR
   };
 }
 
-function postGrant(
-  opts: {
-    hostname: string;
-    servername: string;
-    apiKey: string;
-    body: string;
-    timeoutMs: number;
-    useIp: boolean;
-  },
-): Promise<{ status: number; body: string }> {
+function postGrant(opts: {
+  hostname: string;
+  servername: string;
+  hostHeader: string;
+  path: string;
+  apiKey: string;
+  body: string;
+  timeoutMs: number;
+}): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
@@ -91,17 +87,13 @@ function postGrant(
         servername: opts.servername,
         setHost: false,
         port: 443,
-        path: "/auth/v1/token?grant_type=password",
+        path: opts.path,
         method: "POST",
         family: 4,
         timeout: opts.timeoutMs,
-        lookup: opts.useIp
-          ? (host, _o, cb) => cb(null, host, 4)
-          : (host, _o, cb) => {
-              dnsLookup(host, { family: 4, all: false }, cb);
-            },
+        lookup: (host, _o, cb) => cb(null, host, 4),
         headers: {
-          Host: opts.servername,
+          Host: opts.hostHeader,
           apikey: opts.apiKey,
           Authorization: `Bearer ${opts.apiKey}`,
           "Content-Type": "application/json",
@@ -123,68 +115,71 @@ function postGrant(
   });
 }
 
-function isUseful(result: PasswordGrantResult): boolean {
-  return result.ok || result.status === 401 || result.status === 400 || result.status === 429;
-}
+const GOTRUE_CF_IPS = ["104.18.38.10", "172.64.149.246"] as const;
 
 /**
- * Password grant from Vercel Node via IPv4 + SNI.
- * RU recursive DNS poisons supabase.co; Vercel fetch/undici to supabase.co often hangs.
+ * Password grant without RU DNS / Vercel rewrite hang:
+ * 1) Cloudflare anycast IPs + SNI supabase.co (from Vercel fra1)
+ * 2) VPS nginx /__sb-auth pin
  */
 export async function gptPasswordGrantIpv4(
   email: string,
   password: string,
-  timeoutMs = 18_000,
+  timeoutMs = 12_000,
 ): Promise<PasswordGrantResult> {
-  const base = getGptPublicSupabaseUrl();
   const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
-  if (!base || !apiKey) {
+  if (!apiKey) {
     return { ok: false, status: 503, message: "auth_network" };
   }
-  const servername = new URL(base).hostname;
   const body = JSON.stringify({ email, password });
+  const gotrueHost = gptGoTrueServername();
+  const perTry = Math.min(4_000, Math.max(2_500, Math.floor(timeoutMs / 3)));
 
-  const targets: { hostname: string; useIp: boolean }[] = [
-    { hostname: servername, useIp: false },
-    ...FALLBACK_IPV4.map((hostname) => ({ hostname, useIp: true })),
-  ];
-
-  return await new Promise<PasswordGrantResult>((resolve) => {
-    let pending = targets.length;
-    let settled = false;
-    let last: PasswordGrantResult = { ok: false, status: 503, message: "auth_network" };
-    const finish = (result: PasswordGrantResult) => {
-      if (settled) return;
-      last = result;
-      if (isUseful(result)) {
-        settled = true;
-        resolve(result);
-        return;
-      }
-      pending -= 1;
-      if (pending <= 0) {
-        settled = true;
-        resolve(last);
-      }
-    };
-    for (const target of targets) {
-      void postGrant({
-        hostname: target.hostname,
-        servername,
+  for (const ip of GOTRUE_CF_IPS) {
+    try {
+      const { status, body: text } = await postGrant({
+        hostname: ip,
+        servername: gotrueHost,
+        hostHeader: gotrueHost,
+        path: "/auth/v1/token?grant_type=password",
         apiKey,
         body,
-        timeoutMs,
-        useIp: target.useIp,
-      })
-        .then(({ status, body: text }) => finish(parseGrant(status, text, email)))
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : "auth_network";
-          finish({
-            ok: false,
-            status: 503,
-            message: /timeout/i.test(msg) ? "timeout" : "auth_network",
-          });
-        });
+        timeoutMs: perTry,
+      });
+      const parsed = parseGrant(status, text, email);
+      if (parsed.ok || parsed.status === 400 || parsed.status === 401 || parsed.status === 429) {
+        return parsed;
+      }
+    } catch {
+      /* next IP / VPS */
     }
-  });
+  }
+
+  try {
+    const { status, body: text } = await postGrant({
+      hostname: VPS_IP,
+      servername: SITE_HOST,
+      hostHeader: SITE_HOST,
+      path: "/__sb-auth/auth/v1/token?grant_type=password",
+      apiKey,
+      body,
+      timeoutMs: Math.max(4_000, timeoutMs - perTry),
+    });
+    return parseGrant(status, text, email);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "auth_network";
+    return {
+      ok: false,
+      status: 503,
+      message: /timeout/i.test(msg) ? "timeout" : "auth_network",
+    };
+  }
+}
+
+export function gptGoTrueServername(): string {
+  try {
+    return new URL(getGptPublicSupabaseUrl()).hostname;
+  } catch {
+    return "cgamktdrqkxnnmnruvvq.supabase.co";
+  }
 }

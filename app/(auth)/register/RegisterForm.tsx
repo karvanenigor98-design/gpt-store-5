@@ -77,15 +77,17 @@ export function RegisterForm() {
   } = useForm<RegisterInput>({ resolver: zodResolver(registerSchema) });
 
   async function clearLocalAuthSessions() {
+    const settle = (p: Promise<unknown>) =>
+      Promise.race([p.catch(() => undefined), new Promise((r) => window.setTimeout(r, 400))]);
     try {
       const primary = isSubsStore ? createSubsBrowserClient() : createClient();
-      await primary.auth.signOut({ scope: "local" }).catch(() => undefined);
+      await settle(primary.auth.signOut({ scope: "local" }));
     } catch {
       /* ignore */
     }
     try {
       const secondary = isSubsStore ? createClient() : createSubsBrowserClient();
-      await secondary.auth.signOut({ scope: "local" }).catch(() => undefined);
+      await settle(secondary.auth.signOut({ scope: "local" }));
     } catch {
       /* ignore */
     }
