@@ -37,13 +37,21 @@ export function applyGptSessionCookies(
 ): void {
   const name = cookieName();
   const expiresAt = session.expiresAt ?? Math.floor(Date.now() / 1000) + 3600;
+  // Не кладём полный GoTrue user (identities/metadata) — иначе cookie не влезает в Яндекс/CF и вход крутит reload.
   const payload = JSON.stringify({
     access_token: session.accessToken,
     refresh_token: session.refreshToken,
     token_type: "bearer",
     expires_in: Math.max(60, expiresAt - Math.floor(Date.now() / 1000)),
     expires_at: expiresAt,
-    user: session.user,
+    user: {
+      id: session.user.id,
+      email: session.user.email ?? null,
+      aud: session.user.aud ?? "authenticated",
+      role: session.user.role ?? "authenticated",
+      app_metadata: {},
+      user_metadata: {},
+    },
   });
   const encoded = `base64-${toBase64Url(payload)}`;
   const opts = {

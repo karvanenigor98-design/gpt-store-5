@@ -34,7 +34,7 @@ function parseSessionJson(raw: string): Record<string, unknown> | null {
   return null;
 }
 
-function userFromAccessToken(access: string): { user: User; expiresAt?: number } | null {
+export function userFromGptAccessToken(access: string): { user: User; expiresAt?: number } | null {
   const parts = access.split(".");
   if (parts.length < 2) return null;
   try {
@@ -83,7 +83,7 @@ function userFromSession(session: Record<string, unknown>): { user: User; expire
 
   const access = typeof session.access_token === "string" ? session.access_token : "";
   if (!access) return null;
-  return userFromAccessToken(access);
+  return userFromGptAccessToken(access);
 }
 
 /** JWT из cookie-списка без сети — middleware и layout. */

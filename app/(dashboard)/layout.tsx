@@ -69,10 +69,11 @@ export default async function DashboardLayout({
 
   let user;
   try {
-    ({ user } = await readGptAuthUserFromCookies());
-    if (!user) {
+    if (siteSlug === "subs-store") {
       const bundle = await createSiteSessionClient(siteSlug);
       ({ user } = await readGptCookieUser(bundle.browserLike));
+    } else {
+      ({ user } = await readGptAuthUserFromCookies());
     }
   } catch {
     redirect(`/login?returnUrl=${returnUrl}&site=${siteSlug}&reason=auth_session_error`);

@@ -7,11 +7,9 @@ import { cookies } from "next/headers";
 import { fastStaffRoleFromEmail } from "@/lib/auth/fast-staff-role";
 import { isSupabaseAuthCookieName } from "@/lib/auth/has-supabase-auth-cookie";
 import { readGptAuthUserFromCookies } from "@/lib/auth/read-gpt-jwt-from-cookies";
-import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { resolveGptStaffRole } from "@/lib/auth/resolve-gpt-staff-role";
 import { StaffAuthUnavailableError } from "@/lib/auth/staff-auth-errors";
 import { staffLoginUrl } from "@/lib/auth/staff-auth-redirect";
-import { tryCreateClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
 
 export type StaffPanel = "admin" | "operator";
@@ -30,44 +28,12 @@ async function gptAuthCookiePresent(): Promise<boolean> {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(label)), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
-}
-
 /**
  * JWT из cookie — без сетевого таймаута. Роль из profiles; таймаут роли
  * при живой сессии не равен «гостю» и не выкидывает на login.
  */
 export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; role: UserRole }> => {
-  const fromJwt = await readGptAuthUserFromCookies();
-  let sessionUser = fromJwt.user;
-
-  if (!sessionUser) {
-    const supabase = await tryCreateClient();
-    if (!supabase) {
-      throw new StaffAuthUnavailableError("Supabase client unavailable");
-    }
-    try {
-      const cookieSession = await withTimeout(readGptCookieUser(supabase), 12_000, "staff_session_timeout");
-      sessionUser = cookieSession.user;
-    } catch {
-      sessionUser = null;
-    }
-  }
-
-  const cookiePresent = await gptAuthCookiePresent();
+  const sessionUser = (await readGptAuthUserFromCookies()).user;
 
   if (sessionUser) {
     const fast = fastStaffRoleFromEmail(sessionUser.email);
@@ -76,7 +42,7 @@ export const loadGptStaffAuth = cache(async (): Promise<{ user: User | null; rol
     return { user: sessionUser, role };
   }
 
-  if (cookiePresent) {
+  if (await gptAuthCookiePresent()) {
     throw new StaffAuthUnavailableError();
   }
 

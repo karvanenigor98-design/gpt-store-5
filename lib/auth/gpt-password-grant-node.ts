@@ -4,9 +4,6 @@ import type { User } from "@supabase/supabase-js";
 import type { PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
-const VPS_IP = process.env.GPT_AUTH_VPS_IP?.trim() || "5.129.221.84";
-const SITE_HOST = "gptplus-store.ru";
-
 function userFromAccessToken(access: string, email: string): User | null {
   const parts = access.split(".");
   if (parts.length < 2) return null;
@@ -117,11 +114,7 @@ function postGrant(opts: {
 
 const GOTRUE_CF_IPS = ["104.18.38.10", "172.64.149.246"] as const;
 
-/**
- * Password grant without RU DNS / Vercel rewrite hang:
- * 1) Cloudflare anycast IPs + SNI supabase.co (from Vercel fra1)
- * 2) VPS nginx /__sb-auth pin
- */
+/** Password grant: Cloudflare anycast IPs + SNI supabase.co. VPS SSL fallback skipped. */
 export async function gptPasswordGrantIpv4(
   email: string,
   password: string,
@@ -133,46 +126,33 @@ export async function gptPasswordGrantIpv4(
   }
   const body = JSON.stringify({ email, password });
   const gotrueHost = gptGoTrueServername();
-  const perTry = Math.min(4_000, Math.max(2_500, Math.floor(timeoutMs / 3)));
+  const perTry = Math.min(3_000, Math.max(2_000, Math.floor(timeoutMs / 2)));
 
-  for (const ip of GOTRUE_CF_IPS) {
-    try {
-      const { status, body: text } = await postGrant({
-        hostname: ip,
-        servername: gotrueHost,
-        hostHeader: gotrueHost,
-        path: "/auth/v1/token?grant_type=password",
-        apiKey,
-        body,
-        timeoutMs: perTry,
-      });
-      const parsed = parseGrant(status, text, email);
-      if (parsed.ok || parsed.status === 400 || parsed.status === 401 || parsed.status === 429) {
-        return parsed;
-      }
-    } catch {
-      /* next IP / VPS */
-    }
-  }
-
-  try {
+  const attempts = GOTRUE_CF_IPS.map(async (ip) => {
     const { status, body: text } = await postGrant({
-      hostname: VPS_IP,
-      servername: SITE_HOST,
-      hostHeader: SITE_HOST,
-      path: "/__sb-auth/auth/v1/token?grant_type=password",
+      hostname: ip,
+      servername: gotrueHost,
+      hostHeader: gotrueHost,
+      path: "/auth/v1/token?grant_type=password",
       apiKey,
       body,
-      timeoutMs: Math.max(4_000, timeoutMs - perTry),
+      timeoutMs: perTry,
     });
     return parseGrant(status, text, email);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "auth_network";
-    return {
-      ok: false,
-      status: 503,
-      message: /timeout/i.test(msg) ? "timeout" : "auth_network",
-    };
+  });
+
+  try {
+    return await Promise.any(
+      attempts.map(async (attempt) => {
+        const parsed = await attempt;
+        if (parsed.ok || parsed.status === 400 || parsed.status === 401 || parsed.status === 429) {
+          return parsed;
+        }
+        throw new Error(parsed.message);
+      }),
+    );
+  } catch {
+    return { ok: false, status: 503, message: "auth_network" };
   }
 }
 
