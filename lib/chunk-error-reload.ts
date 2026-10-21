@@ -16,10 +16,15 @@ export function reloadOnceForStaleChunk(error: unknown): void {
   if (typeof window === "undefined") return;
   if (!isStaleChunkError(error)) return;
   try {
+    if (new URL(window.location.href).searchParams.has("_r")) return;
+  } catch {
+    return;
+  }
+  try {
     if (sessionStorage.getItem("gpt_chunk_reload") === "1") return;
     sessionStorage.setItem("gpt_chunk_reload", "1");
   } catch {
-    /* private mode */
+    /* private mode — URL _r is the loop breaker */
   }
   window.location.replace(cacheBustCurrentUrl());
 }

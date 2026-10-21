@@ -19,12 +19,11 @@ export const CSS_LOAD_GUARD_SCRIPT = `
     d.remove();
     return ok;
   }
-  function sheetsOk(){
-    var links=document.querySelectorAll('link[rel="stylesheet"][href*="_next/static/css"]');
-    if(!links.length) return hiddenWorks();
-    for(var i=0;i<links.length;i++){
-      if(links[i].sheet) return true;
-    }
+  function alreadyTried(){
+    try{
+      if(new URL(location.href).searchParams.has("_css")) return true;
+    }catch(e){}
+    try{return sessionStorage.getItem(KEY)==="1";}catch(e){}
     return false;
   }
   function showBanner(){
@@ -48,25 +47,21 @@ export const CSS_LOAD_GUARD_SCRIPT = `
     }catch(e){}
   }
   function run(){
-    if(sheetsOk() && hiddenWorks()){
+    if(hiddenWorks()){
       try{sessionStorage.removeItem(KEY);}catch(e){}
       stripBust();
       return;
     }
-    var tried=false;
-    try{tried=sessionStorage.getItem(KEY)==="1";}catch(e){}
-    if(!tried){
-      try{sessionStorage.setItem(KEY,"1");}catch(e){}
-      try{
-        var u=new URL(location.href);
-        u.searchParams.set("_css", String(Date.now()));
-        location.replace(u.toString());
-      }catch(e){
-        location.reload();
-      }
+    if(alreadyTried()){
+      showBanner();
       return;
     }
-    showBanner();
+    try{sessionStorage.setItem(KEY,"1");}catch(e){}
+    try{
+      var u=new URL(location.href);
+      u.searchParams.set("_css","1");
+      location.replace(u.pathname+u.search+u.hash);
+    }catch(e){}
   }
   if(document.readyState==="complete") run();
   else window.addEventListener("load", run);
