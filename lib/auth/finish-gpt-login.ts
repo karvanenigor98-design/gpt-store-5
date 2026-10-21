@@ -14,6 +14,8 @@ export function finishGptLoginResponse(input: {
   user: User;
   expiresAt?: number;
   returnUrl: string;
+  origin?: string;
+  redirect?: boolean;
 }): NextResponse {
   const rawReturn = input.returnUrl || "/cabinet";
   const returnUrl =
@@ -23,7 +25,10 @@ export function finishGptLoginResponse(input: {
   const role: UserRole = fastStaffRoleFromEmail(input.user.email) ?? "client";
 
   const path = resolvePostLoginPath(effectiveReturnUrl, role);
-  const res = NextResponse.json({ ok: true, path, role });
+  const origin = (input.origin || "https://gptplus-store.ru").replace(/\/$/, "");
+  const res = input.redirect
+    ? NextResponse.redirect(new URL(path, origin), 303)
+    : NextResponse.json({ ok: true, path, role });
   applyGptSessionCookies(res, {
     accessToken: input.accessToken,
     refreshToken: input.refreshToken,

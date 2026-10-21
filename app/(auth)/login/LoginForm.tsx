@@ -46,6 +46,7 @@ export function LoginForm() {
     : "focus:ring-[#10a37f]/30 focus:border-[#10a37f]";
 
   const [showPass, setShowPass] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const authError = searchParams.get("error");
@@ -65,53 +66,6 @@ export function LoginForm() {
     const password = data.password;
 
     if (!isSubsStore) {
-      try {
-        const loginRes = await fetch("/api/auth/gpt-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          signal:
-            typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-              ? AbortSignal.timeout(10_000)
-              : undefined,
-          body: JSON.stringify({
-            email: normalizedEmail,
-            password,
-            returnUrl: effectiveReturnUrl,
-          }),
-        });
-
-        const loginBody = (await loginRes.json().catch(() => ({}))) as {
-          error?: string;
-          path?: string;
-          role?: UserRole;
-          code?: string;
-        };
-        if (loginRes.status === 400 || loginRes.status === 401 || loginRes.status === 429) {
-          setServerError(
-            loginBody.error ??
-              "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
-          );
-          return;
-        }
-        if (!loginRes.ok) {
-          setServerError(loginBody.error ?? "Сервер входа не ответил. Повторите попытку.");
-          return;
-        }
-        document.cookie = "current_site=gpt-store; path=/; max-age=2592000; samesite=lax";
-        const role: UserRole =
-          loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
-            ? loginBody.role
-            : "client";
-        const target =
-          typeof loginBody.path === "string" && loginBody.path.startsWith("/")
-            ? loginBody.path
-            : resolvePostLoginPath(effectiveReturnUrl, role);
-        window.location.replace(target);
-        return;
-      } catch {
-        setServerError("Сервер временно недоступен. Обновите страницу (Ctrl+F5) и попробуйте снова.");
-      }
       return;
     }
 
@@ -180,6 +134,20 @@ export function LoginForm() {
 
   useEffect(() => {
     if (!authError) return;
+    if (authError === "invalid") {
+      setServerError(
+        "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+      );
+      return;
+    }
+    if (authError === "timeout") {
+      setServerError("Сервер входа не ответил. Повторите попытку.");
+      return;
+    }
+    if (authError === "rate") {
+      setServerError("Слишком много попыток. Подождите минуту и войдите снова.");
+      return;
+    }
     setServerError("Не удалось выполнить вход. Попробуйте еще раз.");
   }, [authError]);
 
@@ -206,7 +174,18 @@ export function LoginForm() {
   const registerHref = `/register?site=${siteSlug}&returnUrl=${encodeURIComponent(effectiveReturnUrl)}`;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+    <form
+      method="post"
+      action={isSubsStore ? undefined : "/api/auth/gpt-login"}
+      onSubmit={
+        isSubsStore
+          ? handleSubmit(onSubmit, onInvalid)
+          : () => {
+              setBusy(true);
+            }
+      }
+      className="space-y-4"
+    >
       {checkoutMessage ? (
         <p
           className="rounded-lg border px-3 py-2 text-sm"
@@ -223,8 +202,11 @@ export function LoginForm() {
         <label className={labelClass}>Email</label>
         <input
           type="email"
+          name="email"
           autoComplete="email"
-          {...register("email")}
+          required
+          defaultValue={initialEmail}
+          {...(isSubsStore ? register("email") : null)}
           className={inputClass(!!errors.email)}
           placeholder="you@example.com"
         />
@@ -247,10 +229,16 @@ export function LoginForm() {
           </a>
         </div>
         <div className="relative">
+          {!isSubsStore ? (
+            <input type="hidden" name="returnUrl" value={effectiveReturnUrl} />
+          ) : null}
           <input
             type={showPass ? "text" : "password"}
+            name="password"
             autoComplete="current-password"
-            {...register("password")}
+            required
+            minLength={6}
+            {...(isSubsStore ? register("password") : null)}
             className={cn(inputClass(!!errors.password), "pr-10")}
             placeholder="••••••••"
           />
@@ -296,12 +284,12 @@ export function LoginForm() {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || busy}
         className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
         style={{ backgroundColor: accentColor, boxShadow: `0 4px 14px ${accentColor}40` }}
       >
-        {isSubmitting && <Loader2 size={15} className="animate-spin" />}
-        {isSubmitting
+        {(isSubmitting || busy) && <Loader2 size={15} className="animate-spin" />}
+        {isSubmitting || busy}
           ? "Входим…"
           : checkoutMessage && !isSubsStore
             ? "Войти и перейти к оплате"
