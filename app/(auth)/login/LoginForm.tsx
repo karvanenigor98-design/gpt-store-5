@@ -10,7 +10,6 @@ import { loginSchema, type LoginInput } from "@/lib/validations";
 import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
-import { gptBrowserPasswordGrant } from "@/lib/auth/gpt-browser-password-grant";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
@@ -67,50 +66,20 @@ export function LoginForm() {
 
     if (!isSubsStore) {
       try {
-        let loginRes: Response | null = null;
-        try {
-          const browserGrant = await gptBrowserPasswordGrant(normalizedEmail, password);
-          if (browserGrant) {
-            loginRes = await fetch("/api/auth/gpt-session", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                access_token: browserGrant.access_token,
-                refresh_token: browserGrant.refresh_token,
-                expires_at: browserGrant.expires_at,
-                returnUrl: effectiveReturnUrl,
-              }),
-            });
-          }
-        } catch (err) {
-          if (err && typeof err === "object" && "status" in err) {
-            const status = Number((err as { status?: number }).status);
-            if (status === 400 || status === 401 || status === 429) {
-              setServerError(
-                "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
-              );
-              return;
-            }
-          }
-        }
-
-        if (!loginRes) {
-          loginRes = await fetch("/api/auth/gpt-login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            signal:
-              typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
-                ? AbortSignal.timeout(12_000)
-                : undefined,
-            body: JSON.stringify({
-              email: normalizedEmail,
-              password,
-              returnUrl: effectiveReturnUrl,
-            }),
-          });
-        }
+        const loginRes = await fetch("/api/auth/gpt-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          signal:
+            typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+              ? AbortSignal.timeout(10_000)
+              : undefined,
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password,
+            returnUrl: effectiveReturnUrl,
+          }),
+        });
 
         const loginBody = (await loginRes.json().catch(() => ({}))) as {
           error?: string;

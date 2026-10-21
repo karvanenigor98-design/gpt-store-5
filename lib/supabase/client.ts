@@ -12,30 +12,6 @@ function gptBrowserCredentials(): { url: string; anon: string } | null {
   return { url, anon };
 }
 
-function gptBrowserFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (typeof window === "undefined") return fetch(input, init);
-  try {
-    const raw =
-      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-    const target = new URL(raw, window.location.origin);
-    const sb = getGptPublicSupabaseUrl();
-    if (sb) {
-      const sbHost = new URL(sb).hostname;
-      const sameHost = target.hostname === sbHost;
-      const proxiedPath =
-        target.pathname.startsWith("/auth/") || target.pathname.startsWith("/rest/");
-      if (sameHost && proxiedPath) {
-        const proxied = `${window.location.origin}/__sb-auth${target.pathname}${target.search}`;
-        if (typeof input === "string" || input instanceof URL) return fetch(proxied, init);
-        return fetch(new Request(proxied, input), init);
-      }
-    }
-  } catch {
-    /* same-origin fallback ниже */
-  }
-  return fetch(input, init);
-}
-
 function browserClientOptions() {
   return {
     cookieOptions: getAuthCookieOptions(),
@@ -43,9 +19,6 @@ function browserClientOptions() {
       persistSession: true,
       autoRefreshToken: false,
       detectSessionInUrl: false,
-    },
-    global: {
-      fetch: gptBrowserFetch,
     },
   } as const;
 }
