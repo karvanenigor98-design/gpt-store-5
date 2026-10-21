@@ -20,6 +20,7 @@ const unbounded = Unbounded({
   variable: "--font-unbounded",
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
+  preload: false,
 });
 
 const golos = Golos_Text({
@@ -27,6 +28,7 @@ const golos = Golos_Text({
   variable: "--font-golos",
   weight: ["400", "500", "600", "700"],
   display: "swap",
+  preload: false,
 });
 
 const GPT_TITLE = "GPT STORE";
@@ -72,10 +74,6 @@ export default function RootLayout({
     >
       <head>
         <style dangerouslySetInnerHTML={{ __html: CSS_LOAD_GUARD_STYLE }} />
-        <link
-          rel="stylesheet"
-          href={`/gpt-app.css?v=${process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) || "2"}`}
-        />
         <script dangerouslySetInnerHTML={{ __html: CSS_LOAD_GUARD_SCRIPT }} />
         <GptStoreYandexMetrikaHead />
         <SubsStoreYandexMetrikaHead />

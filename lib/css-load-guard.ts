@@ -28,8 +28,11 @@ html,body{margin:0;background:#e9f8f2;color:#111827;font-family:system-ui,-apple
 @media (min-width:1024px){#gpt-landing #hero .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}#gpt-landing #plans .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}}
 `.trim();
 
+const CSS_FALLBACK_HREF = `/gpt-app.css?v=${process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) || "2"}`;
+
 export const CSS_LOAD_GUARD_SCRIPT = `
 (function(){
+  var FALLBACK=${JSON.stringify(CSS_FALLBACK_HREF)};
   function hiddenWorks(){
     var d=document.createElement("div");
     d.className="css-asset-ok";
@@ -49,10 +52,20 @@ export const CSS_LOAD_GUARD_SCRIPT = `
       btn.addEventListener("click",function(){ location.reload(); });
     }
   }
-  function run(){
-    if(!hiddenWorks()) showBanner();
+  function injectFallback(){
+    if(document.querySelector("link[data-gpt-app]")) return;
+    var l=document.createElement("link");
+    l.rel="stylesheet";
+    l.href=FALLBACK;
+    l.setAttribute("data-gpt-app","1");
+    document.head.appendChild(l);
   }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 1600); });
-  else setTimeout(run, 1600);
+  function run(){
+    if(hiddenWorks()) return;
+    injectFallback();
+    setTimeout(function(){ if(!hiddenWorks()) showBanner(); }, 1200);
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 400); });
+  else setTimeout(run, 400);
 })();
 `.trim();
