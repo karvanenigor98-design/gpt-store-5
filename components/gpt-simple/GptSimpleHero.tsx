@@ -36,7 +36,7 @@ function CheckDot() {
 
 function ChatGptCube() {
   return (
-    <div className="relative h-[7.25rem] w-[7.25rem] shrink-0">
+    <div className="relative h-[7.25rem] w-[7.25rem] shrink-0" style={{ width: 116, height: 116 }}>
       <span
         className="absolute -right-1 top-2 h-3 w-3 rotate-45 bg-[#10a37f]/70"
         aria-hidden
@@ -51,7 +51,14 @@ function ChatGptCube() {
           background: "linear-gradient(145deg, #5ee0b4 0%, #10a37f 52%, #0b7d61 100%)",
         }}
       >
-        <svg viewBox="0 0 2406 2406" className="h-16 w-16 text-white" aria-hidden>
+        <svg
+          viewBox="0 0 2406 2406"
+          width={64}
+          height={64}
+          className="h-16 w-16 text-white"
+          style={{ width: 64, height: 64, color: "#fff" }}
+          aria-hidden
+        >
           <path
             id="gpt-blade"
             d="M1107.3 299.1c-197.999 0-373.9 127.3-435.2 315.3L650 743.5v427.9c0 21.4 11 40.4 29.4 51.4l344.5 198.515V833.3h.1v-27.9L1372.7 604c33.715-19.52 70.44-32.857 108.47-39.828L1447.6 450.3C1361 353.5 1237.1 298.5 1107.3 299.1zm0 117.5-.6.6c79.699 0 156.3 27.5 217.6 78.4-2.5 1.2-7.4 4.3-11 6.1L952.8 709.3c-18.4 10.4-29.4 30-29.4 51.4V1248l-155.1-89.4V755.8c-.1-187.099 151.601-338.9 339-339.2z"

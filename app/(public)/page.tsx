@@ -34,7 +34,7 @@ export default function HomePage() {
   const reviews = getStaticGptLandingReviews(12);
 
   return (
-    <div className="relative min-h-screen bg-[#e9f8f2]">
+    <div id="gpt-landing" className="relative min-h-screen bg-[#e9f8f2]">
       <GptSimpleNav />
       <main className="relative z-[1] overflow-x-hidden pb-20 pt-14 md:pb-8">
         <GptSimpleHero />

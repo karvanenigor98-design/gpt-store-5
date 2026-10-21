@@ -82,7 +82,7 @@ export function AuthChrome({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-transparent">
+    <div id="gpt-auth" className="flex min-h-screen flex-col bg-transparent">
       <header className="flex h-14 items-center border-b border-black/[0.08] bg-white/75 px-6 backdrop-blur-md">
         <Link
           href="/"
