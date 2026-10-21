@@ -289,7 +289,7 @@ export function LoginForm() {
         style={{ backgroundColor: accentColor, boxShadow: `0 4px 14px ${accentColor}40` }}
       >
         {(isSubmitting || busy) && <Loader2 size={15} className="animate-spin" />}
-        {isSubmitting || busy}
+        {isSubmitting || busy
           ? "Входим…"
           : checkoutMessage && !isSubsStore
             ? "Войти и перейти к оплате"
