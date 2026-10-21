@@ -51,6 +51,17 @@ const nextConfig = {
       { source: "/cabinet/:path*", headers: noStore },
       { source: "/login", headers: noStore },
       { source: "/register", headers: noStore },
+      { source: "/admin", headers: noStore },
+      { source: "/admin/:path*", headers: noStore },
+      { source: "/operator", headers: noStore },
+      { source: "/operator/:path*", headers: noStore },
+      {
+        source: "/gpt-app.css",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=300, stale-while-revalidate=86400" },
+          { key: "Content-Type", value: "text/css; charset=utf-8" },
+        ],
+      },
     ];
   },
   // /__sb-auth только в vercel.json — Next rewrite проксирует через Node и зависает на supabase.co.

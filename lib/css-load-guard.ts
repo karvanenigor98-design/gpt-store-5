@@ -19,6 +19,13 @@ html,body{margin:0;background:#e9f8f2;color:#111827;font-family:system-ui,-apple
 #gpt-auth footer{text-align:center;color:#6b7280;padding:16px;font-size:12px}
 #gpt-auth input{width:100%;box-sizing:border-box;border:1px solid rgba(0,0,0,.14);border-radius:12px;padding:10px 12px;font-size:14px}
 #gpt-auth button[type=submit]{width:100%;background:#10a37f;color:#fff;border:0;border-radius:12px;padding:12px;font-weight:600;font-size:14px}
+#gpt-landing article{background:#fff;border-radius:1.75rem;padding:1.5rem;box-shadow:0 12px 40px rgba(16,163,127,.08);margin:0 0 1rem}
+#gpt-landing ul{list-style:none;padding:0;margin:1rem 0}
+#gpt-landing li{display:flex;align-items:center;gap:.75rem;margin:.45rem 0;color:#6b7280}
+#gpt-landing a[href="#plans"]{display:inline-flex;align-items:center;gap:.5rem;background:#10a37f;color:#fff!important;border-radius:999px;padding:.85rem 2rem;font-weight:600;text-decoration:none;margin-top:1rem}
+#gpt-landing #plans article{border:1px solid rgba(0,0,0,.08);border-radius:1rem;padding:1rem}
+#gpt-landing button,#gpt-landing a[href*="checkout"],#gpt-landing a[href*="login"]{border-radius:.75rem}
+@media (min-width:1024px){#gpt-landing #hero .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}#gpt-landing #plans .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}}
 `.trim();
 
 export const CSS_LOAD_GUARD_SCRIPT = `
@@ -45,7 +52,7 @@ export const CSS_LOAD_GUARD_SCRIPT = `
   function run(){
     if(!hiddenWorks()) showBanner();
   }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 400); });
-  else setTimeout(run, 400);
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(run, 1600); });
+  else setTimeout(run, 1600);
 })();
 `.trim();
