@@ -23,6 +23,7 @@ export default async function RegisterPage({
           siteDirect,
           returnUrl,
           port: resolvePortFromHeaders(h),
+          hostname: (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0]?.trim().split(":")[0] ?? "",
           pathname: "/register",
         });
   const isSubsStore = authSite === "subs-store";

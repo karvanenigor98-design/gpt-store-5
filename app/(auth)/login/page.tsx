@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { resolveAuthSiteContext } from "@/lib/auth/devStoreProfile";
 import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
@@ -15,10 +16,13 @@ export default function LoginPage({
 }) {
   const returnUrl = searchParams.returnUrl ?? "";
   const siteDirect = searchParams.site ?? "";
+  const host = headers().get("x-forwarded-host") ?? headers().get("host") ?? "";
+  const hostname = host.split(",")[0]?.trim().split(":")[0] ?? "";
   const authSite = resolveAuthSiteContext({
     siteDirect,
     returnUrl,
     port: null,
+    hostname,
     pathname: "/login",
   });
   const isSubsStore = authSite === "subs-store";

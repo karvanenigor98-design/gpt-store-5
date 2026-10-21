@@ -19,11 +19,13 @@ export default function GlobalError({
           <button
             type="button"
             onClick={() => {
-              window.location.replace("/");
+              const url = new URL(window.location.href);
+              url.searchParams.set("_r", String(Date.now()));
+              window.location.replace(url.pathname + url.search + url.hash);
             }}
             className="rounded-xl bg-[#10a37f] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
-            На главную
+            Обновить страницу
           </button>
         </main>
       </body>

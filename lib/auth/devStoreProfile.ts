@@ -1,5 +1,15 @@
 import type { SiteSlug } from "@/lib/auth/siteUiSession";
 
+function isGptHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return h === "gptplus-store.ru" || h === "www.gptplus-store.ru";
+}
+
+function isSpotifyHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return h === "spotify-store.ru" || h === "www.spotify-store.ru";
+}
+
 export type DevStoreProfile = SiteSlug;
 
 /** Профиль dev-сервера из `DEV_STORE_PROFILE` (задаётся в run-next-dev-*-port.js). */
@@ -61,11 +71,13 @@ export function resolveAuthSiteContext(params: {
   cookieSite?: string | null;
   port?: string | null;
   pathname?: string;
+  hostname?: string | null;
   /** true на /callback?type=recovery — не выводить site из returnUrl=/spotify */
   recoveryFlow?: boolean;
 }): DevStoreProfile {
   const port = params.port ?? null;
   const pathname = params.pathname ?? "";
+  const hostname = params.hostname?.trim().toLowerCase() ?? "";
 
   const siteDirect = params.siteDirect?.trim() ?? "";
   if (siteDirect === "subs-store" || siteDirect === "gpt-store") {
@@ -74,6 +86,11 @@ export function resolveAuthSiteContext(params: {
 
   if (isGptDevPort(port)) return "gpt-store";
   if (isSubsDevPort(port)) return "subs-store";
+
+  // Production hosts: cookie from the other store must not flip login chrome
+  // (that hydrates GPT HTML as Spotify and blows the page).
+  if (hostname && isGptHost(hostname)) return "gpt-store";
+  if (hostname && isSpotifyHost(hostname)) return "subs-store";
 
   if (pathname.startsWith("/spotify") || pathname.startsWith("/checkout/spotify")) {
     return "subs-store";

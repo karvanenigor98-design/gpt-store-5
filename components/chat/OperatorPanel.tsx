@@ -280,8 +280,8 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 bg-white">
-            <div className="min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {selectedRoom && resolving && (
                 <div className="flex h-full items-center justify-center gap-2 text-sm text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -317,6 +317,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
                 </div>
               )}
               {selectedRoom && sessionId && !resolving && !resolveError && (
+                <div className="min-h-0 flex-1">
                 <ChatWindow
                   key={sessionId}
                   currentUser={currentUser}
@@ -332,6 +333,7 @@ export function OperatorPanel({ currentUser, siteSlug }: OperatorPanelProps) {
                     setSidebarRefreshTick((n) => n + 1);
                   }}
                 />
+                </div>
               )}
               {!selectedRoom && (
                 <div className="flex h-full flex-col items-center justify-center gap-3 text-gray-400">

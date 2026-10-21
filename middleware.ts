@@ -181,6 +181,7 @@ function applyCurrentSiteCookie(
     cookieSite: cookieSiteEarly,
     port: devPort,
     pathname: path,
+    hostname: request.nextUrl.hostname,
   });
 
   if (inferredSite) {
@@ -392,6 +393,7 @@ export async function middleware(request: NextRequest) {
       cookieSite: cookieSiteEarly,
       port: devPort,
       pathname: path,
+      hostname: request.nextUrl.hostname,
     });
     url.pathname = "/login";
     url.search = "";
@@ -407,6 +409,7 @@ export async function middleware(request: NextRequest) {
       cookieSite: cookieSiteEarly,
       port: devPort,
       pathname: path,
+      hostname: request.nextUrl.hostname,
     });
 
     const loggedInForThisSheet =

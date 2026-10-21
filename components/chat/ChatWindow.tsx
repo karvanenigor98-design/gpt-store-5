@@ -104,7 +104,12 @@ export function ChatWindow({
   }, []);
 
   const scrollToBottom = useCallback((smooth = true) => {
-    bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+    const el = messagesContainerRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "nearest" });
   }, []);
 
   const isNearBottom = useCallback(() => {
@@ -185,30 +190,49 @@ export function ChatWindow({
     const hasNewMessage = lastMessageId !== null && lastMessageId !== lastSeenMessageIdRef.current;
 
     if (!initialScrollDone && messages.length > 0) {
-      if (firstUnreadId) {
+      const lastIsUnread = Boolean(firstUnreadId && firstUnreadId === lastMessageId);
+      if (firstUnreadId && !lastIsUnread) {
         setHighlightMessageId(firstUnreadId);
         window.setTimeout(
           () => setHighlightMessageId((prev) => (prev === firstUnreadId ? null : prev)),
           2500,
         );
-        const target = document.querySelector(`[data-message-id="${firstUnreadId}"]`) as HTMLElement | null;
-        target?.scrollIntoView({ behavior: "auto", block: "center" });
+        const container = messagesContainerRef.current;
+        const target = container?.querySelector(`[data-message-id="${firstUnreadId}"]`) as HTMLElement | null;
+        if (container && target) {
+          const top = Math.max(0, target.offsetTop - 16);
+          container.scrollTo({ top, behavior: "auto" });
+        } else {
+          scrollToBottom(false);
+        }
       } else {
         scrollToBottom(false);
       }
       setInitialScrollDone(true);
+      lastSeenMessageIdRef.current = lastMessageId;
       updateScrollDownVisible();
       return;
     }
 
-    if (messages.length > 0 && (forceScrollRef.current || (hasNewMessage && isNearBottom()))) {
+    if (
+      messages.length > 0 &&
+      (forceScrollRef.current || (hasNewMessage && (viewerIsStaff || isNearBottom())))
+    ) {
       scrollToBottom(messages.length > 1);
     }
 
     forceScrollRef.current = false;
     lastSeenMessageIdRef.current = lastMessageId;
     updateScrollDownVisible();
-  }, [messages, scrollToBottom, isNearBottom, firstUnreadId, initialScrollDone, updateScrollDownVisible]);
+  }, [
+    messages,
+    scrollToBottom,
+    isNearBottom,
+    firstUnreadId,
+    initialScrollDone,
+    updateScrollDownVisible,
+    viewerIsStaff,
+  ]);
 
   useEffect(() => {
     const realtimeClient = siteSlug === "subs-store" ? subsSupabase : supabase;

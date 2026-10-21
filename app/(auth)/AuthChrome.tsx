@@ -1,0 +1,106 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { resolveAuthSiteContext } from "@/lib/auth/devStoreProfile";
+import { readBrowserCookie } from "@/lib/auth/readBrowserCookie";
+
+const SPOTIFY_GREEN = "#1DB954";
+
+export function AuthChrome({
+  children,
+  hostname,
+}: {
+  children: React.ReactNode;
+  hostname: string;
+}) {
+  const searchParams = useSearchParams();
+  const pathname = usePathname() ?? "";
+  const returnUrl = searchParams?.get("returnUrl") ?? "";
+  const siteDirect = searchParams?.get("site") ?? "";
+  const isPasswordUpdate = pathname.startsWith("/reset-password/update");
+  const isRecoveryAuthPath =
+    isPasswordUpdate || pathname.startsWith("/callback");
+  const [cookieSite, setCookieSite] = useState("");
+
+  useEffect(() => {
+    const next = isRecoveryAuthPath
+      ? readBrowserCookie("auth_reset_site")
+      : readBrowserCookie("pending_signup_site") ||
+        readBrowserCookie("auth_reset_site") ||
+        readBrowserCookie("current_site");
+    setCookieSite(next);
+  }, [isRecoveryAuthPath]);
+
+  const isSubsStore =
+    resolveAuthSiteContext({
+      siteDirect,
+      returnUrl: isPasswordUpdate ? null : returnUrl,
+      cookieSite,
+      hostname,
+      pathname,
+    }) === "subs-store";
+
+  if (isSubsStore) {
+    return (
+      <div className="flex min-h-screen flex-col" style={{ background: "#080808" }}>
+        <header
+          className="flex h-14 items-center border-b px-6"
+          style={{
+            borderColor: "rgba(255,255,255,0.08)",
+            background: "rgba(10,10,10,0.95)",
+          }}
+        >
+          <Link
+            href="/spotify"
+            className="font-heading text-sm font-semibold text-white transition-opacity hover:opacity-80"
+          >
+            SPOTIFY <span style={{ color: SPOTIFY_GREEN }}>STORE</span>
+          </Link>
+        </header>
+
+        <main className="flex flex-1 items-center justify-center px-4 py-12">
+          <div
+            className="w-full max-w-md rounded-2xl border p-5 sm:p-6"
+            style={{
+              background: "#111111",
+              borderColor: "rgba(255,255,255,0.1)",
+              boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+            }}
+          >
+            {children}
+          </div>
+        </main>
+
+        <footer className="py-4 text-center text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+          © {new Date().getFullYear()} SPOTIFY STORE
+        </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-transparent">
+      <header className="flex h-14 items-center border-b border-black/[0.08] bg-white/75 px-6 backdrop-blur-md">
+        <Link
+          href="/"
+          className="font-heading text-sm font-semibold text-gray-900 transition-colors hover:text-[#10a37f]"
+        >
+          GPT STORE
+        </Link>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md rounded-2xl border border-black/[0.07] bg-white/78 p-5 shadow-[0_12px_36px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-6">
+          {children}
+        </div>
+      </main>
+
+      <footer className="py-4 text-center text-xs text-gray-500">
+        © {new Date().getFullYear()} GPT STORE
+      </footer>
+    </div>
+  );
+}

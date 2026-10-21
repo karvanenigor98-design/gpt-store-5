@@ -30,6 +30,15 @@ async function fetchInChunks<T>(
   return parts.flat();
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), ms);
+    }),
+  ]);
+}
+
 export async function loadGptStaffChatRooms(
   admin: SupabaseClient,
   params: { siteParam: string | null; search: string },
@@ -45,7 +54,7 @@ export async function loadGptStaffChatRooms(
     )
     .eq("type", "operator")
     .order("last_message_at", { ascending: false, nullsFirst: false })
-    .limit(120);
+    .limit(80);
 
   if (siteId) {
     sessionsQuery =
@@ -64,7 +73,7 @@ export async function loadGptStaffChatRooms(
       )
       .eq("type", "operator")
       .order("created_at", { ascending: false })
-      .limit(120);
+      .limit(80);
     if (siteId) {
       fallback =
         siteParam === "gpt-store"
@@ -86,21 +95,25 @@ export async function loadGptStaffChatRooms(
   const userIds = [...new Set(sessionRows.map((s) => s.user_id).filter(Boolean))] as string[];
 
   const profileRows = userIds.length
-    ? await fetchInChunks(userIds, 80, async (chunk) => {
-        let { data, error } = await admin
-          .from("profiles")
-          .select("id, email, username, telegram_username, telegram_id")
-          .in("id", chunk);
-        if (error?.message?.includes("telegram_")) {
-          const fb = await admin.from("profiles").select("id, email, username").in("id", chunk);
-          return (fb.data ?? []).map((row) => ({
-            ...row,
-            telegram_username: null,
-            telegram_id: null,
-          })) as ProfileLite[];
-        }
-        return (data ?? []) as ProfileLite[];
-      })
+    ? await withTimeout(
+        fetchInChunks(userIds, 80, async (chunk) => {
+          let { data, error } = await admin
+            .from("profiles")
+            .select("id, email, username, telegram_username, telegram_id")
+            .in("id", chunk);
+          if (error?.message?.includes("telegram_")) {
+            const fb = await admin.from("profiles").select("id, email, username").in("id", chunk);
+            return (fb.data ?? []).map((row) => ({
+              ...row,
+              telegram_username: null,
+              telegram_id: null,
+            })) as ProfileLite[];
+          }
+          return (data ?? []) as ProfileLite[];
+        }),
+        2500,
+        [] as ProfileLite[],
+      )
     : [];
 
   const profileById = new Map(profileRows.map((p) => [p.id, p]));
@@ -128,18 +141,19 @@ export async function loadGptStaffChatRooms(
   }
 
   const sessionIds = sessionRows.map((s) => s.id);
-  const previewIds = sessionIds.slice(0, 24);
+  const previewIds = sessionIds.slice(0, 16);
+  const unreadIds = sessionIds.slice(0, 24);
 
-  try {
-    await Promise.race([
+  await Promise.all([
+    withTimeout(
       (async () => {
-        const lastMsgs = await fetchInChunks(previewIds, 24, async (chunk) => {
+        const lastMsgs = await fetchInChunks(previewIds, 16, async (chunk) => {
           const { data } = await admin
             .from("chat_messages")
             .select("session_id, created_at, content")
             .in("session_id", chunk)
             .order("created_at", { ascending: false })
-            .limit(Math.min(chunk.length * 2, 48));
+            .limit(Math.min(chunk.length, 16));
           return data ?? [];
         });
 
@@ -156,13 +170,29 @@ export async function loadGptStaffChatRooms(
           }
         }
       })(),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("preview_timeout")), 800);
-      }),
-    ]);
-  } catch {
-    // Список диалогов важнее превью.
-  }
+      600,
+      undefined,
+    ),
+    withTimeout(
+      (async () => {
+        const unreadRows = await fetchInChunks(unreadIds, 24, async (chunk) => {
+          const { data } = await admin
+            .from("chat_messages")
+            .select("session_id")
+            .in("session_id", chunk)
+            .eq("sender_type", "client")
+            .eq("is_read", false)
+            .limit(200);
+          return data ?? [];
+        });
+        for (const row of unreadRows) {
+          unreadBySession.set(row.session_id, (unreadBySession.get(row.session_id) ?? 0) + 1);
+        }
+      })(),
+      600,
+      undefined,
+    ),
+  ]);
 
   function toRoom(s: SessionRow | null, clientId: string, profile: ProfileLite | null, guestLabel?: string): ChatRoomListItem {
     let uiStatus: ChatRoomListItem["status"] = "open";

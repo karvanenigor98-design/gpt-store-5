@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { tryCreateSubsBrowserClient } from "@/lib/supabase/subs-browser-client";
 import type { ChatRoomListItem } from "@/types/chat-ui";
@@ -33,6 +33,7 @@ export function RoomList({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const roomsRef = useRef<ChatRoomListItem[]>([]);
   const supabase = useMemo(() => createClient(), []);
   const subsSupabase = useMemo(() => tryCreateSubsBrowserClient(), []);
   const accent = getSiteBySlug(siteSlug === "subs-store" ? "subs-store" : "gpt-store").primaryColor;
@@ -49,16 +50,23 @@ export function RoomList({
       ? `/api/admin/subs-store/chat/rooms?list=1${q}`
       : `/api/chat/rooms?list=1${q}${siteSlug ? `&site=${encodeURIComponent(siteSlug)}` : ""}`;
     try {
-      let res = await fetch(url, { credentials: "include", cache: "no-store" });
-      if (!res.ok) {
-        await new Promise((r) => window.setTimeout(r, 700));
-        res = await fetch(url, { credentials: "include", cache: "no-store" });
-      }
+      const fetchRooms = () =>
+        fetch(url, {
+          credentials: "include",
+          cache: "no-store",
+          signal:
+            typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+              ? AbortSignal.timeout(20_000)
+              : undefined,
+        });
+      const res = await fetchRooms();
       if (res.ok) {
         const data = (await res.json()) as ChatRoomListItem[];
-        setRooms(Array.isArray(data) ? data : []);
+        const next = Array.isArray(data) ? data : [];
+        roomsRef.current = next;
+        setRooms(next);
         setLoadError(null);
-      } else {
+      } else if (roomsRef.current.length === 0) {
         try {
           const j = (await res.json()) as { error?: string };
           setLoadError(j.error ?? `Ошибка ${res.status}`);
@@ -67,7 +75,7 @@ export function RoomList({
         }
       }
     } catch {
-      setLoadError("Нет связи с сервером");
+      if (roomsRef.current.length === 0) setLoadError("Нет связи с сервером");
     }
     setLoading(false);
   }, [debounced, siteSlug]);
@@ -82,7 +90,7 @@ export function RoomList({
   useEffect(() => {
     const t = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadRooms();
-    }, 15_000);
+    }, 20_000);
     return () => window.clearInterval(t);
   }, [loadRooms]);
 
@@ -94,14 +102,13 @@ export function RoomList({
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         void loadRooms();
-      }, 600);
+      }, 2_000);
     };
 
     const channel = supabase
       .channel("rooms-list-refresh")
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_sessions" }, scheduleReload)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, scheduleReload)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, scheduleReload)
       .subscribe();
     return () => {
       if (timer != null) window.clearTimeout(timer);
@@ -118,7 +125,7 @@ export function RoomList({
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         void loadRooms();
-      }, 600);
+      }, 2_000);
     };
 
     const channel = subsSupabase

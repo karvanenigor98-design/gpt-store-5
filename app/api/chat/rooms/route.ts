@@ -7,6 +7,9 @@ import { readGptCookieUser } from "@/lib/auth/read-gpt-cookie-user";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 30;
+export const dynamic = "force-dynamic";
+
+const roomsMemo = new Map<string, { at: number; rooms: unknown }>();
 
 async function handleRooms(req: NextRequest) {
   const supabase = await createClient();
@@ -24,14 +27,31 @@ async function handleRooms(req: NextRequest) {
     }
 
     try {
+      const search = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+      const siteParam = req.nextUrl.searchParams.get("site");
+      const cacheKey = `${siteParam ?? ""}:${search}`;
+      const cached = roomsMemo.get(cacheKey);
+      if (cached && Date.now() - cached.at < 8_000) {
+        return NextResponse.json(cached.rooms);
+      }
+
       const admin = createAdminClient();
-      const rooms = await loadGptStaffChatRooms(admin, {
-        search: req.nextUrl.searchParams.get("q")?.trim() ?? "",
-        siteParam: req.nextUrl.searchParams.get("site"),
-      });
+      const rooms = await Promise.race([
+        loadGptStaffChatRooms(admin, { search, siteParam }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("rooms_timeout")), 8_000);
+        }),
+      ]);
+      roomsMemo.set(cacheKey, { at: Date.now(), rooms });
       return NextResponse.json(rooms);
     } catch (err) {
       console.error("[chat/rooms] staff list", err);
+      const search = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+      const siteParam = req.nextUrl.searchParams.get("site");
+      const stale = roomsMemo.get(`${siteParam ?? ""}:${search}`);
+      if (stale?.rooms) {
+        return NextResponse.json(stale.rooms);
+      }
       return NextResponse.json({ error: "Не удалось загрузить чаты" }, { status: 503 });
     }
   }
