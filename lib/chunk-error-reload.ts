@@ -1,9 +1,15 @@
 export function isStaleChunkError(error: unknown): boolean {
   const err = error as { name?: string; message?: string } | null;
   const text = `${err?.name ?? ""} ${err?.message ?? ""}`;
-  return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|\/_next\/static\//i.test(
+  return /ChunkLoadError|Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|\/_next\/static\/|URI malformed|URIError/i.test(
     text,
   );
+}
+
+function cacheBustCurrentUrl(): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_r", String(Date.now()));
+  return url.pathname + url.search + url.hash;
 }
 
 export function reloadOnceForStaleChunk(error: unknown): void {
@@ -15,7 +21,17 @@ export function reloadOnceForStaleChunk(error: unknown): void {
   } catch {
     /* private mode */
   }
-  window.location.reload();
+  window.location.replace(cacheBustCurrentUrl());
+}
+
+export function hardReloadCurrentPage(): void {
+  try {
+    sessionStorage.removeItem("gpt_chunk_reload");
+  } catch {
+    /* ignore */
+  }
+  if (typeof window === "undefined") return;
+  window.location.replace(cacheBustCurrentUrl());
 }
 
 export function hardOpenHome(): void {

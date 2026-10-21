@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { hardOpenHome, reloadOnceForStaleChunk } from "@/lib/chunk-error-reload";
+import { hardReloadCurrentPage, reloadOnceForStaleChunk } from "@/lib/chunk-error-reload";
 
 export default function PublicError({
   error,
@@ -29,10 +29,10 @@ export default function PublicError({
       <div className="flex flex-col items-center gap-3">
         <button
           type="button"
-          onClick={() => hardOpenHome()}
+          onClick={() => hardReloadCurrentPage()}
           className="rounded-xl bg-[#10a37f] px-5 py-2.5 text-sm font-semibold text-white"
         >
-          На главную
+          Обновить страницу
         </button>
       </div>
     </div>
