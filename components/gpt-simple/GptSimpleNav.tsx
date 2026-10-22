@@ -9,10 +9,10 @@ export function GptSimpleNav({ initialLoggedIn = false }: { initialLoggedIn?: bo
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-[#e9f8f2]/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 md:px-6">
-        <a href="#hero" className="font-heading shrink-0 text-[15px] font-semibold tracking-tight text-gray-900 md:text-base">
-          GPT <span className="text-[#10a37f]">STORE</span>
+        <a href="/" className="font-heading shrink-0 text-[15px] font-semibold tracking-tight text-[#10a37f] md:text-base">
+          GPT STORE
         </a>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           <LandingAuthNavLink
             siteSlug="gpt-store"
             initialLoggedIn={initialLoggedIn}

@@ -2,6 +2,8 @@
 
 import { ArrowRight, Check, Clock3, CreditCard, Shield, Star } from "lucide-react";
 
+import { scrollToGptPlans } from "@/lib/landing/gpt-plan-search";
+
 const LEFT_FEATURES = [
   "Подключение на ваш аккаунт",
   "Без сложной регистрации",
@@ -9,9 +11,9 @@ const LEFT_FEATURES = [
 ] as const;
 
 const GUIDE_PLANS = [
-  { name: "ChatGPT Go", hint: "Для повседневных задач" },
+  { name: "ChatGPT Go", hint: "На каждый день" },
   { name: "ChatGPT Plus", hint: "Больше возможностей" },
-  { name: "ChatGPT Pro", hint: "Максимальная производительность" },
+  { name: "ChatGPT Pro", hint: "Максимум мощности" },
 ] as const;
 
 const GUIDE_CHECKS = [
@@ -36,27 +38,18 @@ function CheckDot() {
 
 function ChatGptCube() {
   return (
-    <div className="relative h-[7.25rem] w-[7.25rem] shrink-0" style={{ width: 116, height: 116 }}>
-      <span
-        className="absolute -right-1 top-2 h-3 w-3 rotate-45 bg-[#10a37f]/70"
-        aria-hidden
-      />
-      <span
-        className="absolute -top-1 right-7 h-2 w-2 rotate-45 bg-[#10a37f]/50"
-        aria-hidden
-      />
+    <div className="relative h-24 w-24 shrink-0 sm:h-[6.5rem] sm:w-[6.5rem]">
       <div
-        className="flex h-full w-full items-center justify-center rounded-[1.35rem] shadow-[0_18px_40px_rgba(16,163,127,0.28)]"
+        className="flex h-full w-full items-center justify-center rounded-[1.25rem] shadow-[0_14px_32px_rgba(16,163,127,0.24)]"
         style={{
           background: "linear-gradient(145deg, #5ee0b4 0%, #10a37f 52%, #0b7d61 100%)",
         }}
       >
         <svg
           viewBox="0 0 2406 2406"
-          width={64}
-          height={64}
-          className="h-16 w-16 text-white"
-          style={{ width: 64, height: 64, color: "#fff" }}
+          width={56}
+          height={56}
+          className="h-14 w-14 text-white"
           aria-hidden
         >
           <path
@@ -85,15 +78,17 @@ export function GptSimpleHero() {
       </div>
 
       <div className="relative z-10 mx-auto max-w-6xl">
-        <div className="grid items-stretch gap-4 lg:grid-cols-2 lg:gap-5">
-          <article className="flex flex-col rounded-[1.75rem] bg-white p-6 shadow-[0_12px_40px_rgba(16,163,127,0.08)] md:p-8 lg:p-10">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#10a37f] md:text-xs">
-              Быстрое подключение и простой выбор
-            </p>
-            <h1 className="font-heading mt-3 text-[1.85rem] font-bold leading-[1.12] tracking-tight text-gray-900 md:text-4xl lg:text-[2.55rem]">
-              Выберите подходящий тариф для своих задач
-            </h1>
-            <ul className="mt-6 flex-1 space-y-3 text-[15px] text-gray-500 md:mt-7 md:text-base">
+        <div className="hero-split grid gap-4 md:grid-cols-2 md:auto-rows-fr md:gap-5">
+          <article className="flex flex-col rounded-[1.75rem] bg-white p-6 shadow-[0_12px_40px_rgba(16,163,127,0.08)] md:p-8">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0f8f70]">
+                Быстрое подключение и простой выбор
+              </p>
+              <h1 className="font-heading mt-3 text-[1.75rem] font-bold leading-[1.22] tracking-tight text-gray-900 md:text-[2.15rem] lg:text-[2.4rem]">
+                Выберите подходящий тариф для своих задач
+              </h1>
+            </div>
+            <ul className="mt-5 space-y-3.5 text-[17px] leading-7 text-gray-700 md:mt-6 md:flex md:flex-1 md:flex-col md:justify-evenly md:space-y-0">
               {LEFT_FEATURES.map((item) => (
                 <li key={item} className="flex items-center gap-3">
                   <CheckDot />
@@ -103,33 +98,37 @@ export function GptSimpleHero() {
             </ul>
             <a
               href="#plans"
-              className="mt-auto inline-flex min-h-[3.25rem] w-auto self-start items-center justify-center gap-2 rounded-full bg-[#10a37f] px-8 text-base font-semibold text-white shadow-[0_10px_24px_rgba(16,163,127,0.28)] transition-colors hover:bg-[#0d8a6a]"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToGptPlans();
+              }}
+              className="mt-5 inline-flex min-h-[3.25rem] w-auto shrink-0 self-start items-center justify-center gap-2 rounded-full bg-[#10a37f] px-8 text-base font-semibold text-white shadow-[0_10px_24px_rgba(16,163,127,0.28)] transition-colors hover:bg-[#0d8a6a]"
             >
               Выбрать тариф
               <ArrowRight className="h-5 w-5" aria-hidden />
             </a>
           </article>
 
-          <article className="flex flex-col rounded-[1.75rem] bg-white p-6 shadow-[0_12px_40px_rgba(16,163,127,0.08)] md:p-8 lg:p-9">
-            <h2 className="font-heading text-[1.65rem] font-bold leading-tight text-gray-900 md:text-[1.85rem]">
+          <article className="flex flex-col rounded-[1.75rem] bg-white p-6 shadow-[0_12px_40px_rgba(16,163,127,0.08)] md:p-8">
+            <h2 className="font-heading text-[1.45rem] font-bold leading-snug text-gray-900 md:text-[1.7rem]">
               Как выбрать подходящий вариант
             </h2>
-            <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="hero-guide mt-5 space-y-2">
               {GUIDE_PLANS.map((plan) => (
                 <div
                   key={plan.name}
-                  className="rounded-2xl border border-black/[0.06] bg-[#f7fbf9] px-2.5 py-3 md:px-3"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-black/[0.07] bg-[#f6fbf8] px-3.5 py-2.5"
                 >
-                  <p className="flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-gray-900 md:text-xs">
-                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#10a37f]" aria-hidden />
+                  <p className="flex min-w-0 items-center gap-2 text-[15px] font-semibold leading-6 text-gray-900">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#10a37f]" aria-hidden />
                     {plan.name}
                   </p>
-                  <p className="mt-1 pl-3 text-[10px] leading-snug text-gray-400 md:text-[11px]">{plan.hint}</p>
+                  <p className="shrink-0 text-[13px] leading-5 text-gray-600">{plan.hint}</p>
                 </div>
               ))}
             </div>
-            <div className="mt-5 flex items-end justify-between gap-4">
-              <ul className="min-w-0 space-y-2.5 text-[13px] text-gray-600 md:text-[15px]">
+            <div className="mt-5 flex items-center justify-between gap-4">
+              <ul className="min-w-0 space-y-3 text-[15px] leading-6 text-gray-700">
                 {GUIDE_CHECKS.map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <CheckDot />
@@ -139,37 +138,37 @@ export function GptSimpleHero() {
               </ul>
               <ChatGptCube />
             </div>
-            <div className="mt-6 flex items-center justify-between gap-3 rounded-[1.25rem] bg-[#f4faf7] px-4 py-3.5 md:px-5">
+            <div className="mt-5 flex items-center justify-between gap-4 rounded-[1.25rem] bg-[#f4faf7] px-4 py-3.5 md:mt-auto md:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
                   <Clock3 className="h-5 w-5 text-[#10a37f]" aria-hidden />
                 </span>
                 <div>
-                  <p className="text-[11px] text-gray-400 md:text-xs">Среднее время подключения</p>
-                  <p className="font-heading text-xl font-bold leading-none text-gray-900 md:text-2xl">
+                  <p className="text-[13px] leading-5 text-gray-600">Среднее время подключения</p>
+                  <p className="font-heading text-xl font-bold leading-7 text-gray-900 md:text-2xl">
                     5–15 минут
                   </p>
                 </div>
               </div>
-              <p className="hidden w-[6.75rem] shrink-0 text-right text-xs leading-snug text-gray-400 sm:block">
+              <p className="hidden max-w-[8.5rem] shrink-0 text-right text-[13px] leading-5 text-gray-600 sm:block">
                 Быстро и без лишних шагов
               </p>
             </div>
           </article>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="hero-trust mt-4 flex flex-col gap-3 min-[880px]:flex-row">
           {TRUST.map(({ value, label, Icon }) => (
             <div
               key={value}
-              className="flex items-center gap-3 rounded-[1.35rem] bg-white px-5 py-4 shadow-[0_8px_28px_rgba(16,163,127,0.06)]"
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-[1.35rem] bg-white px-5 py-4 shadow-[0_8px_28px_rgba(16,163,127,0.06)]"
             >
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#10a37f]/10">
                 <Icon className="h-5 w-5 text-[#10a37f]" strokeWidth={2.1} aria-hidden />
               </span>
               <div className="min-w-0">
-                <p className="font-heading text-base font-bold leading-tight text-gray-900 md:text-lg">{value}</p>
-                <p className="text-xs text-gray-400 md:text-sm">{label}</p>
+                <p className="font-heading text-[17px] font-bold leading-6 text-gray-900">{value}</p>
+                <p className="text-[13px] leading-5 text-gray-600">{label}</p>
               </div>
             </div>
           ))}
