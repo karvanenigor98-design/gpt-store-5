@@ -8,6 +8,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { useLandingReviewsRotation } from "@/hooks/useLandingReviewsRotation";
 import { GPT_SIMPLE_FAQ_ITEMS } from "@/lib/chatgpt-data";
 import { shouldHideUsername } from "@/lib/reviews/review-sanitize";
 import type { PublicReview } from "@/lib/reviews/publicReviews";
@@ -19,16 +20,12 @@ function ReviewCard({ review }: { review: PublicReview }) {
 
   return (
     <article className="rounded-2xl border border-black/[0.07] bg-white p-4">
-      <header className="flex items-center gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-          style={{ backgroundColor: review.avatarColor }}
-        >
-          {review.initials}
-        </div>
+      <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">{review.authorName}</p>
-          {username ? <p className="text-xs text-gray-500">@{username}</p> : null}
+          <p className="truncate text-sm font-semibold text-gray-900">{review.authorName}</p>
+          {username ? <p className="truncate text-xs text-gray-500">@{username}</p> : null}
+        </div>
+        <div className="shrink-0 text-right">
           <p className="text-xs text-amber-400">★★★★★</p>
           <p className="text-xs text-gray-400">{review.dateLabel}</p>
         </div>
@@ -39,7 +36,8 @@ function ReviewCard({ review }: { review: PublicReview }) {
 }
 
 export function GptSimpleFaqReviews({ reviews }: { reviews: PublicReview[] }) {
-  const preview = reviews.slice(0, 3);
+  const visible = useLandingReviewsRotation(reviews, 3, 10_000);
+  const batchKey = visible.map((review) => review.id).join("|");
 
   return (
     <section className="px-4 py-10 md:px-6 md:py-14">
@@ -73,11 +71,11 @@ export function GptSimpleFaqReviews({ reviews }: { reviews: PublicReview[] }) {
               Смотреть все отзывы →
             </Link>
           </div>
-          {preview.length === 0 ? (
+          {visible.length === 0 ? (
             <p className="text-sm text-gray-500">Отзывы появятся после публикации в админке.</p>
           ) : (
-            <div className="grid gap-3">
-              {preview.map((review) => (
+            <div key={batchKey} className="grid gap-3">
+              {visible.map((review) => (
                 <ReviewCard key={review.id} review={review} />
               ))}
             </div>

@@ -23,6 +23,22 @@ export function sortLandingReviewsNewestFirst<T extends LandingReviewLike>(items
   return [...items].sort((a, b) => reviewTs(b) - reviewTs(a));
 }
 
+/** Равномерная выборка по всему диапазону дат: индекс 0 — самый новый, последний — самый старый. */
+export function spreadLandingReviewsNewestToOldest<T>(items: readonly T[], maxCount: number): T[] {
+  if (maxCount <= 0 || items.length === 0) return [];
+  if (items.length <= maxCount) return [...items];
+  if (maxCount === 1) return [items[0]!];
+  const out: T[] = [];
+  const used = new Set<number>();
+  for (let i = 0; i < maxCount; i += 1) {
+    const idx = Math.round((i * (items.length - 1)) / (maxCount - 1));
+    if (used.has(idx)) continue;
+    used.add(idx);
+    out.push(items[idx]!);
+  }
+  return out;
+}
+
 /** Отзывы с 1 мая 2025 и новее (как в Telegram-экспорте). */
 export function filterReviewsFromMay<T extends LandingReviewLike>(items: T[]): T[] {
   return items.filter((item) => reviewTs(item) >= REVIEW_MIN_TIMESTAMP);

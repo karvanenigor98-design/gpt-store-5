@@ -10,7 +10,8 @@ import { GptSimplePlans } from "@/components/gpt-simple/GptSimplePlans";
 import { GptSimpleStickyCta } from "@/components/gpt-simple/GptSimpleStickyCta";
 import { StoreConfigAutoRefresh } from "@/components/sections/StoreConfigAutoRefresh";
 import { getPublicSiteOrigin } from "@/lib/app-url";
-import { getStaticGptLandingPayload, getStaticGptLandingReviews } from "@/lib/landing/gpt-static-landing";
+import { loadGptLandingMainReviews } from "@/lib/landing/gpt-landing-reviews";
+import { getStaticGptLandingPayload } from "@/lib/landing/gpt-static-landing";
 
 const APP_URL = getPublicSiteOrigin();
 
@@ -29,9 +30,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
+export default async function HomePage() {
   const { storeConfig } = getStaticGptLandingPayload();
-  const reviews = getStaticGptLandingReviews(12);
+  const reviews = await loadGptLandingMainReviews();
 
   return (
     <div id="gpt-landing" className="relative min-h-screen bg-[#e9f8f2]">
