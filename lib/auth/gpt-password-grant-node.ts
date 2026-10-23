@@ -183,7 +183,7 @@ export async function gptPasswordGrantIpv4(
       [...tlsAttempts, fetchAttempt].map(async (attempt) => {
         const parsed = await attempt;
         if (usableGrant(parsed)) return parsed;
-        throw new Error(parsed.message);
+        throw new Error(parsed.ok ? "auth_network" : parsed.message);
       }),
     );
   } catch {
