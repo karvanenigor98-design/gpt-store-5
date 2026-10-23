@@ -76,6 +76,7 @@ function postGrant(opts: {
   apiKey: string;
   body: string;
   timeoutMs: number;
+  pinIp?: boolean;
 }): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -88,7 +89,7 @@ function postGrant(opts: {
         method: "POST",
         family: 4,
         timeout: opts.timeoutMs,
-        lookup: (host, _o, cb) => cb(null, host, 4),
+        ...(opts.pinIp ? { lookup: (host, _o, cb) => cb(null, host, 4) } : {}),
         headers: {
           Host: opts.hostHeader,
           apikey: opts.apiKey,
@@ -112,9 +113,13 @@ function postGrant(opts: {
   });
 }
 
-const GOTRUE_CF_IPS = ["104.18.38.10", "172.64.149.246"] as const;
+const GOTRUE_DIRECT_IPS = ["8.47.69.5", "8.6.112.5"] as const;
 
-/** Password grant: Cloudflare anycast IPs + SNI supabase.co. VPS SSL fallback skipped. */
+function usableGrant(parsed: PasswordGrantResult): boolean {
+  return parsed.ok || parsed.status === 400 || parsed.status === 401 || parsed.status === 429;
+}
+
+/** Password grant via DNS hostname + current GoTrue IPs. Stale CF anycast IPs hang from Vercel. */
 export async function gptPasswordGrantIpv4(
   email: string,
   password: string,
@@ -126,28 +131,58 @@ export async function gptPasswordGrantIpv4(
   }
   const body = JSON.stringify({ email, password });
   const gotrueHost = gptGoTrueServername();
-  const perTry = Math.min(3_000, Math.max(2_000, Math.floor(timeoutMs / 2)));
+  const perTry = Math.min(6_000, Math.max(4_000, timeoutMs));
 
-  const attempts = GOTRUE_CF_IPS.map(async (ip) => {
-    const { status, body: text } = await postGrant({
-      hostname: ip,
+  const tlsAttempts = [
+    postGrant({
+      hostname: gotrueHost,
       servername: gotrueHost,
       hostHeader: gotrueHost,
       path: "/auth/v1/token?grant_type=password",
       apiKey,
       body,
       timeoutMs: perTry,
-    });
+    }),
+    ...GOTRUE_DIRECT_IPS.map((ip) =>
+      postGrant({
+        hostname: ip,
+        servername: gotrueHost,
+        hostHeader: gotrueHost,
+        path: "/auth/v1/token?grant_type=password",
+        apiKey,
+        body,
+        timeoutMs: perTry,
+        pinIp: true,
+      }),
+    ),
+  ].map(async (attempt) => {
+    const { status, body: text } = await attempt;
     return parseGrant(status, text, email);
   });
 
+  const fetchAttempt = (async (): Promise<PasswordGrantResult> => {
+    try {
+      const res = await fetch(`https://${gotrueHost}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: AbortSignal.timeout(perTry),
+      });
+      return parseGrant(res.status, await res.text(), email);
+    } catch {
+      return { ok: false, status: 503, message: "timeout" };
+    }
+  })();
+
   try {
     return await Promise.any(
-      attempts.map(async (attempt) => {
+      [...tlsAttempts, fetchAttempt].map(async (attempt) => {
         const parsed = await attempt;
-        if (parsed.ok || parsed.status === 400 || parsed.status === 401 || parsed.status === 429) {
-          return parsed;
-        }
+        if (usableGrant(parsed)) return parsed;
         throw new Error(parsed.message);
       }),
     );
