@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const grant = await gptPasswordGrantIpv4(email, password, 12_000);
+  const grant = await gptPasswordGrantIpv4(email, password, 18_000);
   if (!grant.ok) {
     console.error("gpt-login grant failed", grant.status, grant.message);
     if (grant.message === "timeout" || grant.message === "auth_network") {

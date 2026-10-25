@@ -113,13 +113,21 @@ function postGrant(opts: {
   });
 }
 
-const GOTRUE_DIRECT_IPS = ["8.47.69.5", "8.6.112.5"] as const;
+const GOTRUE_DIRECT_IPS = ["8.6.112.0", "8.47.69.0"] as const;
 
 function usableGrant(parsed: PasswordGrantResult): boolean {
   return parsed.ok || parsed.status === 400 || parsed.status === 401 || parsed.status === 429;
 }
 
-/** Password grant via DNS hostname + current GoTrue IPs. Stale CF anycast IPs hang from Vercel. */
+function gotrueProxyBase(): string {
+  const raw = (process.env.GPT_GOTRUE_PROXY_URL || "https://gptplus-store.ru/__sb-auth").trim();
+  return raw.replace(/\/$/, "");
+}
+
+/**
+ * One grant at a time. Parallel Promise.any stampeded GoTrue and hung real logins
+ * (invalid emails 401 instantly; a real account deadlocked / timed out).
+ */
 export async function gptPasswordGrantIpv4(
   email: string,
   password: string,
@@ -131,64 +139,72 @@ export async function gptPasswordGrantIpv4(
   }
   const body = JSON.stringify({ email, password });
   const gotrueHost = gptGoTrueServername();
-  const perTry = Math.min(6_000, Math.max(4_000, timeoutMs));
+  const perTry = 7_000;
+  const deadline = Date.now() + Math.max(timeoutMs, 15_000);
+  const path = "/auth/v1/token?grant_type=password";
 
-  const tlsAttempts = [
-    postGrant({
-      hostname: gotrueHost,
-      servername: gotrueHost,
-      hostHeader: gotrueHost,
-      path: "/auth/v1/token?grant_type=password",
-      apiKey,
-      body,
-      timeoutMs: perTry,
-    }),
-    ...GOTRUE_DIRECT_IPS.map((ip) =>
-      postGrant({
-        hostname: ip,
-        servername: gotrueHost,
-        hostHeader: gotrueHost,
-        path: "/auth/v1/token?grant_type=password",
-        apiKey,
-        body,
-        timeoutMs: perTry,
-        pinIp: true,
-      }),
-    ),
-  ].map(async (attempt) => {
-    const { status, body: text } = await attempt;
-    return parseGrant(status, text, email);
-  });
-
-  const fetchAttempt = (async (): Promise<PasswordGrantResult> => {
+  const run = async (fn: () => Promise<{ status: number; body: string }>): Promise<PasswordGrantResult> => {
     try {
-      const res = await fetch(`https://${gotrueHost}/auth/v1/token?grant_type=password`, {
-        method: "POST",
-        headers: {
-          apikey: apiKey,
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body,
-        signal: AbortSignal.timeout(perTry),
-      });
-      return parseGrant(res.status, await res.text(), email);
+      const { status, body: text } = await fn();
+      return parseGrant(status, text, email);
     } catch {
       return { ok: false, status: 503, message: "timeout" };
     }
-  })();
+  };
 
-  try {
-    return await Promise.any(
-      [...tlsAttempts, fetchAttempt].map(async (attempt) => {
-        const parsed = await attempt;
-        if (usableGrant(parsed)) return parsed;
-        throw new Error(parsed.ok ? "auth_network" : parsed.message);
+  const attempts: Array<() => Promise<PasswordGrantResult>> = [
+    () =>
+      run(async () => {
+        const res = await fetch(`https://${gotrueHost}${path}`, {
+          method: "POST",
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body,
+          signal: AbortSignal.timeout(perTry),
+        });
+        return { status: res.status, body: await res.text() };
       }),
-    );
-  } catch {
-    return { ok: false, status: 503, message: "auth_network" };
+    () =>
+      run(async () => {
+        const res = await fetch(`${gotrueProxyBase()}${path}`, {
+          method: "POST",
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body,
+          signal: AbortSignal.timeout(perTry),
+        });
+        return { status: res.status, body: await res.text() };
+      }),
+    ...GOTRUE_DIRECT_IPS.map(
+      (ip) => () =>
+        run(() =>
+          postGrant({
+            hostname: ip,
+            servername: gotrueHost,
+            hostHeader: gotrueHost,
+            path,
+            apiKey,
+            body,
+            timeoutMs: perTry,
+            pinIp: true,
+          }),
+        ),
+    ),
+  ];
+
+  let last: PasswordGrantResult = { ok: false, status: 503, message: "auth_network" };
+  for (const attempt of attempts) {
+    if (Date.now() >= deadline) break;
+    last = await attempt();
+    if (usableGrant(last)) return last;
   }
+  return last;
 }
 
 export function gptGoTrueServername(): string {
