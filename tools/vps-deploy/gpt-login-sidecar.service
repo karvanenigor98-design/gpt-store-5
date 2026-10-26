@@ -1,0 +1,17 @@
+[Unit]
+Description=GPT STORE local password-grant sidecar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/gpt-login-sidecar
+EnvironmentFile=/opt/gpt-login-sidecar/.env
+ExecStart=/usr/bin/python3 /opt/gpt-login-sidecar/gpt-login-sidecar.py
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

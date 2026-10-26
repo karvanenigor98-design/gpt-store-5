@@ -63,6 +63,43 @@ export function LoginForm() {
   });
 
   async function onGptSubmit(email: string, password: string) {
+    const sidecar = await fetch("/api/auth/gpt-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password, returnUrl: effectiveReturnUrl }),
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => null);
+
+    if (sidecar?.ok) {
+      const loginBody = (await sidecar.json().catch(() => ({}))) as {
+        path?: string;
+        role?: UserRole;
+      };
+      const role: UserRole =
+        loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
+          ? loginBody.role
+          : "client";
+      const target =
+        typeof loginBody.path === "string" && loginBody.path.startsWith("/")
+          ? loginBody.path
+          : resolvePostLoginPath(effectiveReturnUrl, role);
+      router.push(target);
+      router.refresh();
+      return;
+    }
+
+    if (sidecar && (sidecar.status === 401 || sidecar.status === 400)) {
+      setServerError(
+        "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+      );
+      return;
+    }
+    if (sidecar?.status === 429) {
+      setServerError("Слишком много попыток. Подождите минуту и войдите снова.");
+      return;
+    }
+
     let tokens: { access_token: string; refresh_token: string; expires_at?: number } | null = null;
     try {
       tokens = await gptBrowserPasswordGrant(email, password);
@@ -72,10 +109,12 @@ export function LoginForm() {
         setServerError("Слишком много попыток. Подождите минуту и войдите снова.");
         return;
       }
-      setServerError(
-        "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
-      );
-      return;
+      if (status === 401 || status === 400) {
+        setServerError(
+          "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+        );
+        return;
+      }
     }
 
     if (!tokens) {
