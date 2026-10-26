@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import type { PasswordGrantResult } from "@/lib/auth/gpt-password-grant";
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
-function userFromAccessToken(access: string, email: string): User | null {
+export function userFromAccessToken(access: string, email: string): User | null {
   const parts = access.split(".");
   if (parts.length < 2) return null;
   try {

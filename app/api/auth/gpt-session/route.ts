@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
-import { userFromGptAccessToken } from "@/lib/auth/parse-gpt-auth-cookie";
+import { userFromAccessToken } from "@/lib/auth/gpt-password-grant-node";
+import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 
 export const runtime = "nodejs";
+export const maxDuration = 10;
 
 type Body = {
-  access_token?: string;
-  refresh_token?: string;
-  expires_at?: number;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
   returnUrl?: string;
+  email?: string;
 };
 
 export async function POST(request: NextRequest) {
@@ -20,18 +23,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Неверный запрос" }, { status: 400 });
   }
 
-  const access = typeof body.access_token === "string" ? body.access_token : "";
-  const refresh = typeof body.refresh_token === "string" ? body.refresh_token : "";
-  const parsed = userFromGptAccessToken(access);
-  if (!access || !refresh || !parsed?.user) {
-    return NextResponse.json({ error: "Сессия входа недействительна." }, { status: 401 });
+  const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
+  const refreshToken = typeof body.refreshToken === "string" ? body.refreshToken : "";
+  const email = normalizeEmailForAuth(body.email ?? "");
+  const user = userFromAccessToken(accessToken, email);
+  if (!accessToken || !refreshToken || !user?.id) {
+    return NextResponse.json({ error: "Сессия входа повреждена. Войдите снова." }, { status: 401 });
   }
 
   return finishGptLoginResponse({
-    accessToken: access,
-    refreshToken: refresh,
-    user: parsed.user,
-    expiresAt: parsed.expiresAt ?? (typeof body.expires_at === "number" ? body.expires_at : undefined),
+    accessToken,
+    refreshToken,
+    user,
+    expiresAt: typeof body.expiresAt === "number" ? body.expiresAt : undefined,
     returnUrl: body.returnUrl ?? "/cabinet",
+    origin: request.nextUrl.origin,
+    redirect: false,
   });
 }

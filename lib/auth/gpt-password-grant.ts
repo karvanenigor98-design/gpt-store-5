@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 
+import { userFromAccessToken } from "@/lib/auth/gpt-password-grant-node";
 import { getGptPublicSupabaseUrl } from "@/lib/supabase/validate-project-url";
 
 export type PasswordGrantResult =
@@ -64,7 +65,8 @@ function parseGrantBody(status: number, body: string): PasswordGrantResult {
   } catch {
     return { ok: false, status: status || 503, message: "auth_parse" };
   }
-  if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token || !json.user) {
+  const user = json.user?.id ? json.user : userFromAccessToken(json.access_token ?? "", "");
+  if (status < 200 || status >= 300 || !json.access_token || !json.refresh_token || !user?.id) {
     const message =
       json.error_description || json.msg || json.message || json.error || `auth_${status}`;
     return { ok: false, status: status || 401, message: String(message) };
@@ -79,7 +81,7 @@ function parseGrantBody(status: number, body: string): PasswordGrantResult {
     ok: true,
     accessToken: json.access_token,
     refreshToken: json.refresh_token,
-    user: json.user,
+    user,
     expiresAt,
   };
 }

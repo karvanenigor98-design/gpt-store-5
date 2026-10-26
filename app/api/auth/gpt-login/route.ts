@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { authRateLimitUserMessage, isAuthRateLimitError } from "@/lib/auth/auth-rate-limit";
 import { finishGptLoginResponse } from "@/lib/auth/finish-gpt-login";
-import { gptPasswordGrantIpv4 } from "@/lib/auth/gpt-password-grant-node";
+import { gptPasswordGrant } from "@/lib/auth/gpt-password-grant";
 import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 
 export const runtime = "nodejs";
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const grant = await gptPasswordGrantIpv4(email, password, 18_000);
+  const grant = await gptPasswordGrant(email, password, 8_000);
   if (!grant.ok) {
     console.error("gpt-login grant failed", grant.status, grant.message);
     if (grant.message === "timeout" || grant.message === "auth_network") {

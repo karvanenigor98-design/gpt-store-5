@@ -27,7 +27,7 @@ export async function gptBrowserPasswordGrant(
         Authorization: `Bearer ${anon}`,
       },
       body: JSON.stringify({ email, password }),
-      signal: abortSignal(8_000),
+      signal: abortSignal(12_000),
     });
     const json = (await res.json().catch(() => ({}))) as GrantOk & {
       error?: string;

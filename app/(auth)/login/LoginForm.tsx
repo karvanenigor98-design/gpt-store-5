@@ -9,7 +9,9 @@ import { normalizeEmailForAuth } from "@/lib/auth/normalizeEmail";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 import { resolveAuthReturnUrl } from "@/lib/auth/authReturnUrl";
 import { getCheckoutAuthMessage } from "@/lib/checkout/checkout-intent";
+import { gptBrowserPasswordGrant } from "@/lib/auth/gpt-browser-password-grant";
 import { resolvePostLoginPath } from "@/lib/auth/postLoginPath";
+import { tryCreateClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
@@ -60,16 +62,96 @@ export function LoginForm() {
     defaultValues: { email: initialEmail, password: "" },
   });
 
+  async function onGptSubmit(email: string, password: string) {
+    let tokens: { access_token: string; refresh_token: string; expires_at?: number } | null = null;
+    try {
+      tokens = await gptBrowserPasswordGrant(email, password);
+    } catch (err) {
+      const status = err && typeof err === "object" && "status" in err ? Number(err.status) : 0;
+      if (status === 429) {
+        setServerError("Слишком много попыток. Подождите минуту и войдите снова.");
+        return;
+      }
+      setServerError(
+        "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+      );
+      return;
+    }
+
+    if (!tokens) {
+      const supabase = tryCreateClient();
+      if (supabase) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const session = data.session;
+        if (session?.access_token && session.refresh_token) {
+          tokens = {
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+            expires_at: session.expires_at,
+          };
+        } else if (error && !/fetch|network|timeout|abort/i.test(error.message)) {
+          setServerError(
+            "Неверный email или пароль. Если забыли пароль — восстановите через /reset-password.",
+          );
+          return;
+        }
+      }
+    }
+
+    if (!tokens) {
+      setServerError("Сервер входа не ответил. Повторите попытку.");
+      return;
+    }
+
+    const loginRes = await fetch("/api/auth/gpt-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresAt: tokens.expires_at,
+        returnUrl: effectiveReturnUrl,
+        email,
+      }),
+    });
+    const loginBody = (await loginRes.json().catch(() => ({}))) as {
+      error?: string;
+      path?: string;
+      role?: UserRole;
+    };
+    if (!loginRes.ok) {
+      setServerError(loginBody.error ?? "Не удалось сохранить сессию. Повторите вход.");
+      return;
+    }
+    const role: UserRole =
+      loginBody.role === "admin" || loginBody.role === "operator" || loginBody.role === "client"
+        ? loginBody.role
+        : "client";
+    const target =
+      typeof loginBody.path === "string" && loginBody.path.startsWith("/")
+        ? loginBody.path
+        : resolvePostLoginPath(effectiveReturnUrl, role);
+    router.push(target);
+    router.refresh();
+  }
+
   async function onSubmit(data: LoginInput) {
     setServerError(null);
     const normalizedEmail = normalizeEmailForAuth(data.email);
     const password = data.password;
 
-    if (!isSubsStore) {
-      return;
-    }
-
     try {
+      if (!isSubsStore) {
+        setBusy(true);
+        try {
+          await onGptSubmit(normalizedEmail, password);
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+
       const loginRes = await fetch("/api/auth/subs-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,13 +259,7 @@ export function LoginForm() {
     <form
       method="post"
       action={isSubsStore ? undefined : "/api/auth/gpt-login"}
-      onSubmit={
-        isSubsStore
-          ? handleSubmit(onSubmit, onInvalid)
-          : () => {
-              setBusy(true);
-            }
-      }
+      onSubmit={handleSubmit(onSubmit, onInvalid)}
       className="space-y-4"
     >
       {checkoutMessage ? (
@@ -202,11 +278,9 @@ export function LoginForm() {
         <label className={labelClass}>Email</label>
         <input
           type="email"
-          name="email"
           autoComplete="email"
           required
-          defaultValue={initialEmail}
-          {...(isSubsStore ? register("email") : null)}
+          {...register("email")}
           className={inputClass(!!errors.email)}
           placeholder="you@example.com"
         />
@@ -234,11 +308,10 @@ export function LoginForm() {
           ) : null}
           <input
             type={showPass ? "text" : "password"}
-            name="password"
             autoComplete="current-password"
             required
             minLength={6}
-            {...(isSubsStore ? register("password") : null)}
+            {...register("password")}
             className={cn(inputClass(!!errors.password), "pr-10")}
             placeholder="••••••••"
           />
